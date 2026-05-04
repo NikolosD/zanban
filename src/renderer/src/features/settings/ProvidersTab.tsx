@@ -7,6 +7,7 @@ import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderCard, SecretKeyField } from './ProviderCard'
+import { cn } from '@renderer/lib/utils'
 
 interface Props {
   settings: AppSettings
@@ -112,6 +113,10 @@ const STT_CARDS: SttProviderEntry[] = [
   }
 ]
 
+/**
+ * AI providers tab body — LLM cards only. STT lives in the Audio tab,
+ * Tavily lives in its own section below the model overrides.
+ */
 export function ProvidersTab({ settings, update }: Props) {
   const [ollama, setOllama] = useState<OllamaHealthType | null>(null)
 
@@ -138,46 +143,21 @@ export function ProvidersTab({ settings, update }: Props) {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Privacy mode flag — same as before, structurally separate from cards. */}
-      <div className="flex flex-col gap-3">
-        <div>
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            privacy mode
-          </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
-            One toggle: switches LLM to Ollama and STT to local Whisper. Nothing
-            leaves your machine. Slower and lower quality than the cloud.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Lock className="size-4 text-accent" />
-            <div>
-              <div className="text-[13px]">Privacy mode</div>
-              <div className="text-[11px] text-muted-foreground">
-                {settings.privacyMode
-                  ? 'Active — everything stays local.'
-                  : 'Off — using cloud providers.'}
-              </div>
-            </div>
-          </div>
-          <Switch checked={settings.privacyMode} onCheckedChange={togglePrivacy} />
-        </div>
-      </div>
+      {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
+          at the top because it overrides the provider selection below. */}
+      <PrivacyModeRow
+        active={settings.privacyMode}
+        onToggle={togglePrivacy}
+      />
 
       {/* LLM provider cards */}
       <div className="flex flex-col gap-3">
-        <div>
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            ai providers · text & vision
-          </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
-            Pick which provider answers your questions. Click a card to make it
-            active — credentials stay in the OS keychain.
-          </p>
-        </div>
+        <SectionHead
+          title="ai providers · text & vision"
+          hint="Pick which provider answers your questions. Click a card to make it active — credentials stay in the OS keychain."
+        />
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2.5">
           {LLM_PROVIDERS.map((p) => {
             const active = settings.llmProvider === p.value
             return (
@@ -191,121 +171,153 @@ export function ProvidersTab({ settings, update }: Props) {
                 active={active}
                 onActivate={() => update('llmProvider', p.value)}
               >
-                {active && <LlmCredentials provider={p.value} settings={settings} update={update} ollama={ollama} onRefreshOllama={() => void refreshOllama()} />}
+                {active && (
+                  <LlmCredentials
+                    provider={p.value}
+                    settings={settings}
+                    update={update}
+                    ollama={ollama}
+                    onRefreshOllama={() => void refreshOllama()}
+                  />
+                )}
               </ProviderCard>
             )
           })}
         </div>
 
-        {/* Vision-provider override — applied when Ask is sent with an image. */}
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[13px]">Vision provider override</div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Optional: route image questions to a different vendor. Leave on
-                "same as text" unless you specifically need a different model
-                for screenshots.
-              </p>
-            </div>
-            <select
-              value={settings.visionProvider ?? '__same__'}
-              onChange={(e) =>
-                update(
-                  'visionProvider',
-                  e.target.value === '__same__'
-                    ? null
-                    : (e.target.value as AppSettings['visionProvider'])
-                )
-              }
-              className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-white/20"
-            >
-              <option value="__same__">same as text</option>
-              {LLM_PROVIDERS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
       </div>
+    </div>
+  )
+}
 
-      {/* STT provider cards */}
-      <div className="flex flex-col gap-3">
-        <div>
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            audio · speech-to-text
-          </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
-            How Zanban transcribes mic + system audio. Provider language settings
-            live in the Audio tab.
-          </p>
-        </div>
+// Exported so ModelsTab can render the same provider list inside its
+// vision-override picker without re-declaring the catalogue.
+export const LLM_PROVIDER_LIST = LLM_PROVIDERS
 
-        <div className="flex flex-col gap-3">
-          {STT_CARDS.map((p) => {
-            const active = settings.sttProvider === p.value
-            return (
-              <ProviderCard
-                key={p.value}
-                id={p.value}
-                name={p.name}
-                description={p.description}
-                badge={p.badge}
-                keyUrl={p.keyUrl}
-                active={active}
-                onActivate={() => update('sttProvider', p.value)}
-              >
-                {active && <SttCredentials provider={p.value} settings={settings} update={update} />}
-              </ProviderCard>
-            )
-          })}
-        </div>
-      </div>
+/**
+ * STT provider cards — exported so AudioTab can render them next to the
+ * mic / VAD / language settings (their natural sibling group).
+ */
+export function SttProviderCards({ settings, update }: Props) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      {STT_CARDS.map((p) => {
+        const active = settings.sttProvider === p.value
+        return (
+          <ProviderCard
+            key={p.value}
+            id={p.value}
+            name={p.name}
+            description={p.description}
+            badge={p.badge}
+            keyUrl={p.keyUrl}
+            active={active}
+            onActivate={() => update('sttProvider', p.value)}
+          >
+            {active && (
+              <SttCredentials
+                provider={p.value}
+                settings={settings}
+                update={update}
+              />
+            )}
+          </ProviderCard>
+        )
+      })}
+    </div>
+  )
+}
 
-      {/* Web search */}
-      <div className="flex flex-col gap-3">
-        <div>
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            web search · tavily
-          </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+/**
+ * Tavily web-search section — exported so it can render at the very bottom
+ * of the AI tab, after model overrides.
+ */
+export function WebSearchCard({ settings, update }: Props) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="min-w-0">
+          <div className="text-[14px] font-medium">Tavily Search API</div>
+          <p className="mt-1 text-[12px] text-muted-foreground">
             Powers live web search for company research. If empty, LLM general
             knowledge is used and may be outdated.
           </p>
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-[13px] font-medium">Tavily Search API</span>
-            <a
-              href="https://tavily.com/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
-            >
-              get key
-            </a>
+        <a
+          href="https://tavily.com/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
+        >
+          get key
+        </a>
+      </div>
+      <SecretKeyField
+        placeholder="tvly-…"
+        value={settings.tavilyApiKey ?? ''}
+        onChange={(v) => update('tavilyApiKey', v || null)}
+      />
+      <div className="mt-3 flex items-center justify-between rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
+        <div className="text-[12px]">
+          Auto web search
+          <div className="text-[11px] text-muted-foreground">
+            Inject Tavily results into prompts ≥4 words.
           </div>
-          <SecretKeyField
-            placeholder="tvly-…"
-            value={settings.tavilyApiKey ?? ''}
-            onChange={(v) => update('tavilyApiKey', v || null)}
-          />
-          <div className="mt-3 flex items-center justify-between rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
-            <div className="text-[12px]">
-              Auto web search
-              <div className="text-[11px] text-muted-foreground">
-                Inject Tavily results into prompts ≥4 words.
-              </div>
-            </div>
-            <Switch
-              checked={settings.autoWebSearch}
-              onCheckedChange={(v) => update('autoWebSearch', v)}
-            />
+        </div>
+        <Switch
+          checked={settings.autoWebSearch}
+          onCheckedChange={(v) => update('autoWebSearch', v)}
+        />
+      </div>
+    </div>
+  )
+}
+
+// — — — small atoms reused inside this tab — — —
+
+function SectionHead({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div>
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        {title}
+      </h3>
+      {hint && (
+        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{hint}</p>
+      )}
+    </div>
+  )
+}
+
+function PrivacyModeRow({
+  active,
+  onToggle
+}: {
+  active: boolean
+  onToggle(v: boolean): void
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors',
+        active
+          ? 'border-accent/40 bg-accent/[0.06]'
+          : 'border-white/[0.06] bg-white/[0.02]'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Lock
+          className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted-foreground')}
+        />
+        <div>
+          <div className="text-[13px] font-medium">Privacy mode</div>
+          <div className="text-[11px] text-muted-foreground">
+            {active
+              ? 'Active — LLM is Ollama, STT is local Whisper. Nothing leaves your machine.'
+              : 'Off — flips LLM + STT to local at once. Slower, lower quality, fully private.'}
           </div>
         </div>
       </div>
+      <Switch checked={active} onCheckedChange={onToggle} />
     </div>
   )
 }

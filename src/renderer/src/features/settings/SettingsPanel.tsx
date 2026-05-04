@@ -19,19 +19,24 @@ import {
   PERSONA_PRESETS,
   DEFAULT_SETTINGS,
   PROVIDER_MODEL_DEFAULTS,
-  AI_MODEL_SUGGESTIONS,
+  PROVIDER_FAST_MODELS,
+  PROVIDER_VISION_MODELS,
   RESPONSE_LANGUAGES,
-  STT_PROVIDERS,
   type AiModelSettings,
   type AiRole,
   type AppSettings,
-  type ResponseLanguage,
-  type SttProvider
+  type ResponseLanguage
 } from '@shared/types'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab, REFERENCE_DOCS_ICON } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
-import { ProvidersTab, PROVIDERS_ICON } from './ProvidersTab'
+import {
+  ProvidersTab,
+  PROVIDERS_ICON,
+  SttProviderCards,
+  WebSearchCard,
+  LLM_PROVIDER_LIST
+} from './ProvidersTab'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
@@ -281,14 +286,18 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
           {tab === 'ai' && (
             <>
               <ProvidersTab settings={settings} update={update} />
-              <div className="mt-10 mb-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/[0.06]" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  models per role
-                </span>
-                <div className="h-px flex-1 bg-white/[0.06]" />
-              </div>
-              <ModelsTab settings={settings} update={update} />
+              <Section
+                title="models per role"
+                hint="What model handles each task. Selector lists only the active provider's catalogue — no more `openai/gpt-oss-120b` showing up while talking to Anthropic."
+              >
+                <ModelsTab settings={settings} update={update} />
+              </Section>
+              <Section
+                title="web search"
+                hint="External knowledge for company research. Uses Tavily; falls back to LLM general knowledge if no key."
+              >
+                <WebSearchCard settings={settings} update={update} />
+              </Section>
             </>
           )}
           {tab === 'audio' && (
@@ -559,14 +568,32 @@ function ModelsTab({
     (r) => providerOverrides[r]?.trim()
   )
 
+  // Vision can ride a different provider via the visionProvider override.
+  // The vision-row's model picker therefore needs to use the override
+  // provider's catalogue when set, falling back to the LLM provider's.
+  const visionProvider = settings.visionProvider ?? provider
+  const visionOverrides: AiModelSettings =
+    settings.aiModels?.[visionProvider] ?? { fast: '', filter: '', summary: '', vision: '' }
+  const visionDefaults = PROVIDER_MODEL_DEFAULTS[visionProvider]
+
+  function setVisionModel(value: string): void {
+    const next: AppSettings['aiModels'] = {
+      ...settings.aiModels,
+      [visionProvider]: { ...visionOverrides, vision: value }
+    }
+    update('aiModels', next)
+  }
+
   return (
-    <>
-      <div className="mb-4 flex items-start justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px]">
-        <div className="text-muted-foreground">
-          Showing models for <span className="font-mono text-foreground">{provider}</span>.
-          Switch the provider in <span className="font-mono">Providers</span> — each
-          provider keeps its own per-role IDs, so you don't have to retype them
-          when toggling between e.g. Anthropic and Gemini.
+    <div className="flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            Showing models for{' '}
+            <span className="font-mono text-foreground">{provider}</span>. Each
+            provider keeps its own per-role IDs — switching providers above
+            doesn't lose what you typed here.
+          </p>
         </div>
         {hasAnyOverride && (
           <Button
@@ -579,109 +606,185 @@ function ModelsTab({
           </Button>
         )}
       </div>
-      <Section
-        title={`Models per role · ${provider}`}
-        hint="Empty = use the provider's default (shown as placeholder). Paste any model ID the provider supports."
-      >
-        <ModelRoleField
-          role="fast"
-          label="Streaming answers"
-          hint="Used for the Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels."
-          override={providerOverrides.fast}
-          fallback={providerDefaults.fast}
-          setModel={setModel}
-        />
-        <ModelRoleField
-          role="filter"
-          label="Question detector"
-          hint="Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast."
-          override={providerOverrides.filter}
-          fallback={providerDefaults.filter}
-          setModel={setModel}
-        />
-        <ModelRoleField
-          role="summary"
-          label="Session title"
-          hint="Generates a short title at the end of a recorded call. Quality matters more than latency."
-          override={providerOverrides.summary}
-          fallback={providerDefaults.summary}
-          setModel={setModel}
-        />
-        <ModelRoleField
-          role="vision"
-          label="Vision (screenshots)"
-          hint="Used when you snap a screenshot and ask about it. Must be multimodal."
-          override={providerOverrides.vision}
-          fallback={providerDefaults.vision}
-          setModel={setModel}
-        />
-      </Section>
-    </>
+
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+        <div className="flex flex-col gap-3">
+          <ModelRoleField
+            label="Streaming answers"
+            hint="Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels."
+            value={providerOverrides.fast ?? ''}
+            fallback={providerDefaults.fast}
+            options={PROVIDER_FAST_MODELS[provider] ?? []}
+            onChange={(v) => setModel('fast', v)}
+          />
+          <Divider />
+          <ModelRoleField
+            label="Question detector"
+            hint="Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast."
+            value={providerOverrides.filter ?? ''}
+            fallback={providerDefaults.filter}
+            options={PROVIDER_FAST_MODELS[provider] ?? []}
+            onChange={(v) => setModel('filter', v)}
+          />
+          <Divider />
+          <ModelRoleField
+            label="Session title"
+            hint="Generates a short title at the end of a recorded call. Quality matters more than latency."
+            value={providerOverrides.summary ?? ''}
+            fallback={providerDefaults.summary}
+            options={PROVIDER_FAST_MODELS[provider] ?? []}
+            onChange={(v) => setModel('summary', v)}
+          />
+        </div>
+      </div>
+
+      {/* Vision — its own card so the dual contol (provider + model) stands
+          apart from the text roles. The user can route screenshots through
+          a different vendor than text. */}
+      <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium">Vision (screenshots)</div>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              Used when you snap a screenshot and ask about it. Must be
+              multimodal — can ride a different provider than text.
+            </p>
+          </div>
+        </div>
+
+        {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+            <label className="text-[11px] text-muted-foreground">Provider</label>
+            <Select
+              value={settings.visionProvider ?? '__same__'}
+              onValueChange={(v) =>
+                update(
+                  'visionProvider',
+                  v === '__same__'
+                    ? null
+                    : (v as AppSettings['visionProvider'])
+                )
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__same__">
+                  same as text · {provider}
+                </SelectItem>
+                {LLM_PROVIDER_LIST.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+            <label className="text-[11px] text-muted-foreground">Model</label>
+            <ModelOptionSelect
+              value={visionOverrides.vision ?? ''}
+              fallback={visionDefaults.vision}
+              options={PROVIDER_VISION_MODELS[visionProvider] ?? []}
+              onChange={setVisionModel}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
+function Divider() {
+  return <div className="h-px w-full bg-white/[0.05]" />
+}
+
 function ModelRoleField({
-  role,
   label,
   hint,
-  override,
+  value,
   fallback,
-  setModel
+  options,
+  onChange
 }: {
-  role: AiRole
   label: string
   hint: string
-  override: string | undefined
+  value: string
   fallback: string
-  setModel(role: AiRole, value: string): void
+  /** Per-provider catalogue for the role. Empty array = no curated options. */
+  options: string[]
+  onChange(value: string): void
 }) {
-  const value = override ?? ''
-  const suggestions = AI_MODEL_SUGGESTIONS[role]
-  // Match by exact ID. Empty string = "use default" → no select highlighting.
-  const matchedSuggestion = suggestions.includes(value) ? value : ''
-
   return (
-    <Field label={label} hint={hint}>
-      <div className="flex flex-col gap-2">
-        <Select
-          value={matchedSuggestion}
-          onValueChange={(v) => setModel(role, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder={`Default · ${fallback}`} />
-          </SelectTrigger>
-          <SelectContent>
-            {suggestions.map((m) => (
-              <SelectItem key={m} value={m}>
-                <span className="font-mono text-xs">{m}</span>
-                {m === fallback && (
-                  <span className="ml-2 text-[10px] text-muted-foreground">default</span>
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-2">
-          <Input
-            className="font-mono text-xs"
-            value={value}
-            onChange={(e) => setModel(role, e.target.value)}
-            placeholder={`Custom model ID — leave empty for ${fallback}`}
-          />
-          {value && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setModel(role, '')}
-              title="Reset to default"
-            >
-              <Zap className="size-3.5" />
-              Default
-            </Button>
-          )}
-        </div>
+    <div className="grid grid-cols-[180px_1fr] items-start gap-4">
+      <div className="pt-1">
+        <div className="text-[12.5px] font-medium text-foreground/90">{label}</div>
+        <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{hint}</div>
       </div>
-    </Field>
+      <ModelOptionSelect
+        value={value}
+        fallback={fallback}
+        options={options}
+        onChange={onChange}
+      />
+    </div>
+  )
+}
+
+function ModelOptionSelect({
+  value,
+  fallback,
+  options,
+  onChange
+}: {
+  value: string
+  fallback: string
+  options: string[]
+  onChange(v: string): void
+}) {
+  // Empty value = "use the provider default" — show fallback in the trigger,
+  // but the select highlight stays cleared so the user sees they're on auto.
+  const matched = options.includes(value) ? value : ''
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Select value={matched} onValueChange={onChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={`default · ${fallback}`} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((m) => (
+            <SelectItem key={m} value={m}>
+              <span className="font-mono text-xs">{m}</span>
+              {m === fallback && (
+                <span className="ml-2 text-[10px] text-muted-foreground">default</span>
+              )}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-2">
+        <Input
+          className="font-mono text-[11px]"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`custom id — empty = ${fallback}`}
+        />
+        {value && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px]"
+            onClick={() => onChange('')}
+            title="Reset to default"
+          >
+            <Zap className="size-3" />
+            default
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -756,6 +859,13 @@ function AudioTab({
             onCheckedChange={(v) => update('audio', { ...settings.audio, vadEnabled: v })}
           />
         </Row>
+      </Section>
+
+      <Section
+        title="speech-to-text providers"
+        hint="How Zanban transcribes mic + system audio. Click a card to make it active — credentials stay in the OS keychain."
+      >
+        <SttProviderCards settings={settings} update={update} />
       </Section>
 
       <TranscriptionLanguageSection settings={settings} update={update} />
