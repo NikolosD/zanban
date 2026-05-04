@@ -1,0 +1,60 @@
+/* Highlight.js inside a Zanban codeblock — paint the panel dark and tighten
+   the default theme so it sits nicely on top of our card surfaces. */
+.zb-codeblock .hljs {
+  background: transparent !important;
+  color: #e6edf3;
+  padding: 12px 14px;
+}
+
+/* Soften atom-one-dark's reds/blues so they don't fight Tailwind ring colors. */
+.zb-codeblock .hljs-keyword,
+.zb-codeblock .hljs-selector-tag,
+.zb-codeblock .hljs-built_in,
+.zb-codeblock .hljs-name,
+.zb-codeblock .hljs-tag {
+  color: #ff7b72;
+}
+.zb-codeblock .hljs-string,
+.zb-codeblock .hljs-attr,
+.zb-codeblock .hljs-symbol,
+.zb-codeblock .hljs-bullet,
+.zb-codeblock .hljs-addition {
+  color: #a5d6ff;
+}
+.zb-codeblock .hljs-comment,
+.zb-codeblock .hljs-quote,
+.zb-codeblock .hljs-meta {
+  color: #8b949e;
+  font-style: italic;
+}
+.zb-codeblock .hljs-number,
+.zb-codeblock .hljs-literal,
+.zb-codeblock .hljs-variable,
+.zb-codeblock .hljs-template-variable,
+.zb-codeblock .hljs-link {
+  color: #79c0ff;
+}
+.zb-codeblock .hljs-title,
+.zb-codeblock .hljs-section,
+.zb-codeblock .hljs-doctag,
+.zb-codeblock .hljs-type {
+  color: #d2a8ff;
+}
+.zb-codeblock .hljs-function .hljs-title {
+  color: #d2a8ff;
+}
+.zb-codeblock .hljs-attribute {
+  color: #ffa657;
+}
+
+/* Slim scrollbar inside long code blocks. */
+.zb-codeblock pre::-webkit-scrollbar {
+  height: 8px;
+}
+.zb-codeblock pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+.zb-codeblock pre::-webkit-scrollbar-track {
+  background: transparent;
+}

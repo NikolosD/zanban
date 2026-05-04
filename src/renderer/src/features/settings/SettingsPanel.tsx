@@ -1,0 +1,965 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  Loader2,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Sparkles,
+  Mic,
+  User,
+  Keyboard,
+  SlidersHorizontal,
+  Info,
+  FolderOpen,
+  Headphones,
+  Zap,
+  Check
+} from 'lucide-react'
+import {
+  PERSONA_PRESETS,
+  DEFAULT_SETTINGS,
+  PROVIDER_MODEL_DEFAULTS,
+  AI_MODEL_SUGGESTIONS,
+  RESPONSE_LANGUAGES,
+  STT_PROVIDERS,
+  type AiModelSettings,
+  type AiRole,
+  type AppSettings,
+  type ResponseLanguage,
+  type SttProvider
+} from '@shared/types'
+import { KeyRecorder } from './KeyRecorder'
+import { ReferenceDocsTab, REFERENCE_DOCS_ICON } from './ReferenceDocsTab'
+import { PersonasTab } from './PersonasTab'
+import { ProvidersTab, PROVIDERS_ICON } from './ProvidersTab'
+import { Button } from '@renderer/components/ui/button'
+import { Input } from '@renderer/components/ui/input'
+import { Textarea } from '@renderer/components/ui/textarea'
+import { Switch } from '@renderer/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@renderer/components/ui/select'
+import { toast } from 'sonner'
+import { cn } from '@renderer/lib/utils'
+
+export type SettingsTabId =
+  | 'general'
+  | 'audio'
+  | 'providers'
+  | 'models'
+  | 'persona'
+  | 'documents'
+  | 'hotkeys'
+  | 'about'
+
+type TabId = SettingsTabId
+
+export const SETTINGS_TABS: Array<{
+  id: SettingsTabId
+  label: string
+  keywords: string[]
+}> = [
+  { id: 'general', label: 'General', keywords: ['general', 'privacy', 'detectable', 'hide widget', 'auto detect questions', 'transcript window', 'sessions folder', 'dock'] },
+  {
+    id: 'models',
+    label: 'AI models',
+    keywords: [
+      'models',
+      'ai',
+      'llm',
+      'gateway',
+      'vercel',
+      'api key',
+      'openai',
+      'gpt',
+      'claude',
+      'gemini',
+      'fast',
+      'filter',
+      'summary',
+      'vision',
+      'token',
+      'secret'
+    ]
+  },
+  { id: 'providers', label: 'Providers', keywords: ['providers', 'llm', 'anthropic', 'openai', 'gemini', 'groq', 'ollama', 'tavily', 'elevenlabs', 'privacy mode'] },
+  { id: 'audio', label: 'Audio & Speech', keywords: ['audio', 'mic', 'microphone', 'system audio', 'loopback', 'device', 'vad', 'transcription', 'language', 'stt', 'speech to text', 'multilingual'] },
+  { id: 'persona', label: 'Persona', keywords: ['persona', 'preset', 'response language', 'reply language', 'meeting context', 'system prompt'] },
+  { id: 'documents', label: 'Documents', keywords: ['documents', 'reference', 'pdf', 'docx', 'txt', 'context', 'resume', 'spec', 'brief'] },
+  { id: 'hotkeys', label: 'Hotkeys', keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind'] },
+  { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
+]
+
+const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'audio', label: 'Audio & Speech', icon: Headphones },
+  { id: 'providers', label: 'Providers', icon: PROVIDERS_ICON },
+  { id: 'models', label: 'AI models', icon: Sparkles },
+  { id: 'persona', label: 'Personas', icon: User },
+  { id: 'documents', label: 'Documents', icon: REFERENCE_DOCS_ICON },
+  { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
+  { id: 'about', label: 'About', icon: Info }
+]
+
+interface MicDevice {
+  deviceId: string
+  label: string
+}
+
+export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {}) {
+  const [tab, setTab] = useState<TabId>(initialTab ?? 'general')
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab)
+  }, [initialTab])
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [reveal, setReveal] = useState({
+    google: false,
+    deepgram: false,
+    vercel: false
+  })
+  const [mics, setMics] = useState<MicDevice[]>([])
+  const [micsError, setMicsError] = useState<string | null>(null)
+  const [version, setVersion] = useState<string>('')
+  // Skip the very first auto-save trigger — that one fires when settings load
+  // from main, and re-saving freshly-loaded settings is a wasted round-trip.
+  const initialized = useRef(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    void window.zanban.settings.get().then(setSettings)
+    void window.zanban.getVersion().then(setVersion)
+    void enumerateMics().then(setMics).catch((e) => setMicsError(String(e)))
+  }, [])
+
+  // Auto-save: any change to `settings` is pushed to main with a short debounce.
+  // Removes the Save button entirely — toggles like Detectable now apply the
+  // moment the user flips them, which is what they expect from a settings panel.
+  useEffect(() => {
+    if (!settings) return
+    if (!initialized.current) {
+      initialized.current = true
+      return
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setSavingState('saving')
+    debounceRef.current = setTimeout(() => {
+      window.zanban.settings
+        .set(settings)
+        .then(() => {
+          setSavingState('saved')
+          if (savedFlashRef.current) clearTimeout(savedFlashRef.current)
+          savedFlashRef.current = setTimeout(() => setSavingState('idle'), 1400)
+        })
+        .catch((err) => {
+          setSavingState('idle')
+          toast.error('Failed to save', { description: String(err) })
+        })
+    }, 350)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [settings])
+
+  async function rescanMics(): Promise<void> {
+    setMicsError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      for (const t of stream.getTracks()) t.stop()
+      setMics(await enumerateMics())
+    } catch (err) {
+      setMicsError(err instanceof Error ? err.message : 'unknown')
+    }
+  }
+
+  function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
+    setSettings((s) => (s ? { ...s, [key]: value } : s))
+  }
+
+  function updateHotkey(key: keyof AppSettings['hotkeys'], value: string): void {
+    setSettings((s) => (s ? { ...s, hotkeys: { ...s.hotkeys, [key]: value } } : s))
+  }
+
+  if (!settings) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 size-3.5 animate-spin" /> Loading…
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full min-h-0">
+      <SettingsSidebar tab={tab} setTab={setTab} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex-1 overflow-y-auto px-8 py-7">
+          {tab === 'general' && (
+            <GeneralTab
+              settings={settings}
+              update={update}
+            />
+          )}
+          {tab === 'models' && (
+            <ModelsTab settings={settings} update={update} />
+          )}
+          {tab === 'providers' && (
+            <ProvidersTab settings={settings} update={update} />
+          )}
+          {tab === 'audio' && (
+            <AudioTab
+              settings={settings}
+              update={update}
+              mics={mics}
+              micsError={micsError}
+              onRescan={() => void rescanMics()}
+            />
+          )}
+          {tab === 'persona' && (
+            <PersonasTab settings={settings} update={update} />
+          )}
+          {tab === 'documents' && <ReferenceDocsTab />}
+          {tab === 'hotkeys' && (
+            <HotkeysTab
+              settings={settings}
+              updateHotkey={updateHotkey}
+              resetAll={() =>
+                setSettings((s) => (s ? { ...s, hotkeys: { ...DEFAULT_SETTINGS.hotkeys } } : s))
+              }
+            />
+          )}
+          {tab === 'about' && <AboutTab version={version} />}
+        </div>
+        <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-8 py-3">
+          <div className="text-[11px] text-muted-foreground">
+            Changes apply automatically. Secrets stored in your OS keychain.
+          </div>
+          <div className="flex h-7 items-center gap-1.5 text-[11px] text-muted-foreground">
+            {savingState === 'saving' && (
+              <>
+                <Loader2 className="size-3 animate-spin" />
+                Saving…
+              </>
+            )}
+            {savingState === 'saved' && (
+              <>
+                <Check className="size-3 text-emerald-400/80" />
+                Saved
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
+  return (
+    <aside className="flex w-56 shrink-0 flex-col gap-1 border-r border-white/[0.06] bg-white/[0.015] p-4">
+      <h2 className="px-2 pb-2 pt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        Settings
+      </h2>
+      <nav className="flex flex-col gap-0.5">
+        {TABS.map((t) => {
+          const active = tab === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                active
+                  ? 'bg-white/[0.06] text-foreground'
+                  : 'text-muted-foreground hover:bg-white/[0.03] hover:text-foreground'
+              )}
+            >
+              <t.icon className="size-4" />
+              {t.label}
+            </button>
+          )
+        })}
+      </nav>
+    </aside>
+  )
+}
+
+function Section({
+  title,
+  children,
+  hint
+}: {
+  title: string
+  children: React.ReactNode
+  hint?: string
+}) {
+  return (
+    <section className="mb-7">
+      <div className="mb-3">
+        <h3 className="text-[15px] font-medium tracking-tight">{title}</h3>
+        {hint && <p className="mt-0.5 text-[12px] text-muted-foreground">{hint}</p>}
+      </div>
+      <div className="flex flex-col gap-4">{children}</div>
+    </section>
+  )
+}
+
+function Field({
+  label,
+  hint,
+  children
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[180px_1fr] items-start gap-4">
+      <div className="pt-1.5">
+        <div className="text-[13px] text-foreground/85">{label}</div>
+        {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  )
+}
+
+function GeneralTab({
+  settings,
+  update
+}: {
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+}) {
+  return (
+    <>
+      <Section
+        title="Privacy"
+        hint="How the floating widget behaves around screen-sharing and Hide."
+      >
+        <Row
+          label="Detectable"
+          hint="When off (default), the overlay is invisible to screen-share and recording. When on, it shows up like any normal window."
+        >
+          <Switch
+            checked={settings.detectable}
+            onCheckedChange={(v) => update('detectable', v)}
+          />
+        </Row>
+        <Row
+          label="Hide widget when hiding"
+          hint="When you toggle Hide, also collapse the chips/input so only the tiny status pill remains."
+        >
+          <Switch
+            checked={settings.hideWidgetWhenHidden}
+            onCheckedChange={(v) => update('hideWidgetWhenHidden', v)}
+          />
+        </Row>
+        <Row
+          label="Hide dock icon (macOS)"
+          hint="Stay invisible in the dock. Restart the app for changes to apply. No effect on Windows/Linux."
+        >
+          <Switch
+            checked={settings.hideDockMacOS}
+            onCheckedChange={(v) => update('hideDockMacOS', v)}
+          />
+        </Row>
+      </Section>
+      <Section
+        title="Assistant"
+        hint="How proactively Zanban surfaces helpers during the call."
+      >
+        <Row
+          label="Auto-detect questions from the other speaker"
+          hint="When the other side asks something, surface it as a chip you can answer in one click."
+        >
+          <Switch
+            checked={settings.autoDetectQuestions}
+            onCheckedChange={(v) => update('autoDetectQuestions', v)}
+          />
+        </Row>
+        <Field
+          label="Transcript window"
+          hint="Seconds of recent audio sent as context for each Ask."
+        >
+          <Input
+            type="number"
+            className="w-28 font-mono"
+            value={settings.contextSeconds}
+            onChange={(e) =>
+              update('contextSeconds', Math.max(10, Math.min(600, Number(e.target.value))))
+            }
+          />
+        </Field>
+      </Section>
+      <Section
+        title="Sessions"
+        hint="Stored locally as Markdown + JSON. Open the folder to grep or back up."
+      >
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => void window.zanban.sessions.revealFolder()}
+          >
+            <FolderOpen className="size-3.5" />
+            Open sessions folder
+          </Button>
+        </div>
+      </Section>
+    </>
+  )
+}
+
+type RevealState = { google: boolean; deepgram: boolean; vercel: boolean }
+
+function ModelsTab({
+  settings,
+  update
+}: {
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+}) {
+  const provider = settings.llmProvider
+  const providerOverrides: AiModelSettings =
+    settings.aiModels?.[provider] ?? { fast: '', filter: '', summary: '', vision: '' }
+
+  function setModel(role: AiRole, value: string): void {
+    const next: AppSettings['aiModels'] = {
+      ...settings.aiModels,
+      [provider]: { ...providerOverrides, [role]: value }
+    }
+    update('aiModels', next)
+  }
+
+  function resetForProvider(): void {
+    const next = { ...settings.aiModels }
+    delete next[provider]
+    update('aiModels', next)
+  }
+
+  const providerDefaults = PROVIDER_MODEL_DEFAULTS[provider]
+  const hasAnyOverride = (Object.keys(providerOverrides) as AiRole[]).some(
+    (r) => providerOverrides[r]?.trim()
+  )
+
+  return (
+    <>
+      <div className="mb-4 flex items-start justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px]">
+        <div className="text-muted-foreground">
+          Showing models for <span className="font-mono text-foreground">{provider}</span>.
+          Switch the provider in <span className="font-mono">Providers</span> — each
+          provider keeps its own per-role IDs, so you don't have to retype them
+          when toggling between e.g. Anthropic and Gemini.
+        </div>
+        {hasAnyOverride && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 text-[11px] text-muted-foreground"
+            onClick={resetForProvider}
+          >
+            Reset to defaults
+          </Button>
+        )}
+      </div>
+      <Section
+        title={`Models per role · ${provider}`}
+        hint="Empty = use the provider's default (shown as placeholder). Paste any model ID the provider supports."
+      >
+        <ModelRoleField
+          role="fast"
+          label="Streaming answers"
+          hint="Used for the Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels."
+          override={providerOverrides.fast}
+          fallback={providerDefaults.fast}
+          setModel={setModel}
+        />
+        <ModelRoleField
+          role="filter"
+          label="Question detector"
+          hint="Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast."
+          override={providerOverrides.filter}
+          fallback={providerDefaults.filter}
+          setModel={setModel}
+        />
+        <ModelRoleField
+          role="summary"
+          label="Session title"
+          hint="Generates a short title at the end of a recorded call. Quality matters more than latency."
+          override={providerOverrides.summary}
+          fallback={providerDefaults.summary}
+          setModel={setModel}
+        />
+        <ModelRoleField
+          role="vision"
+          label="Vision (screenshots)"
+          hint="Used when you snap a screenshot and ask about it. Must be multimodal."
+          override={providerOverrides.vision}
+          fallback={providerDefaults.vision}
+          setModel={setModel}
+        />
+      </Section>
+    </>
+  )
+}
+
+function ModelRoleField({
+  role,
+  label,
+  hint,
+  override,
+  fallback,
+  setModel
+}: {
+  role: AiRole
+  label: string
+  hint: string
+  override: string | undefined
+  fallback: string
+  setModel(role: AiRole, value: string): void
+}) {
+  const value = override ?? ''
+  const suggestions = AI_MODEL_SUGGESTIONS[role]
+  // Match by exact ID. Empty string = "use default" → no select highlighting.
+  const matchedSuggestion = suggestions.includes(value) ? value : ''
+
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex flex-col gap-2">
+        <Select
+          value={matchedSuggestion}
+          onValueChange={(v) => setModel(role, v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={`Default · ${fallback}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {suggestions.map((m) => (
+              <SelectItem key={m} value={m}>
+                <span className="font-mono text-xs">{m}</span>
+                {m === fallback && (
+                  <span className="ml-2 text-[10px] text-muted-foreground">default</span>
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2">
+          <Input
+            className="font-mono text-xs"
+            value={value}
+            onChange={(e) => setModel(role, e.target.value)}
+            placeholder={`Custom model ID — leave empty for ${fallback}`}
+          />
+          {value && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setModel(role, '')}
+              title="Reset to default"
+            >
+              <Zap className="size-3.5" />
+              Default
+            </Button>
+          )}
+        </div>
+      </div>
+    </Field>
+  )
+}
+
+function AudioTab({
+  settings,
+  update,
+  mics,
+  micsError,
+  onRescan
+}: {
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+  mics: MicDevice[]
+  micsError: string | null
+  onRescan(): void
+}) {
+  return (
+    <>
+      <Section
+        title="Audio capture"
+        hint="Microphone for your voice. System loopback captures the other speaker."
+      >
+        <Field label="Microphone">
+          <div className="flex items-center gap-2">
+            <Select
+              value={settings.audio.micDeviceId ?? 'default'}
+              onValueChange={(v) =>
+                update('audio', {
+                  ...settings.audio,
+                  micDeviceId: v === 'default' ? null : v
+                })
+              }
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default device</SelectItem>
+                {mics.map((m) => (
+                  <SelectItem key={m.deviceId} value={m.deviceId}>
+                    {m.label || `device ${m.deviceId.slice(0, 8)}…`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              title="Re-scan and request mic permission"
+              onClick={onRescan}
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+          </div>
+          {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
+        </Field>
+        <Row
+          label="Capture system audio"
+          hint="Loopback the other side of the call automatically."
+        >
+          <Switch
+            checked={settings.audio.systemEnabled}
+            onCheckedChange={(v) => update('audio', { ...settings.audio, systemEnabled: v })}
+          />
+        </Row>
+        <Row
+          label="Skip silence on mic (VAD)"
+          hint="Drop pure-silence batches from the MIC channel before sending to STT. Saves bandwidth on quiet sessions. Never applied to system audio (the other speaker's loopback is left alone). Takes effect on next session start."
+        >
+          <Switch
+            checked={settings.audio.vadEnabled}
+            onCheckedChange={(v) => update('audio', { ...settings.audio, vadEnabled: v })}
+          />
+        </Row>
+      </Section>
+
+      <TranscriptionLanguageSection settings={settings} update={update} />
+    </>
+  )
+}
+
+const TRANSCRIPTION_LANGUAGES_POPULAR: Array<{ value: string; flag: string; label: string }> = [
+  { value: 'multi', flag: '🌐', label: 'Multilingual · auto-switch' },
+  { value: 'en', flag: '🇬🇧', label: 'English' },
+  { value: 'ru', flag: '🇷🇺', label: 'Russian · Русский' },
+  { value: 'es', flag: '🇪🇸', label: 'Spanish · Español' },
+  { value: 'de', flag: '🇩🇪', label: 'German · Deutsch' },
+  { value: 'fr', flag: '🇫🇷', label: 'French · Français' }
+]
+
+const TRANSCRIPTION_LANGUAGES_OTHER: Array<{ value: string; flag: string; label: string }> = [
+  { value: 'it', flag: '🇮🇹', label: 'Italian · Italiano' },
+  { value: 'pt', flag: '🇵🇹', label: 'Portuguese · Português' },
+  { value: 'nl', flag: '🇳🇱', label: 'Dutch · Nederlands' },
+  { value: 'pl', flag: '🇵🇱', label: 'Polish · Polski' },
+  { value: 'tr', flag: '🇹🇷', label: 'Turkish · Türkçe' },
+  { value: 'uk', flag: '🇺🇦', label: 'Ukrainian · Українська' },
+  { value: 'ja', flag: '🇯🇵', label: 'Japanese · 日本語' },
+  { value: 'ko', flag: '🇰🇷', label: 'Korean · 한국어' },
+  { value: 'zh', flag: '🇨🇳', label: 'Chinese · 中文' },
+  { value: 'hi', flag: '🇮🇳', label: 'Hindi · हिन्दी' },
+  { value: 'ar', flag: '🇸🇦', label: 'Arabic · العربية' }
+]
+
+function TranscriptionLanguageSection({
+  settings,
+  update
+}: {
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+}) {
+  // Different STT providers handle 'multi' differently — Deepgram has native
+  // multilingual streaming, the others do per-utterance language detection or
+  // require a single locked language. The hint changes accordingly so the
+  // user knows what to expect for THEIR provider.
+  const provider = settings.sttProvider
+  const supportsMulti = provider === 'deepgram' || provider === 'openai-whisper'
+  const showFlag = (v: string) =>
+    [...TRANSCRIPTION_LANGUAGES_POPULAR, ...TRANSCRIPTION_LANGUAGES_OTHER].find((l) => l.value === v)
+
+  const current = showFlag(settings.transcriptionLanguage)
+  return (
+    <Section
+      title="Transcription language"
+      hint={
+        supportsMulti
+          ? `Pick "Multilingual" for code-switching, or pin a specific language for sharper accuracy. Provider: ${provider}.`
+          : `Provider "${provider}" works best with a single locked language. Pick the one most of your speech is in.`
+      }
+    >
+      <Field label="Language">
+        <Select
+          value={settings.transcriptionLanguage}
+          onValueChange={(v) => update('transcriptionLanguage', v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue>
+              {current ? `${current.flag}  ${current.label}` : settings.transcriptionLanguage}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Popular
+            </div>
+            {TRANSCRIPTION_LANGUAGES_POPULAR.filter(
+              (l) => l.value !== 'multi' || supportsMulti
+            ).map((l) => (
+              <SelectItem key={l.value} value={l.value}>
+                <span className="mr-2">{l.flag}</span>
+                {l.label}
+              </SelectItem>
+            ))}
+            <div className="mt-1 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Other
+            </div>
+            {TRANSCRIPTION_LANGUAGES_OTHER.map((l) => (
+              <SelectItem key={l.value} value={l.value}>
+                <span className="mr-2">{l.flag}</span>
+                {l.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <p className="text-[11px] text-muted-foreground">
+        Switch STT provider in the <span className="font-mono">Providers</span> tab.
+      </p>
+    </Section>
+  )
+}
+
+function PersonaTab({
+  settings,
+  update
+}: {
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+}) {
+  return (
+    <>
+      <Section
+        title="Assistant persona"
+        hint="Goes into the model's system instruction — tells the AI WHO you are."
+      >
+        <Field label="Preset">
+          <div className="flex items-center gap-2">
+            <Select
+              value=""
+              onValueChange={(id) => {
+                const preset = PERSONA_PRESETS.find((p) => p.id === id)
+                if (preset) update('assistantPersona', preset.prompt)
+              }}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Pick a preset…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PERSONA_PRESETS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {settings.assistantPersona && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => update('assistantPersona', '')}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </Field>
+        <div>
+          <Textarea
+            rows={5}
+            value={settings.assistantPersona}
+            onChange={(e) => update('assistantPersona', e.target.value)}
+            placeholder="e.g. I am a senior React developer interviewing at a FAANG company. Help me answer at senior level with concrete trade-offs."
+          />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Tip: edit any preset after picking it. Persona is fixed for the whole session.
+          </p>
+        </div>
+      </Section>
+
+      <Section
+        title="Response language"
+        hint="What language Zanban replies in. Useful for screenshots — they often have English text but you want a Russian explanation."
+      >
+        <Field label="Reply language">
+          <Select
+            value={settings.responseLanguage}
+            onValueChange={(v) => update('responseLanguage', v as ResponseLanguage)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RESPONSE_LANGUAGES.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </Section>
+
+      <Section
+        title="Meeting context"
+        hint="Situational details for THIS meeting — pasted as a context block in every prompt."
+      >
+        <Textarea
+          rows={5}
+          value={settings.meetingContext}
+          onChange={(e) => update('meetingContext', e.target.value)}
+          placeholder="Job description, your resume, what you're trying to learn from this call…"
+        />
+      </Section>
+    </>
+  )
+}
+
+function HotkeysTab({
+  settings,
+  updateHotkey,
+  resetAll
+}: {
+  settings: AppSettings
+  updateHotkey(key: keyof AppSettings['hotkeys'], value: string): void
+  resetAll(): void
+}) {
+  const allDefault = (
+    Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>
+  ).every((k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k])
+
+  return (
+    <Section
+      title="Hotkeys"
+      hint="Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear."
+    >
+      <div className="flex flex-col gap-2">
+        {(Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>).map((k) => (
+          <Field key={k} label={hotkeyLabel(k)} hint={hotkeyHint(k)}>
+            <KeyRecorder
+              value={settings.hotkeys[k]}
+              defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
+              onChange={(v) => updateHotkey(k, v)}
+            />
+          </Field>
+        ))}
+      </div>
+      {!allDefault && (
+        <div className="mt-2 flex justify-end">
+          <Button variant="ghost" size="sm" onClick={resetAll}>
+            Reset all to defaults
+          </Button>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function hotkeyHint(k: string): string {
+  switch (k) {
+    case 'toggleOverlay':
+      return 'Show or hide the floating assistant.'
+    case 'askAi':
+      return 'Focus the Ask input from anywhere.'
+    case 'answerLast':
+      return 'Answer the last detected question with one keypress.'
+    case 'hideShow':
+      return 'Toggle stealth — hides from screen-share.'
+    case 'screenshot':
+      return 'Capture full screen, OCR it, attach to next Ask.'
+    case 'cropper':
+      return 'Drag a region, OCR only that area, attach to next Ask.'
+    case 'chat':
+      return 'Open the standalone chat window (no transcript context).'
+    default:
+      return ''
+  }
+}
+
+function AboutTab({ version }: { version: string }) {
+  return (
+    <Section title="About">
+      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+        <div className="flex items-baseline gap-2">
+          <div className="text-base font-semibold">Zanban</div>
+          <div className="font-mono text-[11px] text-muted-foreground">v{version || '…'}</div>
+        </div>
+        <p className="mt-2 text-[12px] text-muted-foreground">
+          Desktop AI meeting assistant. Real-time transcription via Google STT, answers via Vercel
+          AI Gateway. Sessions stored locally.
+        </p>
+      </div>
+    </Section>
+  )
+}
+
+function Row({
+  label,
+  hint,
+  children
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-white/[0.05] bg-white/[0.015] px-3 py-2.5 transition-colors hover:bg-white/[0.03]">
+      <div className="min-w-0">
+        <div className="text-[13px] text-foreground">{label}</div>
+        {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </label>
+  )
+}
+
+async function enumerateMics(): Promise<MicDevice[]> {
+  const list = await navigator.mediaDevices.enumerateDevices()
+  return list
+    .filter((d) => d.kind === 'audioinput')
+    .map((d) => ({ deviceId: d.deviceId, label: d.label }))
+}
+
+function hotkeyLabel(k: string): string {
+  switch (k) {
+    case 'toggleOverlay':
+      return 'Toggle overlay'
+    case 'askAi':
+      return 'Focus ask'
+    case 'answerLast':
+      return 'Answer last'
+    case 'hideShow':
+      return 'Hide / show'
+    case 'screenshot':
+      return 'Snap full screen → Ask'
+    case 'cropper':
+      return 'Drag region → OCR Ask'
+    case 'chat':
+      return 'Open chat window'
+    default:
+      return k
+  }
+}

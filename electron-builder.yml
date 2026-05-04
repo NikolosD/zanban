@@ -1,0 +1,65 @@
+appId: com.zanban.app
+productName: Zanban
+directories:
+  buildResources: resources
+  output: release/${version}
+# We rebuild better-sqlite3 via the postinstall hook (electron-rebuild), so
+# disable electron-builder's own npmRebuild step to avoid double work.
+npmRebuild: false
+files:
+  - out/**
+  - resources/**
+  - '!**/*.{ts,tsx,map}'
+asarUnpack:
+  - resources/**
+  # sqlite-vec ships native shared libraries (.dll/.dylib/.so) that
+  # better-sqlite3.loadExtension() must read from a real path on disk, not
+  # from inside the asar archive. Unpack every platform variant we ship.
+  - node_modules/sqlite-vec/**
+  - node_modules/sqlite-vec-windows-x64/**
+  - node_modules/sqlite-vec-darwin-x64/**
+  - node_modules/sqlite-vec-darwin-arm64/**
+  - node_modules/sqlite-vec-linux-x64/**
+  - node_modules/sqlite-vec-linux-arm64/**
+  # better-sqlite3 native binding
+  - node_modules/better-sqlite3/**
+protocols:
+  - name: Zanban
+    schemes:
+      - zanban
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Zanban
+  uninstallDisplayName: Zanban
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.productivity
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Office
+publish:
+  - provider: github
+    owner: REPLACE_WITH_GH_OWNER
+    repo: zanban
