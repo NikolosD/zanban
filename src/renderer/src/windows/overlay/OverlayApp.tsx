@@ -250,12 +250,11 @@ export function OverlayApp() {
   const hasAnswer = !!latest
   const hasContent = hasAnswer || apiKeysMissing || transcriptionError ||
     (pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false)
-  // Hide-widget-when-hidden only collapses the action chips row now — the
-  // input pill and answer pane stay so the user can still type / read a
-  // streaming answer while Hide is on. Previously this also dropped the
-  // input and content panel, which made the overlay unusable in its main
-  // mode (you'd toggle Hide and lose access to your own Q&A).
-  const chipsCollapsed = stealth && settings?.hideWidgetWhenHidden === true
+  // Hide is now strictly "make me invisible to screen-share". It no longer
+  // collapses the overlay's own UI: action chips, input, and answer pane
+  // all stay rendered. The hideWidgetWhenHidden setting still affects the
+  // dashboard's taskbar/Alt-Tab presence in main/index.ts; this overlay
+  // simply ignores it.
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -283,22 +282,20 @@ export function OverlayApp() {
             onClose={() => void backToDashboard()}
           />
 
-          {!chipsCollapsed && (
-            <ActionChipsRow
-              busy={busy}
-              running={running}
-              hasAnswer={hasAnswer}
-              onWhatToAnswer={() =>
-                void runPrompt(WHAT_TO_ANSWER_PROMPT, 'What to answer?', undefined, true)
-              }
-              onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
-              onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
-              onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
-              onAnswer={() =>
-                void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
-              }
-            />
-          )}
+          <ActionChipsRow
+            busy={busy}
+            running={running}
+            hasAnswer={hasAnswer}
+            onWhatToAnswer={() =>
+              void runPrompt(WHAT_TO_ANSWER_PROMPT, 'What to answer?', undefined, true)
+            }
+            onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
+            onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
+            onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
+            onAnswer={() =>
+              void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
+            }
+          />
 
           <InputPill
             text={text}
