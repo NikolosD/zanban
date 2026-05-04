@@ -320,7 +320,13 @@ export function OverlayApp() {
             />
           )}
 
-          {!collapsed && hasContent && (
+          {/* Answer / alerts / detected-questions panel — stays visible even
+              when collapsed (stealth + hideWidget). The user wants the chrome
+              (action chips, input) to disappear in that mode but still see
+              the streaming answer; hiding the answer pane along with the
+              chrome was the previous behavior and made the overlay useless
+              once you toggled Hide. */}
+          {hasContent && (
             <div
               className={cn(
                 'flex flex-col gap-2 rounded-2xl border border-white/10',
