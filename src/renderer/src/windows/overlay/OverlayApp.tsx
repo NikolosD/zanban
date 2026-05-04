@@ -160,6 +160,15 @@ export function OverlayApp() {
     await window.zanban.overlay.hide()
   }
 
+  /**
+   * Bring the dashboard window forward without touching the session.
+   * Triggered by the brand lockup in the status pill — the user wants to
+   * peek at history / settings while the recording keeps going.
+   */
+  async function openDashboardKeepSession(): Promise<void> {
+    await window.zanban.dashboard.show()
+  }
+
   async function stopSession(): Promise<void> {
     setBusy(true)
     try {
@@ -281,6 +290,7 @@ export function OverlayApp() {
             onStop={() => void stopSession()}
             onToggleStealth={() => void toggleStealth()}
             onClose={() => void backToDashboard()}
+            onOpenDashboard={() => void openDashboardKeepSession()}
           />
 
           <ActionChipsRow
@@ -417,7 +427,8 @@ function StatusBar({
   stealth,
   onStop,
   onToggleStealth,
-  onClose
+  onClose,
+  onOpenDashboard
 }: {
   running: boolean
   busy: boolean
@@ -426,6 +437,7 @@ function StatusBar({
   onStop: () => void
   onToggleStealth: () => void
   onClose: () => void
+  onOpenDashboard: () => void
 }) {
   return (
     <div
@@ -435,16 +447,34 @@ function StatusBar({
       )}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Brand lockup — anchors the pill so users learn what app the chip
-          belongs to during an unrelated meeting. Mark only at this size; the
-          wordmark would crowd the rest of the row. */}
-      <span
-        className="flex h-6 w-6 items-center justify-center text-foreground/85"
-        aria-label="Zanban"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
-        <ZanbanMark size={13} signal={running ? 'oklch(0.72 0.18 25)' : undefined} />
-      </span>
+      {/* Brand lockup — clickable. Acts as the "back to dashboard" affordance,
+          but unlike the X close it KEEPS the session running. Used when the
+          user wants to peek at settings / past sessions mid-call. Sits a hair
+          above baseline (-translate-y-px) for visual lift like the natively
+          mark, and paints in solid foreground so it reads at a glance against
+          dark meeting tiles. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            data-interactive
+            onClick={onOpenDashboard}
+            aria-label="Open dashboard — session keeps running"
+            className={cn(
+              'group flex h-7 w-7 -translate-y-px items-center justify-center rounded-full',
+              'text-foreground transition-all',
+              'hover:bg-white/[0.08] hover:-translate-y-0.5 hover:scale-105',
+              'active:scale-95'
+            )}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <ZanbanMark
+              size={18}
+              signal={running ? 'oklch(0.72 0.18 25)' : undefined}
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Open dashboard · session keeps running</TooltipContent>
+      </Tooltip>
       <div
         className="flex items-center gap-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}

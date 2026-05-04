@@ -351,15 +351,10 @@ function GeneralTab({
         title="Appearance"
         hint="How the overlay sits on your screen during a call."
       >
-        <Field
-          label="Interface opacity"
-          hint="Blend the floating overlay into the screen background. Useful when a meeting tile is bright. 100% = solid."
-        >
-          <OpacitySlider
-            value={settings.overlayOpacity ?? 1}
-            onChange={(v) => update('overlayOpacity', v)}
-          />
-        </Field>
+        <OpacityField
+          value={settings.overlayOpacity ?? 1}
+          onChange={(v) => update('overlayOpacity', v)}
+        />
       </Section>
       <Section
         title="Privacy"
@@ -956,6 +951,97 @@ function Row({
       </div>
       <div className="shrink-0">{children}</div>
     </label>
+  )
+}
+
+function OpacityField({
+  value,
+  onChange
+}: {
+  value: number
+  onChange(v: number): void
+}) {
+  return (
+    <div className="grid grid-cols-[180px_1fr] items-start gap-4">
+      <div className="pt-1.5">
+        <div className="text-[13px] text-foreground/85">Interface opacity</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">
+          Blend the floating overlay into the screen background. Useful when a
+          meeting tile is bright. 100% = solid.
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-col gap-3">
+        <OpacitySlider value={value} onChange={onChange} />
+        <OverlayPreview opacity={value} />
+      </div>
+    </div>
+  )
+}
+
+function OverlayPreview({ opacity }: { opacity: number }) {
+  // Preview canvas: a faked desktop tile with the overlay's actual chrome
+  // floating on top at the chosen opacity. Updates live as the user drags
+  // the slider so they don't have to alt-tab to the overlay to judge it.
+  const clamped = Math.min(1, Math.max(0.4, opacity))
+  return (
+    <div
+      className="relative h-[150px] w-full overflow-hidden rounded-md border border-white/[0.06]"
+      style={{
+        // A mocked "bright meeting tile" — same gradient vocabulary the actual
+        // overlay artboard uses in the design canvas.
+        background:
+          'linear-gradient(135deg, oklch(0.32 0.02 220) 0%, oklch(0.22 0.018 240) 50%, oklch(0.18 0.02 280) 100%)'
+      }}
+    >
+      {/* faux meeting tiles in a 2x2 grid — recedes the bg so the overlay
+          chrome reads as a separate object floating on top */}
+      <div className="absolute inset-3 grid grid-cols-2 gap-1.5 rounded border border-white/[0.04]">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded border border-white/[0.03]"
+            style={{
+              background: `oklch(${0.22 + i * 0.02} 0.014 ${220 + i * 18})`
+            }}
+          />
+        ))}
+      </div>
+      {/* The actual overlay chrome stack at the chosen opacity. Built to mirror
+          OverlayApp.tsx's real status pill + answer card so any future visual
+          change there is easy to mirror here. */}
+      <div
+        className="absolute left-1/2 top-3 -translate-x-1/2"
+        style={{ opacity: clamped, transition: 'opacity 120ms ease-out' }}
+      >
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2 py-0.5 backdrop-blur-md">
+            {/* mark */}
+            <span className="flex size-3 items-center justify-center text-foreground">
+              <span className="block size-2 rounded-full bg-foreground/85 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)]" />
+            </span>
+            <span className="font-mono text-[8px] text-primary">● 02:31</span>
+            <span className="font-mono text-[8px] text-muted-foreground">listening</span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5">
+            <span className="size-1 rounded-full bg-primary" />
+            <span className="text-[8px] text-foreground">how do you handle…</span>
+          </div>
+          <div className="rounded-md border border-white/10 bg-black/55 px-2 py-1 backdrop-blur-md">
+            <div className="font-mono text-[7px] uppercase tracking-wider text-muted-foreground/80">
+              answer last
+            </div>
+            <div className="mt-0.5 h-0.5 w-24 rounded bg-foreground/30" />
+            <div className="mt-0.5 h-0.5 w-20 rounded bg-foreground/20" />
+            <div className="mt-0.5 h-0.5 w-16 rounded bg-foreground/15" />
+          </div>
+        </div>
+      </div>
+      {/* corner readout — confirms the % the user is dragging without making
+          them look up at the slider's tail. */}
+      <div className="absolute bottom-1.5 right-2 font-mono text-[9px] text-muted-foreground/70">
+        {Math.round(clamped * 100)}% preview
+      </div>
+    </div>
   )
 }
 
