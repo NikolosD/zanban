@@ -37,6 +37,7 @@ import {
   WebSearchCard,
   LLM_PROVIDER_LIST
 } from './ProvidersTab'
+import { OverlayMockup } from './OverlayMockup'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
@@ -1181,16 +1182,20 @@ function OpacityField({
 }
 
 function OverlayPreview({ opacity }: { opacity: number }) {
-  // Preview canvas: a faked desktop tile with the overlay's actual chrome
-  // floating on top at the chosen opacity. Updates live as the user drags
-  // the slider so they don't have to alt-tab to the overlay to judge it.
+  // Preview canvas: a faked desktop tile with the REAL overlay chrome on top,
+  // rendered at native size (max-w 680px) and scaled down via CSS transform
+  // so the user judges opacity against pixel-perfect chrome rather than a
+  // stylized approximation. The mockup shares its JSX/classes with
+  // OverlayApp.tsx — see OverlayMockup.tsx.
   const clamped = Math.min(1, Math.max(0.4, opacity))
+  // Native overlay content is ~720px wide (max-w 680 + p-3). Pick a scale
+  // that fits a comfortable preview tile width without becoming illegible.
+  const scale = 0.55
   return (
     <div
-      className="relative h-[150px] w-full overflow-hidden rounded-md border border-white/[0.06]"
+      className="relative w-full overflow-hidden rounded-md border border-white/[0.06]"
       style={{
-        // A mocked "bright meeting tile" — same gradient vocabulary the actual
-        // overlay artboard uses in the design canvas.
+        height: 320,
         background:
           'linear-gradient(135deg, oklch(0.32 0.02 220) 0%, oklch(0.22 0.018 240) 50%, oklch(0.18 0.02 280) 100%)'
       }}
@@ -1208,35 +1213,21 @@ function OverlayPreview({ opacity }: { opacity: number }) {
           />
         ))}
       </div>
-      {/* The actual overlay chrome stack at the chosen opacity. Built to mirror
-          OverlayApp.tsx's real status pill + answer card so any future visual
-          change there is easy to mirror here. */}
+      {/* The actual overlay chrome at native pixel size, scaled down. Native
+          width matches OverlayApp's max-w-[680px] so component pixels in
+          the preview match what the user will see at 100% opacity. */}
       <div
-        className="absolute left-1/2 top-3 -translate-x-1/2"
-        style={{ opacity: clamped, transition: 'opacity 120ms ease-out' }}
+        className="absolute left-1/2 top-2"
+        style={{
+          width: 720,
+          marginLeft: -360,
+          opacity: clamped,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+          transition: 'opacity 120ms ease-out'
+        }}
       >
-        <div className="flex flex-col items-center gap-1">
-          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-2 py-0.5 backdrop-blur-md">
-            {/* mark */}
-            <span className="flex size-3 items-center justify-center text-foreground">
-              <span className="block size-2 rounded-full bg-foreground/85 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)]" />
-            </span>
-            <span className="font-mono text-[8px] text-primary">● 02:31</span>
-            <span className="font-mono text-[8px] text-muted-foreground">listening</span>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5">
-            <span className="size-1 rounded-full bg-primary" />
-            <span className="text-[8px] text-foreground">how do you handle…</span>
-          </div>
-          <div className="rounded-md border border-white/10 bg-black/55 px-2 py-1 backdrop-blur-md">
-            <div className="font-mono text-[7px] uppercase tracking-wider text-muted-foreground/80">
-              answer last
-            </div>
-            <div className="mt-0.5 h-0.5 w-24 rounded bg-foreground/30" />
-            <div className="mt-0.5 h-0.5 w-20 rounded bg-foreground/20" />
-            <div className="mt-0.5 h-0.5 w-16 rounded bg-foreground/15" />
-          </div>
-        </div>
+        <OverlayMockup />
       </div>
       {/* corner readout — confirms the % the user is dragging without making
           them look up at the slider's tail. */}
