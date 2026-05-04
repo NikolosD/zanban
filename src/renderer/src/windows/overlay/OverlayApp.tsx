@@ -250,7 +250,12 @@ export function OverlayApp() {
   const hasAnswer = !!latest
   const hasContent = hasAnswer || apiKeysMissing || transcriptionError ||
     (pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false)
-  const collapsed = stealth && settings?.hideWidgetWhenHidden === true
+  // Hide-widget-when-hidden only collapses the action chips row now — the
+  // input pill and answer pane stay so the user can still type / read a
+  // streaming answer while Hide is on. Previously this also dropped the
+  // input and content panel, which made the overlay unusable in its main
+  // mode (you'd toggle Hide and lose access to your own Q&A).
+  const chipsCollapsed = stealth && settings?.hideWidgetWhenHidden === true
 
   return (
     <TooltipProvider delayDuration={250}>
@@ -278,7 +283,7 @@ export function OverlayApp() {
             onClose={() => void backToDashboard()}
           />
 
-          {!collapsed && (
+          {!chipsCollapsed && (
             <ActionChipsRow
               busy={busy}
               running={running}
@@ -295,37 +300,32 @@ export function OverlayApp() {
             />
           )}
 
-          {!collapsed && (
-            <InputPill
-              text={text}
-              image={image}
-              busy={busy}
-              snapping={snapping}
-              inputRef={inputRef}
-              onTextChange={setText}
-              onKey={onKey}
-              onSend={() => void send()}
-              onSnap={() => void snap()}
-              onClearImage={() => {
-                setImage(null)
-                setOcrText(null)
-              }}
-              modelOverride={modelOverride}
-              onModelChange={setModelOverride}
-              activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
-              activeDefaultModel={
-                settings?.aiModels?.[settings.llmProvider]?.fast ||
-                (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
-              }
-            />
-          )}
+          <InputPill
+            text={text}
+            image={image}
+            busy={busy}
+            snapping={snapping}
+            inputRef={inputRef}
+            onTextChange={setText}
+            onKey={onKey}
+            onSend={() => void send()}
+            onSnap={() => void snap()}
+            onClearImage={() => {
+              setImage(null)
+              setOcrText(null)
+            }}
+            modelOverride={modelOverride}
+            onModelChange={setModelOverride}
+            activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
+            activeDefaultModel={
+              settings?.aiModels?.[settings.llmProvider]?.fast ||
+              (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
+            }
+          />
 
-          {/* Answer / alerts / detected-questions panel — stays visible even
-              when collapsed (stealth + hideWidget). The user wants the chrome
-              (action chips, input) to disappear in that mode but still see
-              the streaming answer; hiding the answer pane along with the
-              chrome was the previous behavior and made the overlay useless
-              once you toggled Hide. */}
+          {/* Answer / alerts / detected-questions panel. Always rendered when
+              there is something to show — Hide should never dismiss what the
+              user just asked for. */}
           {hasContent && (
             <div
               className={cn(
