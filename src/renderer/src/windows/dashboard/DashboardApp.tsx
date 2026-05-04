@@ -182,9 +182,9 @@ function Header({
       <button
         onClick={onSettings}
         aria-label="Settings"
-        className="font-mono text-[11px] lowercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+        className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        settings
+        Settings
       </button>
     </header>
   )
@@ -525,7 +525,7 @@ function SessionStartButton() {
       size="default"
       variant={running ? 'destructive' : 'default'}
       className={cn(
-        'shrink-0 gap-2 rounded-full px-4 text-[12px] font-medium lowercase',
+        'shrink-0 gap-2 rounded-full px-4 text-[12px] font-medium',
         // Idle: coral (signal) — this is the one primary action of the dashboard.
         // Soft halo signals "press me" without competing with the recording chip
         // since the recording chip lives in the overlay, not here.
@@ -542,7 +542,7 @@ function SessionStartButton() {
       ) : (
         <Mic className="size-4" />
       )}
-      {running ? 'stop session' : 'start session'}
+      {running ? 'Stop session' : 'Start session'}
     </Button>
   )
 }
@@ -743,7 +743,7 @@ function MeetingRow({
                 }}
               >
                 <Download className="size-3.5" />
-                <span>export markdown…</span>
+                <span>Export markdown…</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
@@ -751,7 +751,7 @@ function MeetingRow({
                 }}
               >
                 <FolderOpen className="size-3.5" />
-                <span>reveal in finder</span>
+                <span>Reveal in folder</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -760,7 +760,7 @@ function MeetingRow({
                 onSelect={() => setConfirmDelete(true)}
               >
                 <Trash2 className="size-3.5" />
-                <span>delete session</span>
+                <span>Delete session</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -769,14 +769,14 @@ function MeetingRow({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-md">
           <DialogTitle className="text-base font-semibold tracking-tight">
-            delete this session?
+            Delete this session?
           </DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
             <span className="text-foreground">
               {session.title || formatFallbackTitle(date)}
             </span>{' '}
             will be removed from your machine — transcript, markdown export, and
-            embeddings. cloud copies are not affected. this can&apos;t be undone.
+            embeddings. Cloud copies are not affected. This can&apos;t be undone.
           </DialogDescription>
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button
@@ -785,7 +785,7 @@ function MeetingRow({
               disabled={deleting}
               className="text-[12px]"
             >
-              cancel
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -794,7 +794,7 @@ function MeetingRow({
               className="text-[12px]"
             >
               {deleting ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              delete
+              Delete
             </Button>
           </div>
         </DialogContent>

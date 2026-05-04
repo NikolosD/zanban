@@ -83,7 +83,7 @@ export const SETTINGS_TABS: Array<{
 }> = [
   {
     id: 'general',
-    label: 'general',
+    label: 'General',
     keywords: [
       'general',
       'privacy',
@@ -100,7 +100,7 @@ export const SETTINGS_TABS: Array<{
   },
   {
     id: 'ai',
-    label: 'ai',
+    label: 'AI',
     keywords: [
       'ai',
       'models',
@@ -129,7 +129,7 @@ export const SETTINGS_TABS: Array<{
   },
   {
     id: 'audio',
-    label: 'audio',
+    label: 'Audio',
     keywords: [
       'audio',
       'mic',
@@ -147,7 +147,7 @@ export const SETTINGS_TABS: Array<{
   },
   {
     id: 'identity',
-    label: 'identity',
+    label: 'Identity',
     keywords: [
       'persona',
       'preset',
@@ -168,19 +168,19 @@ export const SETTINGS_TABS: Array<{
   },
   {
     id: 'hotkeys',
-    label: 'hotkeys',
+    label: 'Hotkeys',
     keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind']
   },
-  { id: 'about', label: 'about', keywords: ['about', 'version', 'changelog'] }
+  { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
 ]
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'general', label: 'general', icon: SlidersHorizontal },
-  { id: 'ai', label: 'ai', icon: Cpu },
-  { id: 'audio', label: 'audio', icon: Headphones },
-  { id: 'identity', label: 'identity', icon: User },
-  { id: 'hotkeys', label: 'hotkeys', icon: Keyboard },
-  { id: 'about', label: 'about', icon: Info }
+  { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'ai', label: 'AI', icon: Cpu },
+  { id: 'audio', label: 'Audio', icon: Headphones },
+  { id: 'identity', label: 'Identity', icon: User },
+  { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
+  { id: 'about', label: 'About', icon: Info }
 ]
 
 interface MicDevice {

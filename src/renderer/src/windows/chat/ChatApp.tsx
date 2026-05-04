@@ -63,11 +63,11 @@ export function ChatApp() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 gap-1 px-2 text-[11px] lowercase text-muted-foreground"
+          className="h-6 gap-1 px-2 text-[11px] text-muted-foreground"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           onClick={() => useAi.getState().reset()}
         >
-          <Trash2 className="size-3" /> clear
+          <Trash2 className="size-3" /> Clear
         </Button>
       </header>
 
