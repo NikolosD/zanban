@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Sparkles, Quote, Loader2, Wand2, Image as ImageIcon, X } from 'lucide-react'
+import { Send, Quote, Loader2, Wand2, Image as ImageIcon, X } from 'lucide-react'
 import { useAi } from './store'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { Button } from '@renderer/components/ui/button'
@@ -188,8 +188,8 @@ function Empty({
   ]
   return (
     <div className="flex flex-col gap-1.5 pt-1">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Sparkles className="size-3.5 text-primary" /> Quick actions:
+      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        Quick actions
       </div>
       {suggestions.map((s) => (
         <button

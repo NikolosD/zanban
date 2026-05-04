@@ -250,7 +250,10 @@ export function OverlayApp() {
         <div
           data-interactive
           className={cn(
-            'pointer-events-auto mx-auto flex w-full flex-col gap-2',
+            // Tighter gap between surfaces so the StatusBar / Action chips /
+            // Input read as one composed object rather than three independent
+            // pills floating on the desktop. Per DESIGN.md "fewer surfaces".
+            'pointer-events-auto mx-auto flex w-full flex-col gap-1.5',
             'max-w-[680px]'
           )}
         >
@@ -363,7 +366,7 @@ export function OverlayApp() {
                         'hover:bg-primary/20 hover:border-primary/60'
                       )}
                     >
-                      <Sparkles className="size-3 shrink-0 text-primary" />
+                      <span className="size-1.5 shrink-0 rounded-full bg-primary" />
                       <span className="truncate">{q.text}</span>
                       <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
                         answer ↵
@@ -381,13 +384,10 @@ export function OverlayApp() {
             </div>
           )}
 
-          <Footer
-            activeModel={
-              modelOverride ||
-              settings?.aiModels?.[settings.llmProvider]?.fast ||
-              (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '…')
-            }
-          />
+          {/* Footer was a separate surface showing the active model. The
+              same info is already reachable via the model picker in the
+              input pill — keeping a fifth surface just for a label was
+              fragmentation. Removed; the picker is the source of truth. */}
         </div>
         <Toaster theme="dark" />
       </div>
@@ -433,11 +433,13 @@ function StatusBar({
                 disabled={busy}
                 className={cn(
                   'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-                  'border border-red-500/30 bg-red-500/10 font-mono text-[10px] text-red-300',
-                  'hover:bg-red-500/20 hover:border-red-500/50 transition-colors'
+                  'border border-primary/30 bg-primary/10 font-mono text-[10px] text-primary',
+                  'hover:bg-primary/15 hover:border-primary/50 transition-colors'
                 )}
               >
-                <span className="inline-flex size-1.5 animate-pulse rounded-full bg-red-400" />
+                {/* Slower pulse (1.6s) — calmer than the default 1s; matches
+                    the "doesn't want to be seen" stealth posture. */}
+                <span className="inline-flex size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
                 {elapsed}
                 <Square className="ml-0.5 size-2.5 fill-current" />
               </button>
@@ -447,9 +449,9 @@ function StatusBar({
         ) : (
           <span
             data-interactive
-            className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 font-mono text-[10px] text-muted-foreground"
+            className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 font-mono text-[10px] text-muted-foreground"
           >
-            <span className="inline-flex size-1.5 rounded-full bg-muted-foreground/50" />
+            <span className="inline-flex size-1.5 rounded-full bg-muted-foreground/40" />
             idle
           </span>
         )}
@@ -465,13 +467,17 @@ function StatusBar({
               variant="ghost"
               size="sm"
               className={cn(
-                'h-6 gap-1 px-2 text-[11px]',
-                stealth ? 'text-green-400' : 'text-amber-400'
+                'h-6 gap-1 px-2 text-[11px] font-mono lowercase tracking-tight',
+                // Stealth on = quiet, default fg. Stealth off = warning amber.
+                // We don't dual-signal both states — only the off (visible)
+                // state gets a color cue; the on (hidden) state is the calm
+                // default and shouldn't compete with the recording chip.
+                stealth ? 'text-muted-foreground hover:text-foreground' : 'text-amber-300'
               )}
               onClick={onToggleStealth}
             >
               {stealth ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-              <span>Hide</span>
+              <span>{stealth ? 'hidden' : 'visible'}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -480,6 +486,15 @@ function StatusBar({
               : 'Visible in screen-share. Click to hide.'}
           </TooltipContent>
         </Tooltip>
+
+        {/* Hotkey hint slot. Two-tone monospace per DESIGN.md — modifier
+            keys at lower contrast than the trigger. Lives between Hide and
+            Close so the pill reads: status · hide · ⌥hint · ✕ */}
+        <span className="hidden items-center gap-1 px-1 font-mono text-[10px] tabular-nums sm:inline-flex">
+          <span className="text-muted-foreground/55">⌃⇧</span>
+          <span className="text-muted-foreground">␣</span>
+          <span className="text-muted-foreground/40">ask</span>
+        </span>
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -795,17 +810,6 @@ function Kbd({ children }: { children: React.ReactNode }) {
     <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded bg-white/10 px-1 font-mono text-[9px] leading-none text-foreground/80">
       {children}
     </span>
-  )
-}
-
-function Footer({ activeModel }: { activeModel: string }) {
-  // Strip vendor prefix for compactness — "google/gemini-3.1-flash-lite-preview"
-  // becomes "gemini-3.1-flash-lite-preview", "claude-haiku-4-5" stays as is.
-  const display = activeModel.includes('/') ? activeModel.split('/').pop() : activeModel
-  return (
-    <div className="flex items-center justify-center pt-1">
-      <span className="font-mono text-[10px] text-muted-foreground/60">{display}</span>
-    </div>
   )
 }
 

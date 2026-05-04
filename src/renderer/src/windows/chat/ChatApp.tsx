@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { Send, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useAi, wireAiIpc } from '@renderer/features/ai/store'
@@ -53,9 +53,8 @@ export function ChatApp() {
         className="flex h-9 items-center justify-between border-b border-white/[0.06] px-3 text-[11px]"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Sparkles className="size-3.5 text-emerald-400/70" />
-          Zanban Chat
+        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Zanban · chat
         </div>
         <Button
           variant="ghost"

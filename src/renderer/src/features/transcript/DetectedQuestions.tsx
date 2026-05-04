@@ -1,4 +1,4 @@
-import { Sparkles, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useQuestions, type DetectedQuestion } from './questionsStore'
 import { useAi } from '@renderer/features/ai/store'
 import {
@@ -56,7 +56,9 @@ function QuestionChip({ question }: { question: DetectedQuestion }) {
             'text-xs transition-colors hover:bg-primary/20 hover:border-primary/60'
           )}
         >
-          <Sparkles className="size-3.5 shrink-0 text-primary" />
+          {/* The whole chip is the signal-coloured affordance — the leading
+              dot is the only mark needed; an icon would dilute the cue. */}
+          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
           <span className="truncate text-left text-foreground">{question.text}</span>
           <span className="shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
             answer ↵

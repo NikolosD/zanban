@@ -3,49 +3,60 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Zanban tokens. Restrained color strategy: tinted neutrals (cool 260° hue,
+ * chroma ≤0.012) + one coral signal at ≤10% surface coverage + sage success.
+ * Never #000 / #fff — every neutral carries a faint cool tint so the surface
+ * recedes against bright OS chrome instead of cutting through it.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Light theme is unused at runtime (color-scheme is dark) but kept coherent
+     so tooling that previews tokens doesn't see jarring contrast. */
+  --background: oklch(0.985 0.003 260);
+  --foreground: oklch(0.20 0.012 260);
+  --card: oklch(0.985 0.003 260);
+  --card-foreground: oklch(0.20 0.012 260);
+  --popover: oklch(0.985 0.003 260);
+  --popover-foreground: oklch(0.20 0.012 260);
+  --primary: oklch(0.72 0.18 25);
+  --primary-foreground: oklch(0.985 0.003 260);
+  --secondary: oklch(0.96 0.005 260);
+  --secondary-foreground: oklch(0.20 0.012 260);
+  --muted: oklch(0.96 0.005 260);
+  --muted-foreground: oklch(0.55 0.01 260);
+  --accent: oklch(0.78 0.13 145);
+  --accent-foreground: oklch(0.985 0.003 260);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.985 0.003 260);
+  --border: oklch(0.20 0.012 260 / 0.10);
+  --input: oklch(0.20 0.012 260 / 0.14);
+  --ring: oklch(0.55 0.01 260);
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.439 0 0);
+  /* near-black, faint cool tint — recedes vs OS chrome */
+  --background: oklch(0.16 0.01 260);
+  --foreground: oklch(0.96 0.005 260);
+  --card: oklch(0.20 0.008 260);
+  --card-foreground: oklch(0.96 0.005 260);
+  --popover: oklch(0.20 0.008 260);
+  --popover-foreground: oklch(0.96 0.005 260);
+  /* Coral signal — used semantically (pending question, REC). Never decorative. */
+  --primary: oklch(0.72 0.18 25);
+  --primary-foreground: oklch(0.16 0.01 260);
+  --secondary: oklch(0.24 0.006 260);
+  --secondary-foreground: oklch(0.96 0.005 260);
+  --muted: oklch(0.24 0.006 260);
+  --muted-foreground: oklch(0.66 0.01 260);
+  /* Sage — confirmed / success only */
+  --accent: oklch(0.78 0.13 145);
+  --accent-foreground: oklch(0.16 0.01 260);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.96 0.005 260);
+  --border: oklch(1 0 0 / 0.07);
+  --input: oklch(1 0 0 / 0.10);
+  --ring: oklch(0.66 0.01 260);
 }
 
 @theme inline {

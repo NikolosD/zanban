@@ -15,7 +15,6 @@ import {
   wireCaptureAutostop
 } from '@renderer/audio/captureController'
 import { Button } from '@renderer/components/ui/button'
-import { Badge } from '@renderer/components/ui/badge'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@renderer/components/ui/dialog'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -138,10 +137,17 @@ function Header({
   onSettings(): void
 }) {
   return (
-    <header className="flex items-center gap-4">
-      <div className="shrink-0">
-        <div className="text-xl font-semibold tracking-tight">Zanban</div>
-        <div className="font-mono text-[10px] text-muted-foreground">v{version || '…'}</div>
+    <header className="flex items-center gap-5">
+      {/* Wordmark: 20px display weight + faint mono version pill below.
+          Inline-baseline alignment between mark and version reads as a single
+          object instead of a stacked logo block. */}
+      <div className="flex shrink-0 items-baseline gap-2">
+        <div className="text-[20px] font-semibold tracking-tight leading-none">
+          Zanban
+        </div>
+        <div className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+          {version ? `v${version}` : '·'}
+        </div>
       </div>
       <SearchPill
         onAsk={onAsk}
@@ -149,15 +155,13 @@ function Header({
         onOpenSettingsTab={onOpenSettingsTab}
       />
       <SessionStartButton />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-9 rounded-full text-muted-foreground hover:text-foreground"
+      <button
         onClick={onSettings}
         aria-label="Settings"
+        className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        <SettingsIcon className="size-4" />
-      </Button>
+        Settings
+      </button>
     </header>
   )
 }
@@ -400,7 +404,10 @@ function SearchPill({
                   highlight === idx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
                 )}
               >
-                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-emerald-400/70" />
+                {/* RAG-hit row: leading vertical accent line stands in for the
+                    icon. Keeps the result list quiet so the bottom Ask CTA is
+                    the only sparkle on the panel. */}
+                <span className="mt-1 h-3 w-px shrink-0 bg-accent/60" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[12px] text-muted-foreground">
                     {hit.kind === 'rag' ? hit.snippet : ''}
@@ -534,13 +541,20 @@ function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-12">
       {groups.map((g) => (
-        <section key={g.label} className="flex flex-col gap-2">
-          <h2 className="px-1 text-[13px] font-medium text-muted-foreground">{g.label}</h2>
+        <section key={g.label} className="flex flex-col gap-3">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {g.label}
+          </h2>
           <ul className="flex flex-col">
-            {g.items.map((s) => (
-              <MeetingRow key={s.id} session={s} onSelect={onSelect} />
+            {g.items.map((s, i) => (
+              <MeetingRow
+                key={s.id}
+                session={s}
+                onSelect={onSelect}
+                isLast={i === g.items.length - 1}
+              />
             ))}
           </ul>
         </section>
@@ -551,16 +565,19 @@ function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
 
 function MeetingRow({
   session,
-  onSelect
+  onSelect,
+  isLast
 }: {
   session: SessionListItem
   onSelect(id: string): void
+  isLast: boolean
 }) {
   const liveSession = useTranscript((s) => s.session)
   const isRunningElsewhere = liveSession.kind === 'running'
   const date = new Date(session.startedAt)
   const dur = formatDuration(session.durationMs)
   const time = formatTime(date)
+  const isLive = !session.endedAt
 
   async function resume(): Promise<void> {
     if (isRunningElsewhere) {
@@ -579,33 +596,35 @@ function MeetingRow({
   }
 
   return (
-    <li>
+    <li className={cn(!isLast && 'border-b border-white/[0.045]')}>
       <div
         className={cn(
-          'group flex items-center gap-3 rounded-md border-b border-white/[0.04]',
-          'px-3 py-3 transition-colors hover:bg-white/[0.03]'
+          'group flex items-center gap-4 px-1 py-3 transition-colors',
+          'hover:bg-white/[0.025]'
         )}
       >
+        {/* Leading slot is reserved for the live signal. Kept fixed-width so
+            titles align across rows whether or not a row is recording. */}
+        <span className="flex w-2.5 shrink-0 items-center justify-center">
+          {isLive && (
+            <span className="size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
+          )}
+        </span>
         <button
           type="button"
           onClick={() => onSelect(session.id)}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="truncate text-sm text-foreground">
+          <div className="truncate text-[13.5px] font-medium text-foreground">
             {session.title || formatFallbackTitle(date)}
           </div>
-          {!session.endedAt && (
-            <Badge variant="destructive" className="mt-1 font-mono text-[9px]">
-              REC
-            </Badge>
-          )}
         </button>
         {dur && (
-          <span className="font-mono text-[11px] text-muted-foreground/80 tabular-nums">
+          <span className="w-12 text-right font-mono text-[11px] tabular-nums text-muted-foreground/80">
             {dur}
           </span>
         )}
-        <span className="font-mono text-[11px] text-muted-foreground/60 tabular-nums w-[72px] text-right">
+        <span className="w-[68px] text-right font-mono text-[11px] tabular-nums text-muted-foreground/55">
           {time}
         </span>
         <Button
@@ -626,18 +645,21 @@ function MeetingRow({
 }
 
 function EmptyMeetings() {
+  // Empty state: typographic, not iconographic. A single faint dot anchors
+  // the column and echoes the recording-dot motif used elsewhere — quieter
+  // than a centered illustration and consistent with the tools-not-bragging
+  // tone in PRODUCT.md.
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-20 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Sparkles className="size-5" />
+    <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
+      <span className="size-1 rounded-full bg-muted-foreground/40" />
+      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        no sessions yet
       </div>
-      <div className="max-w-sm">
-        <div className="text-sm font-medium">No meetings yet</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Hit <span className="font-medium text-foreground">Start session</span> above. Sessions
-          are saved locally as Markdown when you stop.
-        </p>
-      </div>
+      <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+        Hit <span className="text-foreground">Start session</span> in the
+        header. Each session is saved locally as Markdown when you stop —
+        nothing leaves your machine.
+      </p>
     </div>
   )
 }

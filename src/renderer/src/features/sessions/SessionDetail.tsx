@@ -8,7 +8,6 @@ import {
   RotateCcw,
   Copy,
   Check,
-  Sparkles,
   Download
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
@@ -266,27 +265,20 @@ function SummaryTab({ session }: { session: SessionDetailPayload }) {
 
   if (!summary) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4">
-        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Sparkles className="size-5" />
+      <div className="flex h-full flex-col items-start justify-center gap-4 px-1">
+        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          no summary yet
         </div>
-        <div className="text-center">
-          <div className="text-sm font-medium">No summary yet</div>
-          <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-            Generate a quick AI summary of what was discussed in this meeting. Uses the saved
-            transcript.
-          </p>
-        </div>
+        <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+          Generate a quick AI summary of what was discussed. Uses the saved
+          transcript only — no audio is sent.
+        </p>
         <Button
           onClick={() => void generate()}
           disabled={generating || session.segments.length === 0}
           className="gap-2"
         >
-          {generating ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Sparkles className="size-4" />
-          )}
+          {generating && <Loader2 className="size-4 animate-spin" />}
           Generate summary
         </Button>
         {session.segments.length === 0 && (

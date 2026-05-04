@@ -4,7 +4,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
-  Sparkles,
+  Cpu,
   Mic,
   User,
   Keyboard,
@@ -98,7 +98,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ classN
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'audio', label: 'Audio & Speech', icon: Headphones },
   { id: 'providers', label: 'Providers', icon: PROVIDERS_ICON },
-  { id: 'models', label: 'AI models', icon: Sparkles },
+  { id: 'models', label: 'AI models', icon: Cpu },
   { id: 'persona', label: 'Personas', icon: User },
   { id: 'documents', label: 'Documents', icon: REFERENCE_DOCS_ICON },
   { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
@@ -261,11 +261,11 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
 
 function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
   return (
-    <aside className="flex w-56 shrink-0 flex-col gap-1 border-r border-white/[0.06] bg-white/[0.015] p-4">
-      <h2 className="px-2 pb-2 pt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+    <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
+      <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         Settings
       </h2>
-      <nav className="flex flex-col gap-0.5">
+      <nav className="flex flex-col">
         {TABS.map((t) => {
           const active = tab === t.id
           return (
@@ -273,13 +273,17 @@ function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                // Underline-tab analogue for the vertical axis: 1px leading
+                // border that lights up on active. No filled pill background —
+                // keeps the panel quieter and the active state unambiguous
+                // even from the corner of the eye.
+                'group relative flex items-center gap-2.5 border-l py-2 pl-3 pr-2 text-[13px] transition-colors',
                 active
-                  ? 'bg-white/[0.06] text-foreground'
-                  : 'text-muted-foreground hover:bg-white/[0.03] hover:text-foreground'
+                  ? 'border-foreground/80 text-foreground'
+                  : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground'
               )}
             >
-              <t.icon className="size-4" />
+              <t.icon className="size-3.5 opacity-80" />
               {t.label}
             </button>
           )
@@ -298,11 +302,16 @@ function Section({
   children: React.ReactNode
   hint?: string
 }) {
+  // Section header: monospace eyebrow + plain title. Wide bottom margin
+  // (40px) gives the page a clear rhythm so adjacent groups don't blur
+  // into one wall of rows.
   return (
-    <section className="mb-7">
-      <div className="mb-3">
-        <h3 className="text-[15px] font-medium tracking-tight">{title}</h3>
-        {hint && <p className="mt-0.5 text-[12px] text-muted-foreground">{hint}</p>}
+    <section className="mb-10 first:mt-0">
+      <div className="mb-4 flex flex-col gap-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          {title}
+        </div>
+        {hint && <p className="text-[12px] leading-relaxed text-muted-foreground">{hint}</p>}
       </div>
       <div className="flex flex-col gap-4">{children}</div>
     </section>
