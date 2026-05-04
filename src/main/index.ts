@@ -172,6 +172,16 @@ app.whenReady().then(async () => {
     mainWindow.setSkipTaskbar(lowProfile)
   }
 
+  function applyOverlayOpacity(): void {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    const raw = getSettings().overlayOpacity ?? 1
+    // Clamp to a useful range — fully transparent overlays are unreachable
+    // and 100%+ has no effect. Floor at 0.4 so the user can never lose the
+    // window completely from the screen by accident.
+    const opacity = Math.min(1, Math.max(0.4, raw))
+    overlayWindow.setOpacity(opacity)
+  }
+
   function showOverlay(): void {
     if (!overlayWindow) return
     overlayWindow.show()
@@ -271,6 +281,9 @@ app.whenReady().then(async () => {
     ) {
       applyDashboardVisibility()
     }
+    if (Object.prototype.hasOwnProperty.call(patch, 'overlayOpacity')) {
+      applyOverlayOpacity()
+    }
     // Broadcast the new settings to every window — the overlay holds its own
     // copy in zustand, so without this it would not pick up changes like
     // `hideWidgetWhenHidden` or `autoDetectQuestions` until app restart.
@@ -361,6 +374,7 @@ app.whenReady().then(async () => {
 
   mainWindow = createMainWindow()
   overlayWindow = createOverlayWindow()
+  applyOverlayOpacity()
 
   for (const win of [mainWindow, overlayWindow]) {
     sessionManager.registerWindow(win)

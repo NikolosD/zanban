@@ -348,6 +348,20 @@ function GeneralTab({
   return (
     <>
       <Section
+        title="Appearance"
+        hint="How the overlay sits on your screen during a call."
+      >
+        <Field
+          label="Interface opacity"
+          hint="Blend the floating overlay into the screen background. Useful when a meeting tile is bright. 100% = solid."
+        >
+          <OpacitySlider
+            value={settings.overlayOpacity ?? 1}
+            onChange={(v) => update('overlayOpacity', v)}
+          />
+        </Field>
+      </Section>
+      <Section
         title="Privacy"
         hint="How the floating widget behaves around screen-sharing and Hide."
       >
@@ -942,6 +956,48 @@ function Row({
       </div>
       <div className="shrink-0">{children}</div>
     </label>
+  )
+}
+
+function OpacitySlider({
+  value,
+  onChange
+}: {
+  value: number
+  onChange(v: number): void
+}) {
+  // Floor mirrors the clamp in main/index.ts → applyOverlayOpacity. Letting the
+  // user drag below this would risk dragging the overlay below visibility on
+  // glance-and-recover.
+  const min = 0.4
+  const max = 1
+  const pct = Math.round(value * 100)
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={0.05}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={cn(
+          'h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/[0.08]',
+          // The track is rendered via accent on supported browsers — fallback
+          // is the white/0.08 background. Keep the thumb a single circle in
+          // foreground color so it reads against any backdrop.
+          '[&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none',
+          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground',
+          '[&::-webkit-slider-thumb]:shadow-[0_0_0_3px_oklch(1_0_0/0.06)]',
+          '[&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full',
+          '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground'
+        )}
+        style={{ accentColor: 'oklch(0.78 0.13 145)' }}
+      />
+      <span className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+        {pct}%
+      </span>
+    </div>
   )
 }
 

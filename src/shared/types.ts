@@ -243,6 +243,12 @@ export interface AppSettings {
   hideWidgetWhenHidden: boolean
   /** macOS: hide the dock icon while the app is running. Restart required. */
   hideDockMacOS: boolean
+  /**
+   * Overall opacity of the overlay window in [0.4, 1]. Lets the user blend
+   * the HUD into the screen background — useful in glance-only mode or when
+   * a meeting tile is bright. Applied via BrowserWindow.setOpacity.
+   */
+  overlayOpacity: number
   autoDetectQuestions: boolean
   hotkeys: {
     toggleOverlay: string
@@ -483,6 +489,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   detectable: false,
   hideWidgetWhenHidden: false,
   hideDockMacOS: false,
+  overlayOpacity: 1,
   autoDetectQuestions: true,
   hotkeys: {
     toggleOverlay: 'Control+\\',
