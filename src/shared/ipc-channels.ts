@@ -46,7 +46,10 @@ export const IPC = {
   sessions: {
     list: 'sessions:list',
     read: 'sessions:read',
-    revealFolder: 'sessions:reveal-folder'
+    revealFolder: 'sessions:reveal-folder',
+    delete: 'sessions:delete',
+    revealFile: 'sessions:reveal-file',
+    exportMarkdown: 'sessions:export-markdown'
   },
   screenshot: {
     capture: 'screenshot:capture',

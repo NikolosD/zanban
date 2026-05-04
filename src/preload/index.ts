@@ -55,7 +55,10 @@ const api: ZanbanApi = {
   sessions: {
     list: () => ipcRenderer.invoke(IPC.sessions.list),
     read: (id) => ipcRenderer.invoke(IPC.sessions.read, id),
-    revealFolder: () => ipcRenderer.invoke(IPC.sessions.revealFolder)
+    revealFolder: () => ipcRenderer.invoke(IPC.sessions.revealFolder),
+    delete: (id) => ipcRenderer.invoke(IPC.sessions.delete, id),
+    revealFile: (id) => ipcRenderer.invoke(IPC.sessions.revealFile, id),
+    exportMarkdown: (id) => ipcRenderer.invoke(IPC.sessions.exportMarkdown, id)
   },
   screenshot: {
     capture: () => ipcRenderer.invoke(IPC.screenshot.capture),

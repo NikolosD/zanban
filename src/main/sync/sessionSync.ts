@@ -1,5 +1,5 @@
 import { app, type BrowserWindow } from 'electron'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, unlink, copyFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sessionManager } from '../transcription/sessionManager.js'
 import { generateSessionTitle } from '../ai/titleGen.js'
@@ -254,6 +254,33 @@ export async function readSessionFromDisk(id: string): Promise<SessionDetailPayl
 
 export function getSessionsDir(): string {
   return sessionsDir()
+}
+
+export function getSessionMdPath(id: string): string {
+  return mdPath(id)
+}
+
+export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }> {
+  await ensureDir()
+  // Refuse if this is the live session — caller must stop it first.
+  if (activeSessionId === id) {
+    return { ok: false }
+  }
+  sessions.delete(id)
+  let removedAny = false
+  for (const p of [jsonPath(id), mdPath(id)]) {
+    try {
+      await unlink(p)
+      removedAny = true
+    } catch {
+      /* file may not exist — ignore */
+    }
+  }
+  return { ok: removedAny }
+}
+
+export async function copySessionMarkdown(id: string, dest: string): Promise<void> {
+  await copyFile(mdPath(id), dest)
 }
 
 export function shutdownSync(): void {

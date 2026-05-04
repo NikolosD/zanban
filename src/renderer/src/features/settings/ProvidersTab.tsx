@@ -1,60 +1,118 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, Lock, RefreshCw } from 'lucide-react'
+import { Lock, RefreshCw } from 'lucide-react'
 import type { AppSettings, SttProvider } from '@shared/types'
-import { STT_PROVIDERS } from '@shared/types'
 import { Textarea } from '@renderer/components/ui/textarea'
 import type { OllamaHealth as OllamaHealthType } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@renderer/components/ui/select'
+import { ProviderCard, SecretKeyField } from './ProviderCard'
 
 interface Props {
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }
 
-const LLM_PROVIDERS: Array<{ value: AppSettings['llmProvider']; label: string; hint: string }> = [
+interface LlmProviderEntry {
+  value: AppSettings['llmProvider']
+  name: string
+  description: string
+  badge: 'recommended' | 'experimental' | 'local' | null
+  keyUrl?: string
+}
+
+const LLM_PROVIDERS: LlmProviderEntry[] = [
   {
     value: 'vercel-gateway',
-    label: 'Vercel AI Gateway (default)',
-    hint: 'One key, every model — DeepSeek, OpenAI, Gemini, Claude, Mimo. Recommended.'
+    name: 'Vercel AI Gateway',
+    description:
+      'One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.',
+    badge: 'recommended',
+    keyUrl: 'https://vercel.com/dashboard/ai/gateway'
   },
   {
     value: 'anthropic',
-    label: 'Anthropic Claude',
-    hint: 'Direct Anthropic API. Best quality on long-context reasoning.'
+    name: 'Anthropic Claude',
+    description: 'Direct Anthropic API. Best long-context reasoning.',
+    badge: null,
+    keyUrl: 'https://console.anthropic.com/settings/keys'
   },
   {
     value: 'openai',
-    label: 'OpenAI',
-    hint: 'Direct OpenAI API. GPT-5, GPT-OSS, o-series.'
+    name: 'OpenAI',
+    description: 'GPT-5, GPT-OSS, o-series. Vision via the same model IDs.',
+    badge: null,
+    keyUrl: 'https://platform.openai.com/api-keys'
   },
   {
     value: 'google-gemini',
-    label: 'Google Gemini',
-    hint: 'Direct Google AI API. Gemini 2.5 / 3.x.'
+    name: 'Google Gemini',
+    description: 'Gemini 2.5 / 3.x. Strong multimodal. Generous free tier.',
+    badge: null,
+    keyUrl: 'https://aistudio.google.com/app/apikey'
   },
   {
     value: 'groq',
-    label: 'Groq',
-    hint: 'Fastest TTFT (sub-100ms). Good for filter / classification.'
+    name: 'Groq',
+    description: 'Fastest TTFT (sub-100ms). Great for question detector.',
+    badge: null,
+    keyUrl: 'https://console.groq.com/keys'
   },
   {
     value: 'ollama',
-    label: 'Ollama (local)',
-    hint: 'Fully local LLM. Requires `ollama serve` running.'
+    name: 'Ollama (local)',
+    description: 'Fully local — your transcripts never leave the machine.',
+    badge: 'local',
+    keyUrl: 'https://ollama.com/download'
+  }
+]
+
+interface SttProviderEntry {
+  value: SttProvider
+  name: string
+  description: string
+  badge: 'recommended' | 'experimental' | 'local' | null
+  keyUrl?: string
+}
+
+const STT_CARDS: SttProviderEntry[] = [
+  {
+    value: 'deepgram',
+    name: 'Deepgram Nova-3',
+    description: 'High-accuracy streaming. Single API key, low latency.',
+    badge: 'recommended',
+    keyUrl: 'https://console.deepgram.com/'
+  },
+  {
+    value: 'google',
+    name: 'Google Cloud Speech-to-Text',
+    description: 'Chirp 3 multilingual streaming. Needs a GCP project + ADC or service account.',
+    badge: 'recommended',
+    keyUrl: 'https://console.cloud.google.com/apis/credentials'
+  },
+  {
+    value: 'openai-whisper',
+    name: 'OpenAI Whisper',
+    description: 'Whisper-large via OpenAI Realtime / batch API. Wire-up pending.',
+    badge: 'experimental',
+    keyUrl: 'https://platform.openai.com/api-keys'
+  },
+  {
+    value: 'elevenlabs',
+    name: 'ElevenLabs Scribe',
+    description: 'Scribe v2 Realtime API. Wire-up pending.',
+    badge: 'experimental',
+    keyUrl: 'https://elevenlabs.io/app/settings/api-keys'
+  },
+  {
+    value: 'local-whisper',
+    name: 'Local Whisper',
+    description: 'On-device — no key needed. Whisper-tiny via @xenova/transformers.',
+    badge: 'local'
   }
 ]
 
 export function ProvidersTab({ settings, update }: Props) {
-  const [reveal, setReveal] = useState<Record<string, boolean>>({})
   const [ollama, setOllama] = useState<OllamaHealthType | null>(null)
 
   async function refreshOllama() {
@@ -68,7 +126,6 @@ export function ProvidersTab({ settings, update }: Props) {
 
   const togglePrivacy = (v: boolean) => {
     if (v) {
-      // Flip provider settings into the all-local stack in one go.
       update('privacyMode', true)
       update('llmProvider', 'ollama')
       update('sttProvider', 'local-whisper')
@@ -80,397 +137,355 @@ export function ProvidersTab({ settings, update }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Privacy Mode
-        </h3>
-        <p className="mt-1 text-[12px] text-muted-foreground">
-          One toggle: switches LLM to Ollama (local) and STT to Whisper-tiny (local).
-          Nothing leaves your machine. Slower and lower quality than the cloud.
-        </p>
-      </div>
-      <div className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-3">
-        <div className="flex items-center gap-2">
-          <Lock className="size-4 text-emerald-400" />
-          <div>
-            <div className="text-[13px]">Privacy Mode</div>
-            <div className="text-[11px] text-muted-foreground">
-              {settings.privacyMode ? 'Active — everything stays local.' : 'Off — using cloud providers.'}
+    <div className="flex flex-col gap-8">
+      {/* Privacy mode flag — same as before, structurally separate from cards. */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            privacy mode
+          </h3>
+          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+            One toggle: switches LLM to Ollama and STT to local Whisper. Nothing
+            leaves your machine. Slower and lower quality than the cloud.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Lock className="size-4 text-accent" />
+            <div>
+              <div className="text-[13px]">Privacy mode</div>
+              <div className="text-[11px] text-muted-foreground">
+                {settings.privacyMode
+                  ? 'Active — everything stays local.'
+                  : 'Off — using cloud providers.'}
+              </div>
             </div>
           </div>
+          <Switch checked={settings.privacyMode} onCheckedChange={togglePrivacy} />
         </div>
-        <Switch checked={settings.privacyMode} onCheckedChange={togglePrivacy} />
       </div>
 
-      <Section title="LLM provider (text + vision)">
-        <Select
-          value={settings.llmProvider}
-          onValueChange={(v) => update('llmProvider', v as AppSettings['llmProvider'])}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {LLM_PROVIDERS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-[11px] text-muted-foreground">
-          {LLM_PROVIDERS.find((p) => p.value === settings.llmProvider)?.hint}
-        </p>
+      {/* LLM provider cards */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            ai providers · text & vision
+          </h3>
+          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+            Pick which provider answers your questions. Click a card to make it
+            active — credentials stay in the OS keychain.
+          </p>
+        </div>
 
-        <div className="mt-4 flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Vision provider (image questions)
-          </label>
-          <Select
-            value={settings.visionProvider ?? '__same__'}
-            onValueChange={(v) =>
-              update(
-                'visionProvider',
-                v === '__same__' ? null : (v as AppSettings['visionProvider'])
-              )
-            }
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__same__">Same as text provider</SelectItem>
+        <div className="flex flex-col gap-3">
+          {LLM_PROVIDERS.map((p) => {
+            const active = settings.llmProvider === p.value
+            return (
+              <ProviderCard
+                key={p.value}
+                id={p.value}
+                name={p.name}
+                description={p.description}
+                badge={p.badge}
+                keyUrl={p.keyUrl}
+                active={active}
+                onActivate={() => update('llmProvider', p.value)}
+              >
+                {active && <LlmCredentials provider={p.value} settings={settings} update={update} ollama={ollama} onRefreshOllama={() => void refreshOllama()} />}
+              </ProviderCard>
+            )
+          })}
+        </div>
+
+        {/* Vision-provider override — applied when Ask is sent with an image. */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[13px]">Vision provider override</div>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Optional: route image questions to a different vendor. Leave on
+                "same as text" unless you specifically need a different model
+                for screenshots.
+              </p>
+            </div>
+            <select
+              value={settings.visionProvider ?? '__same__'}
+              onChange={(e) =>
+                update(
+                  'visionProvider',
+                  e.target.value === '__same__'
+                    ? null
+                    : (e.target.value as AppSettings['visionProvider'])
+                )
+              }
+              className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-white/20"
+            >
+              <option value="__same__">same as text</option>
               {LLM_PROVIDERS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                <option key={p.value} value={p.value}>
+                  {p.name}
+                </option>
               ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[11px] text-muted-foreground">
-            Optional override: route image questions through a different vendor
-            (e.g. Vercel for text, Google Gemini for vision). The vision
-            provider needs its own key configured below.
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* STT provider cards */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            audio · speech-to-text
+          </h3>
+          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+            How Zanban transcribes mic + system audio. Provider language settings
+            live in the Audio tab.
           </p>
         </div>
 
-        <ProviderModelsHint provider={settings.llmProvider} />
+        <div className="flex flex-col gap-3">
+          {STT_CARDS.map((p) => {
+            const active = settings.sttProvider === p.value
+            return (
+              <ProviderCard
+                key={p.value}
+                id={p.value}
+                name={p.name}
+                description={p.description}
+                badge={p.badge}
+                keyUrl={p.keyUrl}
+                active={active}
+                onActivate={() => update('sttProvider', p.value)}
+              >
+                {active && <SttCredentials provider={p.value} settings={settings} update={update} />}
+              </ProviderCard>
+            )
+          })}
+        </div>
+      </div>
 
-        {settings.llmProvider === 'vercel-gateway' && (
-          <SecretInput
-            label="Vercel AI Gateway key"
-            value={settings.vercelApiKey ?? ''}
-            reveal={reveal.vercel}
-            onReveal={(v) => setReveal((s) => ({ ...s, vercel: v }))}
-            onChange={(v) => update('vercelApiKey', v || null)}
-          />
-        )}
-        {settings.llmProvider === 'anthropic' && (
-          <SecretInput
-            label="Anthropic API key"
-            value={settings.anthropicApiKey ?? ''}
-            reveal={reveal.anthropic}
-            onReveal={(v) => setReveal((s) => ({ ...s, anthropic: v }))}
-            onChange={(v) => update('anthropicApiKey', v || null)}
-          />
-        )}
-        {settings.llmProvider === 'openai' && (
-          <SecretInput
-            label="OpenAI API key"
-            value={settings.openaiApiKey ?? ''}
-            reveal={reveal.openai}
-            onReveal={(v) => setReveal((s) => ({ ...s, openai: v }))}
-            onChange={(v) => update('openaiApiKey', v || null)}
-          />
-        )}
-        {settings.llmProvider === 'google-gemini' && (
-          <SecretInput
-            label="Google AI API key"
-            value={settings.googleAiApiKey ?? ''}
-            reveal={reveal.gemini}
-            onReveal={(v) => setReveal((s) => ({ ...s, gemini: v }))}
-            onChange={(v) => update('googleAiApiKey', v || null)}
-          />
-        )}
-        {settings.llmProvider === 'groq' && (
-          <SecretInput
-            label="Groq API key"
-            value={settings.groqApiKey ?? ''}
-            reveal={reveal.groq}
-            onReveal={(v) => setReveal((s) => ({ ...s, groq: v }))}
-            onChange={(v) => update('groqApiKey', v || null)}
-          />
-        )}
-        {settings.llmProvider === 'ollama' && (
-          <OllamaPanel
-            host={settings.ollamaHost}
-            onChange={(v) => update('ollamaHost', v)}
-            health={ollama}
-            onRefresh={() => void refreshOllama()}
-          />
-        )}
-      </Section>
-
-      <Section title="Speech-to-text (STT)">
-        <Select
-          value={settings.sttProvider}
-          onValueChange={(v) => update('sttProvider', v as SttProvider)}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {STT_PROVIDERS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-[11px] text-muted-foreground">
-          {STT_PROVIDERS.find((p) => p.value === settings.sttProvider)?.hint}
-        </p>
-
-        {settings.sttProvider === 'deepgram' && (
-          <SecretInput
-            label="Deepgram API key"
-            value={settings.deepgramApiKey ?? ''}
-            reveal={reveal.deepgram}
-            onReveal={(v) => setReveal((s) => ({ ...s, deepgram: v }))}
-            onChange={(v) => update('deepgramApiKey', v || null)}
-          />
-        )}
-        {settings.sttProvider === 'google' && (
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] text-muted-foreground">Google Cloud project ID</label>
-              <Input
-                value={settings.googleProjectId ?? ''}
-                onChange={(e) => update('googleProjectId', e.target.value || null)}
-                placeholder="my-gcp-project-12345"
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] text-muted-foreground">
-                Service account JSON (optional — leave empty for ADC)
-              </label>
-              <Textarea
-                rows={4}
-                value={settings.googleServiceAccountJson ?? ''}
-                onChange={(e) =>
-                  update('googleServiceAccountJson', e.target.value || null)
-                }
-                placeholder='{"type":"service_account",…}'
-                className="font-mono text-[11px]"
-              />
-            </div>
-          </div>
-        )}
-        {settings.sttProvider === 'elevenlabs' && (
-          <SecretInput
-            label="ElevenLabs API key"
-            value={settings.elevenlabsApiKey ?? ''}
-            reveal={reveal.eleven}
-            onReveal={(v) => setReveal((s) => ({ ...s, eleven: v }))}
-            onChange={(v) => update('elevenlabsApiKey', v || null)}
-          />
-        )}
-        {settings.sttProvider === 'openai-whisper' && (
-          <SecretInput
-            label="OpenAI API key"
-            value={settings.openaiApiKey ?? ''}
-            reveal={reveal.openai}
-            onReveal={(v) => setReveal((s) => ({ ...s, openai: v }))}
-            onChange={(v) => update('openaiApiKey', v || null)}
-          />
-        )}
-        {settings.sttProvider === 'local-whisper' && (
-          <p className="text-[11px] text-muted-foreground">
-            On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB
-            download on first use).
+      {/* Web search */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            web search · tavily
+          </h3>
+          <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
+            Powers live web search for company research. If empty, LLM general
+            knowledge is used and may be outdated.
           </p>
-        )}
-      </Section>
-
-      <Section title="Web search (Tavily)">
-        <SecretInput
-          label="Tavily API key"
-          value={settings.tavilyApiKey ?? ''}
-          reveal={reveal.tavily}
-          onReveal={(v) => setReveal((s) => ({ ...s, tavily: v }))}
-          onChange={(v) => update('tavilyApiKey', v || null)}
-        />
-        <div className="flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-          <div className="text-[12px]">
-            Auto web search
-            <div className="text-[11px] text-muted-foreground">
-              Inject Tavily results into prompts ≥4 words. Requires the key above.
-            </div>
+        </div>
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-[13px] font-medium">Tavily Search API</span>
+            <a
+              href="https://tavily.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
+            >
+              get key
+            </a>
           </div>
-          <Switch
-            checked={settings.autoWebSearch}
-            onCheckedChange={(v) => update('autoWebSearch', v)}
+          <SecretKeyField
+            placeholder="tvly-…"
+            value={settings.tavilyApiKey ?? ''}
+            onChange={(v) => update('tavilyApiKey', v || null)}
           />
+          <div className="mt-3 flex items-center justify-between rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
+            <div className="text-[12px]">
+              Auto web search
+              <div className="text-[11px] text-muted-foreground">
+                Inject Tavily results into prompts ≥4 words.
+              </div>
+            </div>
+            <Switch
+              checked={settings.autoWebSearch}
+              onCheckedChange={(v) => update('autoWebSearch', v)}
+            />
+          </div>
         </div>
-      </Section>
-
-    </div>
-  )
-}
-
-interface OllamaPanelProps {
-  host: string
-  onChange(v: string): void
-  health: OllamaHealthType | null
-  onRefresh(): void
-}
-
-function OllamaPanel({ host, onChange, health, onRefresh }: OllamaPanelProps) {
-  const ok = health?.running
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Input
-          value={host}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="http://127.0.0.1:11434 (default)"
-          className="flex-1"
-        />
-        <Button variant="ghost" size="icon" onClick={onRefresh} aria-label="Refresh">
-          <RefreshCw className="size-3.5" />
-        </Button>
-      </div>
-      {health && (
-        <div
-          className={
-            ok
-              ? 'text-[11px] text-emerald-400'
-              : 'text-[11px] text-amber-400'
-          }
-        >
-          {ok
-            ? `Connected · ${health.models.length} model${health.models.length === 1 ? '' : 's'} available`
-            : `Not reachable · ${health.error ?? 'unknown error'}`}
-        </div>
-      )}
-      {ok && health.models.length > 0 && (
-        <div className="font-mono text-[11px] text-muted-foreground">
-          {health.models.slice(0, 5).join(' · ')}
-          {health.models.length > 5 && ` +${health.models.length - 5} more`}
-        </div>
-      )}
-    </div>
-  )
-}
-
-interface SecretInputProps {
-  label: string
-  value: string
-  reveal: boolean | undefined
-  onReveal(v: boolean): void
-  onChange(v: string): void
-}
-
-function SecretInput({ label, value, reveal, onReveal, onChange }: SecretInputProps) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] text-muted-foreground">{label}</label>
-      <div className="flex items-center gap-1">
-        <Input
-          value={value}
-          type={reveal ? 'text' : 'password'}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="paste key here…"
-          className="flex-1"
-        />
-        <Button variant="ghost" size="icon" onClick={() => onReveal(!reveal)}>
-          {reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-        </Button>
       </div>
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <h4 className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h4>
-      {children}
-    </div>
-  )
-}
+// — — — credential bodies — — —
 
-/**
- * Provider-specific copy: where to get the key, which models are interesting,
- * and links to the dev console. Keeps the user from having to guess what to
- * paste in the field above.
- */
-function ProviderModelsHint({ provider }: { provider: AppSettings['llmProvider'] }) {
-  const info = PROVIDER_INFO[provider]
-  if (!info) return null
-  return (
-    <div className="rounded-md border border-white/[0.06] bg-white/[0.015] px-3 py-2 text-[11px] text-muted-foreground">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-wider">
-          {info.title}
-        </span>
-        <a
-          className="text-emerald-400/80 hover:text-emerald-300"
-          href={info.consoleUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Get a key →
-        </a>
-      </div>
-      <p>{info.description}</p>
-      {info.models.length > 0 && (
-        <div className="mt-1 font-mono text-[10px] text-muted-foreground/80">
-          Common model IDs: {info.models.join(' · ')}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const PROVIDER_INFO: Record<
-  AppSettings['llmProvider'],
-  { title: string; description: string; consoleUrl: string; models: string[] }
-> = {
-  'vercel-gateway': {
-    title: 'Vercel AI Gateway',
-    description:
-      'One key for every cloud model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go, no per-provider signup. The recommended default.',
-    consoleUrl: 'https://vercel.com/dashboard/ai/gateway',
-    models: ['openai/gpt-oss-120b', 'anthropic/claude-haiku-4-5', 'deepseek/deepseek-v4']
-  },
-  anthropic: {
-    title: 'Anthropic Claude',
-    description:
-      'Best long-context reasoning and instruction following. Vision-capable. Set the model ID in the Models tab.',
-    consoleUrl: 'https://console.anthropic.com/settings/keys',
-    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5']
-  },
-  openai: {
-    title: 'OpenAI',
-    description:
-      'GPT family + open-source GPT-OSS. Vision via the same model IDs. For OpenAI streaming STT use the same key under STT below.',
-    consoleUrl: 'https://platform.openai.com/api-keys',
-    models: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-oss-120b']
-  },
-  'google-gemini': {
-    title: 'Google Gemini',
-    description:
-      'Gemini 2.5 / 3.x. Strong multimodal (vision + audio). Generous free tier on the AI Studio dashboard.',
-    consoleUrl: 'https://aistudio.google.com/app/apikey',
-    models: ['gemini-3.1-flash-lite-preview', 'gemini-2.5-flash-lite', 'gemini-3-pro-preview']
-  },
-  groq: {
-    title: 'Groq',
-    description:
-      'Fastest TTFT in the industry (sub-100ms). Great for the question detector, less so for top-tier reasoning.',
-    consoleUrl: 'https://console.groq.com/keys',
-    models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-instruct', 'gemma2-9b-it']
-  },
-  ollama: {
-    title: 'Ollama (local)',
-    description:
-      'Fully local — your transcripts never leave the machine. Install Ollama, run `ollama serve`, and pull a model with `ollama pull llama3.1:8b`.',
-    consoleUrl: 'https://ollama.com/download',
-    models: ['llama3.1:8b', 'qwen2.5:7b', 'mistral:7b']
+function LlmCredentials({
+  provider,
+  settings,
+  update,
+  ollama,
+  onRefreshOllama
+}: {
+  provider: AppSettings['llmProvider']
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+  ollama: OllamaHealthType | null
+  onRefreshOllama(): void
+}) {
+  if (provider === 'vercel-gateway') {
+    return (
+      <SecretKeyField
+        label="Vercel AI Gateway key"
+        placeholder="vck_…"
+        value={settings.vercelApiKey ?? ''}
+        onChange={(v) => update('vercelApiKey', v || null)}
+      />
+    )
   }
+  if (provider === 'anthropic') {
+    return (
+      <SecretKeyField
+        label="Anthropic API key"
+        placeholder="sk-ant-…"
+        value={settings.anthropicApiKey ?? ''}
+        onChange={(v) => update('anthropicApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'openai') {
+    return (
+      <SecretKeyField
+        label="OpenAI API key"
+        placeholder="sk-…"
+        value={settings.openaiApiKey ?? ''}
+        onChange={(v) => update('openaiApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'google-gemini') {
+    return (
+      <SecretKeyField
+        label="Google AI API key"
+        placeholder="AIza…"
+        value={settings.googleAiApiKey ?? ''}
+        onChange={(v) => update('googleAiApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'groq') {
+    return (
+      <SecretKeyField
+        label="Groq API key"
+        placeholder="gsk_…"
+        value={settings.groqApiKey ?? ''}
+        onChange={(v) => update('groqApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'ollama') {
+    const ok = ollama?.running
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-1">
+          <Input
+            value={settings.ollamaHost}
+            onChange={(e) => update('ollamaHost', e.target.value)}
+            placeholder="http://127.0.0.1:11434 (default)"
+            className="flex-1 font-mono text-xs"
+          />
+          <Button variant="ghost" size="icon" onClick={onRefreshOllama} aria-label="Refresh">
+            <RefreshCw className="size-3.5" />
+          </Button>
+        </div>
+        {ollama && (
+          <div className={ok ? 'text-[11px] text-accent' : 'text-[11px] text-amber-400'}>
+            {ok
+              ? `connected · ${ollama.models.length} model${ollama.models.length === 1 ? '' : 's'}`
+              : `not reachable · ${ollama.error ?? 'unknown error'}`}
+          </div>
+        )}
+        {ok && ollama.models.length > 0 && (
+          <div className="font-mono text-[11px] text-muted-foreground">
+            {ollama.models.slice(0, 5).join(' · ')}
+            {ollama.models.length > 5 && ` +${ollama.models.length - 5} more`}
+          </div>
+        )}
+      </div>
+    )
+  }
+  return null
+}
+
+function SttCredentials({
+  provider,
+  settings,
+  update
+}: {
+  provider: SttProvider
+  settings: AppSettings
+  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+}) {
+  if (provider === 'deepgram') {
+    return (
+      <SecretKeyField
+        label="Deepgram API key"
+        value={settings.deepgramApiKey ?? ''}
+        onChange={(v) => update('deepgramApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'google') {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Google Cloud project ID
+          </label>
+          <Input
+            value={settings.googleProjectId ?? ''}
+            onChange={(e) => update('googleProjectId', e.target.value || null)}
+            placeholder="my-gcp-project-12345"
+            className="font-mono text-xs"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Service account JSON{' '}
+            <span className="normal-case tracking-normal text-muted-foreground/60">
+              (optional — leave empty for ADC)
+            </span>
+          </label>
+          <Textarea
+            rows={4}
+            value={settings.googleServiceAccountJson ?? ''}
+            onChange={(e) => update('googleServiceAccountJson', e.target.value || null)}
+            placeholder='{"type":"service_account",…}'
+            className="font-mono text-[11px]"
+          />
+        </div>
+      </div>
+    )
+  }
+  if (provider === 'openai-whisper') {
+    return (
+      <SecretKeyField
+        label="OpenAI API key"
+        value={settings.openaiApiKey ?? ''}
+        onChange={(v) => update('openaiApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'elevenlabs') {
+    return (
+      <SecretKeyField
+        label="ElevenLabs API key"
+        value={settings.elevenlabsApiKey ?? ''}
+        onChange={(v) => update('elevenlabsApiKey', v || null)}
+      />
+    )
+  }
+  if (provider === 'local-whisper') {
+    return (
+      <p className="text-[11px] text-muted-foreground">
+        On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB
+        on first use).
+      </p>
+    )
+  }
+  return null
 }
 
 // re-export so the parent can show an icon in the sidebar without importing lucide there

@@ -40,6 +40,7 @@ import {
 import { Toaster } from '@renderer/components/ui/sonner'
 import { cn } from '@renderer/lib/utils'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
+import { ZanbanMark } from '@renderer/components/brand'
 
 const FOLLOW_UP_PROMPT =
   'Based on the previous answer, suggest 2-3 sharp follow-up questions I should ask. Output as a short bullet list, no preamble.'
@@ -434,6 +435,16 @@ function StatusBar({
       )}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
+      {/* Brand lockup — anchors the pill so users learn what app the chip
+          belongs to during an unrelated meeting. Mark only at this size; the
+          wordmark would crowd the rest of the row. */}
+      <span
+        className="flex h-6 w-6 items-center justify-center text-foreground/85"
+        aria-label="Zanban"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
+        <ZanbanMark size={13} signal={running ? 'oklch(0.72 0.18 25)' : undefined} />
+      </span>
       <div
         className="flex items-center gap-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}

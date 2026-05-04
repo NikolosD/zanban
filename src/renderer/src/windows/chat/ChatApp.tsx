@@ -5,6 +5,7 @@ import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useAi, wireAiIpc } from '@renderer/features/ai/store'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { toast } from 'sonner'
+import { ZanbanMark } from '@renderer/components/brand'
 
 /**
  * Standalone chat window — talks to the AI without any meeting / transcript
@@ -48,22 +49,25 @@ export function ChatApp() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#0e0e10] text-zinc-100">
+    <div className="flex h-screen flex-col bg-background text-foreground">
       <header
-        className="flex h-9 items-center justify-between border-b border-white/[0.06] px-3 text-[11px]"
+        className="flex h-9 items-center justify-between gap-2 border-b border-white/[0.06] px-3 text-[11px]"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Zanban · chat
+        <div className="flex items-center gap-2">
+          <ZanbanMark size={13} fg="oklch(0.66 0.01 260)" />
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            zanban · chat
+          </div>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 gap-1 px-2 text-[11px] text-muted-foreground"
+          className="h-6 gap-1 px-2 text-[11px] lowercase text-muted-foreground"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           onClick={() => useAi.getState().reset()}
         >
-          <Trash2 className="size-3" /> Clear
+          <Trash2 className="size-3" /> clear
         </Button>
       </header>
 

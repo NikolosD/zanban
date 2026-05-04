@@ -1,6 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Settings as SettingsIcon, Sparkles, Search, Mic, Square, Loader2, Play } from 'lucide-react'
+import {
+  Settings as SettingsIcon,
+  Sparkles,
+  Search,
+  Mic,
+  Square,
+  Loader2,
+  Play,
+  MoreHorizontal,
+  Download,
+  FolderOpen,
+  Trash2
+} from 'lucide-react'
 import { SessionDetail } from '@renderer/features/sessions/SessionDetail'
+import { Wordmark } from '@renderer/components/brand'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from '@renderer/components/ui/dropdown-menu'
 import {
   SettingsPanel,
   SETTINGS_TABS,
@@ -138,17 +158,17 @@ function Header({
 }) {
   return (
     <header className="flex items-center gap-5">
-      {/* Wordmark: 20px display weight + faint mono version pill below.
-          Inline-baseline alignment between mark and version reads as a single
-          object instead of a stacked logo block. */}
-      <div className="flex shrink-0 items-baseline gap-2">
-        <div className="text-[20px] font-semibold tracking-tight leading-none">
-          Zanban
-        </div>
-        <div className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
-          {version ? `v${version}` : '·'}
-        </div>
-      </div>
+      {/* Brand lockup: phase-dot mark + lowercase wordmark + faint mono version.
+          Lowercase wordmark matches in-app tone ("idle", "recording 02:31"). */}
+      <Wordmark
+        size={20}
+        className="shrink-0 text-foreground"
+        suffix={
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+            {version ? `v${version}` : '·'}
+          </span>
+        }
+      />
       <SearchPill
         onAsk={onAsk}
         onSelectSession={onSelectSession}
@@ -501,8 +521,14 @@ function SessionStartButton() {
       size="default"
       variant={running ? 'destructive' : 'default'}
       className={cn(
-        'shrink-0 gap-2 rounded-full px-4',
-        !running && 'bg-foreground text-background hover:bg-foreground/90'
+        'shrink-0 gap-2 rounded-full px-4 text-[12px] font-medium lowercase',
+        // Idle: coral (signal) — this is the one primary action of the dashboard.
+        // Soft halo signals "press me" without competing with the recording chip
+        // since the recording chip lives in the overlay, not here.
+        !running && [
+          'bg-primary text-primary-foreground hover:bg-primary/90',
+          'shadow-[0_0_0_4px_oklch(0.72_0.18_25/0.12)]'
+        ]
       )}
     >
       {busy ? (
@@ -512,7 +538,7 @@ function SessionStartButton() {
       ) : (
         <Mic className="size-4" />
       )}
-      {running ? 'Stop session' : 'Start session'}
+      {running ? 'stop session' : 'start session'}
     </Button>
   )
 }
@@ -573,11 +599,14 @@ function MeetingRow({
   isLast: boolean
 }) {
   const liveSession = useTranscript((s) => s.session)
+  const queryClient = useQueryClient()
   const isRunningElsewhere = liveSession.kind === 'running'
   const date = new Date(session.startedAt)
   const dur = formatDuration(session.durationMs)
   const time = formatTime(date)
   const isLive = !session.endedAt
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function resume(): Promise<void> {
     if (isRunningElsewhere) {
@@ -592,6 +621,50 @@ function MeetingRow({
       toast.error('Could not resume session', {
         description: err instanceof Error ? err.message : String(err)
       })
+    }
+  }
+
+  async function exportMd(): Promise<void> {
+    try {
+      const path = await window.zanban.sessions.exportMarkdown(session.id)
+      if (path) toast.success('Exported', { description: path })
+    } catch (err) {
+      toast.error('Export failed', {
+        description: err instanceof Error ? err.message : String(err)
+      })
+    }
+  }
+
+  async function reveal(): Promise<void> {
+    try {
+      await window.zanban.sessions.revealFile(session.id)
+    } catch {
+      /* no-op — best effort */
+    }
+  }
+
+  async function doDelete(): Promise<void> {
+    if (isLive) {
+      toast.error('Stop the live session before deleting.')
+      setConfirmDelete(false)
+      return
+    }
+    setDeleting(true)
+    try {
+      const result = await window.zanban.sessions.delete(session.id)
+      if (result.ok) {
+        toast.success('Session deleted')
+        await queryClient.invalidateQueries({ queryKey: ['sessions-local'] })
+      } else {
+        toast.error('Could not delete session')
+      }
+    } catch (err) {
+      toast.error('Delete failed', {
+        description: err instanceof Error ? err.message : String(err)
+      })
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -627,19 +700,98 @@ function MeetingRow({
         <span className="w-[68px] text-right font-mono text-[11px] tabular-nums text-muted-foreground/55">
           {time}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation()
-            void resume()
-          }}
-          title="Resume — append new audio to this session"
-        >
-          <Play className="size-3.5" />
-        </Button>
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 data-[open=true]:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={(e) => {
+              e.stopPropagation()
+              void resume()
+            }}
+            title="Resume — append new audio to this session"
+          >
+            <Play className="size-3.5" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={(e) => e.stopPropagation()}
+                aria-label="Session actions"
+              >
+                <MoreHorizontal className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[180px]"
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DropdownMenuItem
+                onSelect={() => {
+                  void exportMd()
+                }}
+              >
+                <Download className="size-3.5" />
+                <span>export markdown…</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  void reveal()
+                }}
+              >
+                <FolderOpen className="size-3.5" />
+                <span>reveal in finder</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={isLive}
+                onSelect={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="size-3.5" />
+                <span>delete session</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="text-base font-semibold tracking-tight">
+            delete this session?
+          </DialogTitle>
+          <DialogDescription className="text-[13px] text-muted-foreground">
+            <span className="text-foreground">
+              {session.title || formatFallbackTitle(date)}
+            </span>{' '}
+            will be removed from your machine — transcript, markdown export, and
+            embeddings. cloud copies are not affected. this can&apos;t be undone.
+          </DialogDescription>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDelete(false)}
+              disabled={deleting}
+              className="text-[12px]"
+            >
+              cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void doDelete()}
+              disabled={deleting}
+              className="text-[12px]"
+            >
+              {deleting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </li>
   )
 }

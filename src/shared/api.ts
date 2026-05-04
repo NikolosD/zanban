@@ -96,6 +96,12 @@ export interface ZanbanApi {
     list(): Promise<SessionListItem[]>
     read(id: string): Promise<SessionDetailPayload | null>
     revealFolder(): Promise<void>
+    /** Permanently delete the .json + .md files for a session id. */
+    delete(id: string): Promise<{ ok: boolean }>
+    /** Reveal the session's .md file in the OS file manager. */
+    revealFile(id: string): Promise<void>
+    /** Prompt a save-as dialog for the session's markdown export; returns the chosen path or null on cancel. */
+    exportMarkdown(id: string): Promise<string | null>
   }
   screenshot: {
     capture(): Promise<string | null>
