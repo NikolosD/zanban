@@ -97,7 +97,18 @@ export function OverlayApp() {
 
     function onMove(e: MouseEvent): void {
       const el = document.elementFromPoint(e.clientX, e.clientY)
-      const overInteractive = !!(el && el.closest('[data-interactive]'))
+      // Three classes of pointer-active surfaces:
+      //   1. our explicitly-tagged regions ([data-interactive])
+      //   2. any open Radix popper / floating-ui portal (dropdown, popover,
+      //      tooltip-with-pointer-events). These render outside our tree, so
+      //      the [data-interactive] ancestor check from (1) misses them.
+      //   3. role=menu / dialog — same reason, just structural fallback.
+      const overInteractive = !!(
+        el &&
+        el.closest(
+          '[data-interactive],[data-radix-popper-content-wrapper],[role="menu"],[role="menuitem"],[role="dialog"]'
+        )
+      )
       window.zanban.overlay.setIgnoreMouse(!overInteractive)
     }
     window.addEventListener('mousemove', onMove)
@@ -625,6 +636,11 @@ function ModelOverridePicker({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        // Radix renders this in a portal outside our main tree, so the
+        // overlay's mouse-region detector can't see it via [data-interactive]
+        // on ancestors. Mark it explicitly so clicks on items don't get
+        // forwarded through the click-through window.
+        data-interactive
         className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
       >
         <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
