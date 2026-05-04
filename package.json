@@ -2,6 +2,8 @@
   "name": "zanban",
   "version": "0.0.1",
   "description": "AI meeting assistant",
+  "license": "MIT",
+  "author": "Nikoloz Dolidze",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
