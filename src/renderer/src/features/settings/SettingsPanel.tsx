@@ -46,30 +46,59 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 
+// Settings IDs the rest of the app passes around. The legacy `providers`,
+// `models`, and `documents` ids are kept as aliases (mapped to their merged
+// tabs in resolveTab) so deeper jump-to-tab links still work — search hits,
+// the overlay's "API keys not configured" alert, etc.
 export type SettingsTabId =
   | 'general'
   | 'audio'
+  | 'ai'
+  | 'identity'
+  | 'hotkeys'
+  | 'about'
+  // legacy aliases — accepted as input, mapped to merged tabs internally:
   | 'providers'
   | 'models'
   | 'persona'
   | 'documents'
-  | 'hotkeys'
-  | 'about'
 
-type TabId = SettingsTabId
+type TabId = 'general' | 'audio' | 'ai' | 'identity' | 'hotkeys' | 'about'
+
+function resolveTab(id: SettingsTabId): TabId {
+  if (id === 'providers' || id === 'models') return 'ai'
+  if (id === 'persona' || id === 'documents') return 'identity'
+  return id
+}
 
 export const SETTINGS_TABS: Array<{
   id: SettingsTabId
   label: string
   keywords: string[]
 }> = [
-  { id: 'general', label: 'General', keywords: ['general', 'privacy', 'detectable', 'hide widget', 'auto detect questions', 'transcript window', 'sessions folder', 'dock'] },
   {
-    id: 'models',
-    label: 'AI models',
+    id: 'general',
+    label: 'general',
     keywords: [
-      'models',
+      'general',
+      'privacy',
+      'stealth',
+      'detectable',
+      'hide widget',
+      'auto detect questions',
+      'transcript window',
+      'sessions folder',
+      'dock',
+      'opacity',
+      'appearance'
+    ]
+  },
+  {
+    id: 'ai',
+    label: 'ai',
+    keywords: [
       'ai',
+      'models',
       'llm',
       'gateway',
       'vercel',
@@ -78,31 +107,75 @@ export const SETTINGS_TABS: Array<{
       'gpt',
       'claude',
       'gemini',
+      'groq',
+      'ollama',
+      'anthropic',
+      'tavily',
+      'elevenlabs',
       'fast',
       'filter',
       'summary',
       'vision',
       'token',
-      'secret'
+      'secret',
+      'privacy mode',
+      'providers'
     ]
   },
-  { id: 'providers', label: 'Providers', keywords: ['providers', 'llm', 'anthropic', 'openai', 'gemini', 'groq', 'ollama', 'tavily', 'elevenlabs', 'privacy mode'] },
-  { id: 'audio', label: 'Audio & Speech', keywords: ['audio', 'mic', 'microphone', 'system audio', 'loopback', 'device', 'vad', 'transcription', 'language', 'stt', 'speech to text', 'multilingual'] },
-  { id: 'persona', label: 'Persona', keywords: ['persona', 'preset', 'response language', 'reply language', 'meeting context', 'system prompt'] },
-  { id: 'documents', label: 'Documents', keywords: ['documents', 'reference', 'pdf', 'docx', 'txt', 'context', 'resume', 'spec', 'brief'] },
-  { id: 'hotkeys', label: 'Hotkeys', keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind'] },
-  { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
+  {
+    id: 'audio',
+    label: 'audio',
+    keywords: [
+      'audio',
+      'mic',
+      'microphone',
+      'system audio',
+      'loopback',
+      'device',
+      'vad',
+      'transcription',
+      'language',
+      'stt',
+      'speech to text',
+      'multilingual'
+    ]
+  },
+  {
+    id: 'identity',
+    label: 'identity',
+    keywords: [
+      'persona',
+      'preset',
+      'response language',
+      'reply language',
+      'meeting context',
+      'system prompt',
+      'documents',
+      'reference',
+      'pdf',
+      'docx',
+      'txt',
+      'context',
+      'resume',
+      'spec',
+      'brief'
+    ]
+  },
+  {
+    id: 'hotkeys',
+    label: 'hotkeys',
+    keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind']
+  },
+  { id: 'about', label: 'about', keywords: ['about', 'version', 'changelog'] }
 ]
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'general', label: 'General', icon: SlidersHorizontal },
-  { id: 'audio', label: 'Audio & Speech', icon: Headphones },
-  { id: 'providers', label: 'Providers', icon: PROVIDERS_ICON },
-  { id: 'models', label: 'AI models', icon: Cpu },
-  { id: 'persona', label: 'Personas', icon: User },
-  { id: 'documents', label: 'Documents', icon: REFERENCE_DOCS_ICON },
-  { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
-  { id: 'about', label: 'About', icon: Info }
+  { id: 'general', label: 'general', icon: SlidersHorizontal },
+  { id: 'ai', label: 'ai', icon: Cpu },
+  { id: 'audio', label: 'audio', icon: Headphones },
+  { id: 'identity', label: 'identity', icon: User },
+  { id: 'hotkeys', label: 'hotkeys', icon: Keyboard },
+  { id: 'about', label: 'about', icon: Info }
 ]
 
 interface MicDevice {
@@ -111,10 +184,10 @@ interface MicDevice {
 }
 
 export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {}) {
-  const [tab, setTab] = useState<TabId>(initialTab ?? 'general')
+  const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
 
   useEffect(() => {
-    if (initialTab) setTab(initialTab)
+    if (initialTab) setTab(resolveTab(initialTab))
   }, [initialTab])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -205,11 +278,18 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
               update={update}
             />
           )}
-          {tab === 'models' && (
-            <ModelsTab settings={settings} update={update} />
-          )}
-          {tab === 'providers' && (
-            <ProvidersTab settings={settings} update={update} />
+          {tab === 'ai' && (
+            <>
+              <ProvidersTab settings={settings} update={update} />
+              <div className="mt-10 mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/[0.06]" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  models per role
+                </span>
+                <div className="h-px flex-1 bg-white/[0.06]" />
+              </div>
+              <ModelsTab settings={settings} update={update} />
+            </>
           )}
           {tab === 'audio' && (
             <AudioTab
@@ -220,10 +300,19 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
               onRescan={() => void rescanMics()}
             />
           )}
-          {tab === 'persona' && (
-            <PersonasTab settings={settings} update={update} />
+          {tab === 'identity' && (
+            <>
+              <PersonasTab settings={settings} update={update} />
+              <div className="mt-10 mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/[0.06]" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  reference documents
+                </span>
+                <div className="h-px flex-1 bg-white/[0.06]" />
+              </div>
+              <ReferenceDocsTab />
+            </>
           )}
-          {tab === 'documents' && <ReferenceDocsTab />}
           {tab === 'hotkeys' && (
             <HotkeysTab
               settings={settings}
@@ -263,7 +352,7 @@ function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }
   return (
     <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
       <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        Settings
+        settings
       </h2>
       <nav className="flex flex-col">
         {TABS.map((t) => {
@@ -348,7 +437,7 @@ function GeneralTab({
   return (
     <>
       <Section
-        title="Appearance"
+        title="appearance"
         hint="How the overlay sits on your screen during a call."
       >
         <OpacityField
@@ -357,16 +446,19 @@ function GeneralTab({
         />
       </Section>
       <Section
-        title="Privacy"
+        title="privacy"
         hint="How the floating widget behaves around screen-sharing and Hide."
       >
         <Row
-          label="Detectable"
-          hint="When off (default), the overlay is invisible to screen-share and recording. When on, it shows up like any normal window."
+          label="Stealth mode"
+          hint="On (default): the overlay is invisible to screen-share and recording. Off: shows up like any normal window."
         >
+          {/* Inverse of `detectable` to remove the double-negative ("off = invisible")
+              that was confusing in the previous label. The setting key stays
+              `detectable` for backwards compat — only the UI flips. */}
           <Switch
-            checked={settings.detectable}
-            onCheckedChange={(v) => update('detectable', v)}
+            checked={!settings.detectable}
+            onCheckedChange={(v) => update('detectable', !v)}
           />
         </Row>
         <Row
@@ -389,7 +481,7 @@ function GeneralTab({
         </Row>
       </Section>
       <Section
-        title="Assistant"
+        title="assistant"
         hint="How proactively Zanban surfaces helpers during the call."
       >
         <Row
@@ -416,7 +508,7 @@ function GeneralTab({
         </Field>
       </Section>
       <Section
-        title="Sessions"
+        title="sessions"
         hint="Stored locally as Markdown + JSON. Open the folder to grep or back up."
       >
         <div>
@@ -609,7 +701,7 @@ function AudioTab({
   return (
     <>
       <Section
-        title="Audio capture"
+        title="audio capture"
         hint="Microphone for your voice. System loopback captures the other speaker."
       >
         <Field label="Microphone">
@@ -713,7 +805,7 @@ function TranscriptionLanguageSection({
   const current = showFlag(settings.transcriptionLanguage)
   return (
     <Section
-      title="Transcription language"
+      title="transcription language"
       hint={
         supportsMulti
           ? `Pick "Multilingual" for code-switching, or pin a specific language for sharper accuracy. Provider: ${provider}.`
@@ -771,7 +863,7 @@ function PersonaTab({
   return (
     <>
       <Section
-        title="Assistant persona"
+        title="assistant persona"
         hint="Goes into the model's system instruction — tells the AI WHO you are."
       >
         <Field label="Preset">
@@ -819,7 +911,7 @@ function PersonaTab({
       </Section>
 
       <Section
-        title="Response language"
+        title="response language"
         hint="What language Zanban replies in. Useful for screenshots — they often have English text but you want a Russian explanation."
       >
         <Field label="Reply language">
@@ -842,7 +934,7 @@ function PersonaTab({
       </Section>
 
       <Section
-        title="Meeting context"
+        title="meeting context"
         hint="Situational details for THIS meeting — pasted as a context block in every prompt."
       >
         <Textarea
@@ -871,7 +963,7 @@ function HotkeysTab({
 
   return (
     <Section
-      title="Hotkeys"
+      title="hotkeys"
       hint="Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear."
     >
       <div className="flex flex-col gap-2">
@@ -919,7 +1011,7 @@ function hotkeyHint(k: string): string {
 
 function AboutTab({ version }: { version: string }) {
   return (
-    <Section title="About">
+    <Section title="about">
       <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
         <div className="flex items-baseline gap-2">
           <div className="text-base font-semibold">Zanban</div>

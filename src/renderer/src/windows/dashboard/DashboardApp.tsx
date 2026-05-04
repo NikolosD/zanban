@@ -169,18 +169,22 @@ function Header({
           </span>
         }
       />
+      {/* Primary CTA sits immediately after the lockup — this is the one
+          action 95% of opens are about. Keeping search to the right of it
+          lets the search bar consume any remaining space without burying
+          the CTA between two siblings. */}
+      <SessionStartButton />
       <SearchPill
         onAsk={onAsk}
         onSelectSession={onSelectSession}
         onOpenSettingsTab={onOpenSettingsTab}
       />
-      <SessionStartButton />
       <button
         onClick={onSettings}
         aria-label="Settings"
-        className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+        className="font-mono text-[11px] lowercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        Settings
+        settings
       </button>
     </header>
   )
@@ -700,11 +704,14 @@ function MeetingRow({
         <span className="w-[68px] text-right font-mono text-[11px] tabular-nums text-muted-foreground/55">
           {time}
         </span>
-        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 data-[open=true]:opacity-100">
+        {/* Per UX review: actions are now always visible (muted) and brighten
+            on row hover. Hover-only icons trigger phantom interactions with
+            trackpad scroll on long lists. */}
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="size-7"
+            className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               void resume()
@@ -718,7 +725,7 @@ function MeetingRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors data-[state=open]:text-foreground"
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Session actions"
               >

@@ -6,7 +6,6 @@ import {
   EyeOff,
   Eye,
   Square,
-  Sparkles,
   Loader2,
   Image as ImageIcon,
   ChevronDown
@@ -275,9 +274,6 @@ export function OverlayApp() {
         <div
           data-interactive
           className={cn(
-            // Tighter gap between surfaces so the StatusBar / Action chips /
-            // Input read as one composed object rather than three independent
-            // pills floating on the desktop. Per DESIGN.md "fewer surfaces".
             'pointer-events-auto mx-auto flex w-full flex-col gap-1.5',
             'max-w-[680px]'
           )}
@@ -293,126 +289,125 @@ export function OverlayApp() {
             onOpenDashboard={() => void openDashboardKeepSession()}
           />
 
-          <ActionChipsRow
-            busy={busy}
-            running={running}
-            hasAnswer={hasAnswer}
-            onWhatToAnswer={() =>
-              void runPrompt(WHAT_TO_ANSWER_PROMPT, 'What to answer?', undefined, true)
-            }
-            onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
-            onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
-            onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
-            onAnswer={() =>
-              void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
-            }
-          />
+          {/* Merged panel: chips → input → answer in ONE container. Per UX
+              review the previous 4-surface stack was the highest-cost
+              friction point during a live call — every Ask cycle made the
+              eye traverse 4 floating boxes. One container, sections divided
+              by 1px borders, same chrome as before. */}
+          <div
+            className={cn(
+              'flex flex-col rounded-2xl border border-white/10',
+              'bg-black/55 backdrop-blur-2xl backdrop-saturate-150 text-foreground',
+              'shadow-2xl overflow-hidden'
+            )}
+          >
+            <ActionChipsRow
+              busy={busy}
+              running={running}
+              hasAnswer={hasAnswer}
+              onWhatToAnswer={() =>
+                void runPrompt(WHAT_TO_ANSWER_PROMPT, 'What to answer?', undefined, true)
+              }
+              onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
+              onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
+              onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
+              onAnswer={() =>
+                void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
+              }
+            />
 
-          <InputPill
-            text={text}
-            image={image}
-            busy={busy}
-            snapping={snapping}
-            inputRef={inputRef}
-            onTextChange={setText}
-            onKey={onKey}
-            onSend={() => void send()}
-            onSnap={() => void snap()}
-            onClearImage={() => {
-              setImage(null)
-              setOcrText(null)
-            }}
-            modelOverride={modelOverride}
-            onModelChange={setModelOverride}
-            activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
-            activeDefaultModel={
-              settings?.aiModels?.[settings.llmProvider]?.fast ||
-              (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
-            }
-          />
+            <InputPill
+              text={text}
+              image={image}
+              busy={busy}
+              snapping={snapping}
+              inputRef={inputRef}
+              onTextChange={setText}
+              onKey={onKey}
+              onSend={() => void send()}
+              onSnap={() => void snap()}
+              onClearImage={() => {
+                setImage(null)
+                setOcrText(null)
+              }}
+              modelOverride={modelOverride}
+              onModelChange={setModelOverride}
+              activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
+              activeDefaultModel={
+                settings?.aiModels?.[settings.llmProvider]?.fast ||
+                (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
+              }
+            />
 
-          {/* Answer / alerts / detected-questions panel. Always rendered when
-              there is something to show — Hide should never dismiss what the
-              user just asked for. */}
-          {hasContent && (
-            <div
-              className={cn(
-                'flex flex-col gap-2 rounded-2xl border border-white/10',
-                'bg-black/55 px-3 py-2 backdrop-blur-2xl backdrop-saturate-150 text-foreground',
-                'shadow-2xl'
-              )}
-            >
-              {(apiKeysMissing || transcriptionError) && (
-                <div className="space-y-2">
-                  {apiKeysMissing && (
-                    <Alert
-                      variant="default"
-                      className="bg-amber-500/10 border-amber-500/30 text-amber-200"
-                    >
-                      <AlertTriangle className="size-4 text-amber-400" />
-                      <AlertTitle>API keys not configured</AlertTitle>
-                      <AlertDescription>
-                        Open the dashboard → Settings. Need a Google Cloud project ID
-                        (STT — auth via gcloud or pasted JSON) and a Vercel AI Gateway
-                        key (LLM).{' '}
-                        <button
-                          className="underline underline-offset-2"
-                          onClick={() => void refreshSettings()}
-                        >
-                          re-check
-                        </button>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {transcriptionError && (
-                    <Alert variant="destructive">
-                      <AlertTriangle className="size-4" />
-                      <AlertTitle>Transcription error</AlertTitle>
-                      <AlertDescription>{transcriptionError}</AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
+            {hasContent && (
+              <div className="flex flex-col gap-2 border-t border-white/10 px-3 py-2.5">
+                {(apiKeysMissing || transcriptionError) && (
+                  <div className="space-y-2">
+                    {apiKeysMissing && (
+                      <Alert
+                        variant="default"
+                        className="bg-amber-500/10 border-amber-500/30 text-amber-200"
+                      >
+                        <AlertTriangle className="size-4 text-amber-400" />
+                        <AlertTitle>API keys not configured</AlertTitle>
+                        <AlertDescription>
+                          Open the dashboard → Settings. Need a Google Cloud project ID
+                          (STT — auth via gcloud or pasted JSON) and a Vercel AI Gateway
+                          key (LLM).{' '}
+                          <button
+                            className="underline underline-offset-2"
+                            onClick={() => void refreshSettings()}
+                          >
+                            re-check
+                          </button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {transcriptionError && (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="size-4" />
+                        <AlertTitle>Transcription error</AlertTitle>
+                        <AlertDescription>{transcriptionError}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
 
-              {pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false && (
-                <div className="flex flex-wrap gap-1.5">
-                  {pendingQuestions.map((q) => (
-                    <button
-                      key={q.id}
-                      data-interactive
-                      onClick={() => {
-                        useQuestions.getState().markAnswered(q.id)
-                        void runPrompt(q.text)
-                      }}
-                      className={cn(
-                        'group inline-flex max-w-[420px] items-center gap-1.5 rounded-md',
-                        'border border-primary/40 bg-primary/10 px-2 py-1',
-                        'text-[11px] text-foreground transition-colors',
-                        'hover:bg-primary/20 hover:border-primary/60'
-                      )}
-                    >
-                      <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-                      <span className="truncate">{q.text}</span>
-                      <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
-                        answer ↵
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                {pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pendingQuestions.map((q) => (
+                      <button
+                        key={q.id}
+                        data-interactive
+                        onClick={() => {
+                          useQuestions.getState().markAnswered(q.id)
+                          void runPrompt(q.text)
+                        }}
+                        className={cn(
+                          'group inline-flex max-w-[420px] items-center gap-1.5 rounded-md',
+                          'border border-primary/40 bg-primary/10 px-2 py-1',
+                          'text-[11px] text-foreground transition-colors',
+                          'hover:bg-primary/20 hover:border-primary/60'
+                        )}
+                      >
+                        <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+                        <span className="truncate">{q.text}</span>
+                        <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
+                          answer ↵
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              {latest && (
-                <div className="max-h-[360px] overflow-y-auto px-1 py-1">
-                  <AnswerPane message={latest} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Footer was a separate surface showing the active model. The
-              same info is already reachable via the model picker in the
-              input pill — keeping a fifth surface just for a label was
-              fragmentation. Removed; the picker is the source of truth. */}
+                {latest && (
+                  <div className="max-h-[360px] overflow-y-auto px-1 py-1">
+                    <AnswerPane message={latest} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <Toaster theme="dark" />
       </div>
@@ -523,22 +518,22 @@ function StatusBar({
               size="sm"
               className={cn(
                 'h-6 gap-1 px-2 text-[11px] font-mono lowercase tracking-tight',
-                // Stealth on = quiet, default fg. Stealth off = warning amber.
-                // We don't dual-signal both states — only the off (visible)
-                // state gets a color cue; the on (hidden) state is the calm
-                // default and shouldn't compete with the recording chip.
+                // Stealth-on (invisible to others) = calm default. Stealth-off
+                // (visible to screen-share) = amber warning. We label the
+                // STATE itself so the user doesn't have to translate
+                // "visible" into "uh-oh, others can see this".
                 stealth ? 'text-muted-foreground hover:text-foreground' : 'text-amber-300'
               )}
               onClick={onToggleStealth}
             >
               {stealth ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-              <span>{stealth ? 'hidden' : 'visible'}</span>
+              <span>{stealth ? 'stealth on' : 'stealth off'}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             {stealth
-              ? 'Hidden in screen-share. Click to make visible.'
-              : 'Visible in screen-share. Click to hide.'}
+              ? 'Invisible to screen-share. Click to expose.'
+              : 'Visible to screen-share — others can see this. Click to hide.'}
           </TooltipContent>
         </Tooltip>
 
@@ -589,19 +584,62 @@ function ActionChipsRow({
   onFollowUp: () => void
   onAnswer: () => void
 }) {
+  // Hierarchy revamp: 5 equally-weighted chips → 2 visible primaries (Answer
+  // + Recap) and a `more` dropdown for the rest. Reduces eye-traversal cost
+  // during a live call where attention is already fragmented.
   return (
     <div
-      className={cn(
-        'flex flex-wrap items-center justify-center gap-1.5 rounded-2xl',
-        'border border-white/10 bg-black/55 px-2 py-1.5',
-        'backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
-      )}
+      className="flex items-center gap-1.5 px-2.5 py-2"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      <ActionChip label="What to answer?" disabled={busy || !running} onClick={onWhatToAnswer} />
-      <ActionChip label="Shorten" disabled={busy || !hasAnswer} onClick={onShorten} />
-      <ActionChip label="Recap" disabled={busy || !running} onClick={onRecap} />
-      <ActionChip label="Follow Up Question" disabled={busy || !hasAnswer} onClick={onFollowUp} />
+      {/* Recap is the most-used "look back at the last 90s" gesture. Visible
+          only while running — there's no transcript to recap when idle. */}
+      <ActionChip
+        label="Recap"
+        disabled={busy || !running}
+        onClick={onRecap}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            data-interactive
+            disabled={busy}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            className={cn(
+              'inline-flex h-7 items-center gap-1 rounded-full px-3 text-[11px] transition-colors',
+              'border border-white/10 bg-white/[0.04] text-foreground/85',
+              'hover:bg-white/[0.08] hover:text-foreground',
+              'disabled:cursor-not-allowed disabled:opacity-40'
+            )}
+          >
+            more
+            <ChevronDown className="size-3 opacity-60" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          data-interactive
+          className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
+        >
+          <DropdownMenuItem
+            disabled={busy || !running}
+            onSelect={onWhatToAnswer}
+          >
+            <span className="text-[12px]">What to answer?</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten}>
+            <span className="text-[12px]">Shorten last answer</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onFollowUp}>
+            <span className="text-[12px]">Suggest follow-up</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <span className="flex-1" />
+
+      {/* Answer — single primary CTA. Foreground-on-bg per the design canvas;
+          no sparkle — emphasis comes from the inverted color, not an icon. */}
       <ActionChip label="Answer" emphasis disabled={busy} onClick={onAnswer} />
     </div>
   )
@@ -627,12 +665,11 @@ function ActionChip({
       className={cn(
         'inline-flex h-7 items-center rounded-full px-3 text-[11px] transition-colors',
         emphasis
-          ? 'bg-foreground/90 text-background hover:bg-foreground'
+          ? 'bg-foreground text-background hover:bg-foreground/90 font-medium'
           : 'border border-white/10 bg-white/[0.04] text-foreground/85 hover:bg-white/[0.08] hover:text-foreground',
         'disabled:cursor-not-allowed disabled:opacity-40'
       )}
     >
-      {emphasis && <Sparkles className="mr-1 size-3" />}
       {label}
     </button>
   )
@@ -763,10 +800,7 @@ function InputPill({
   const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
   return (
     <div
-      className={cn(
-        'flex items-center gap-2 rounded-2xl border border-white/10',
-        'bg-black/55 px-3 py-2 backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
-      )}
+      className="flex items-center gap-2 border-t border-white/10 px-3 py-2"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {image && (
