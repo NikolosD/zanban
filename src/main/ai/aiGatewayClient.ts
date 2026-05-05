@@ -61,11 +61,6 @@ export interface AskOptions {
   modelOverride?: string
 }
 
-interface InFlight {
-  abort: AbortController
-}
-
-const inflight = new Map<string, InFlight>()
 let windows: BrowserWindow[] = []
 
 export function registerAiWindow(win: BrowserWindow): void {
@@ -96,7 +91,6 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   // only when we actually need to fall back to the gateway path below.
   const requestId = randomUUID()
   const abort = new AbortController()
-  inflight.set(requestId, { abort })
 
   ;(async () => {
     try {
@@ -286,8 +280,6 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown error'
       broadcast(IPC.ai.error, { requestId, message })
-    } finally {
-      inflight.delete(requestId)
     }
   })()
 

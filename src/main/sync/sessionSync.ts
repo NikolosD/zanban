@@ -1,4 +1,5 @@
 import { app, type BrowserWindow } from 'electron'
+import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, writeFile, unlink, copyFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sessionManager } from '../transcription/sessionManager.js'
@@ -80,12 +81,10 @@ function ensureRecord(): SessionRecord | null {
 
 function tryLoadRecord(id: string): SessionRecord | null {
   try {
-    // We need a synchronous read here because ensureRecord is called from
-    // hot paths (per-segment flush). Using fs/promises.readFile would force
-    // the caller to become async and could re-order writes.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('node:fs') as typeof import('node:fs')
-    const raw = fs.readFileSync(jsonPath(id), 'utf8')
+    // Synchronous read because ensureRecord runs on the hot per-segment
+    // flush path. fs/promises.readFile would force the caller to async and
+    // could re-order writes.
+    const raw = readFileSync(jsonPath(id), 'utf8')
     const rec = JSON.parse(raw) as SessionRecord
     rec.endedAt = null
     return rec

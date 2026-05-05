@@ -324,6 +324,32 @@ function PrivacyModeRow({
 
 // — — — credential bodies — — —
 
+/**
+ * Per-provider key-bearing settings field. Providers that share this shape
+ * (everything except ollama, which has its own host+health-check UI) only
+ * differ by which AppSettings field stores the key, the label, and the
+ * placeholder hint.
+ */
+const LLM_KEY_FIELDS: Partial<
+  Record<
+    LlmProvider,
+    {
+      label: string
+      placeholder?: string
+      settingsKey: keyof Pick<
+        AppSettings,
+        'vercelApiKey' | 'anthropicApiKey' | 'openaiApiKey' | 'googleAiApiKey' | 'groqApiKey'
+      >
+    }
+  >
+> = {
+  'vercel-gateway': { label: 'Vercel AI Gateway key', placeholder: 'vck_…', settingsKey: 'vercelApiKey' },
+  anthropic: { label: 'Anthropic API key', placeholder: 'sk-ant-…', settingsKey: 'anthropicApiKey' },
+  openai: { label: 'OpenAI API key', placeholder: 'sk-…', settingsKey: 'openaiApiKey' },
+  'google-gemini': { label: 'Google AI API key', placeholder: 'AIza…', settingsKey: 'googleAiApiKey' },
+  groq: { label: 'Groq API key', placeholder: 'gsk_…', settingsKey: 'groqApiKey' }
+}
+
 function LlmCredentials({
   provider,
   settings,
@@ -337,53 +363,14 @@ function LlmCredentials({
   ollama: OllamaHealthType | null
   onRefreshOllama(): void
 }) {
-  if (provider === 'vercel-gateway') {
+  const field = LLM_KEY_FIELDS[provider]
+  if (field) {
     return (
       <SecretKeyField
-        label="Vercel AI Gateway key"
-        placeholder="vck_…"
-        value={settings.vercelApiKey ?? ''}
-        onChange={(v) => update('vercelApiKey', v || null)}
-      />
-    )
-  }
-  if (provider === 'anthropic') {
-    return (
-      <SecretKeyField
-        label="Anthropic API key"
-        placeholder="sk-ant-…"
-        value={settings.anthropicApiKey ?? ''}
-        onChange={(v) => update('anthropicApiKey', v || null)}
-      />
-    )
-  }
-  if (provider === 'openai') {
-    return (
-      <SecretKeyField
-        label="OpenAI API key"
-        placeholder="sk-…"
-        value={settings.openaiApiKey ?? ''}
-        onChange={(v) => update('openaiApiKey', v || null)}
-      />
-    )
-  }
-  if (provider === 'google-gemini') {
-    return (
-      <SecretKeyField
-        label="Google AI API key"
-        placeholder="AIza…"
-        value={settings.googleAiApiKey ?? ''}
-        onChange={(v) => update('googleAiApiKey', v || null)}
-      />
-    )
-  }
-  if (provider === 'groq') {
-    return (
-      <SecretKeyField
-        label="Groq API key"
-        placeholder="gsk_…"
-        value={settings.groqApiKey ?? ''}
-        onChange={(v) => update('groqApiKey', v || null)}
+        label={field.label}
+        placeholder={field.placeholder}
+        value={settings[field.settingsKey] ?? ''}
+        onChange={(v) => update(field.settingsKey, v || null)}
       />
     )
   }
@@ -421,6 +408,23 @@ function LlmCredentials({
   return null
 }
 
+const STT_KEY_FIELDS: Partial<
+  Record<
+    SttProvider,
+    {
+      label: string
+      settingsKey: keyof Pick<
+        AppSettings,
+        'deepgramApiKey' | 'openaiApiKey' | 'elevenlabsApiKey'
+      >
+    }
+  >
+> = {
+  deepgram: { label: 'Deepgram API key', settingsKey: 'deepgramApiKey' },
+  'openai-whisper': { label: 'OpenAI API key', settingsKey: 'openaiApiKey' },
+  elevenlabs: { label: 'ElevenLabs API key', settingsKey: 'elevenlabsApiKey' }
+}
+
 function SttCredentials({
   provider,
   settings,
@@ -430,12 +434,13 @@ function SttCredentials({
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
-  if (provider === 'deepgram') {
+  const field = STT_KEY_FIELDS[provider]
+  if (field) {
     return (
       <SecretKeyField
-        label="Deepgram API key"
-        value={settings.deepgramApiKey ?? ''}
-        onChange={(v) => update('deepgramApiKey', v || null)}
+        label={field.label}
+        value={settings[field.settingsKey] ?? ''}
+        onChange={(v) => update(field.settingsKey, v || null)}
       />
     )
   }
@@ -469,24 +474,6 @@ function SttCredentials({
           />
         </div>
       </div>
-    )
-  }
-  if (provider === 'openai-whisper') {
-    return (
-      <SecretKeyField
-        label="OpenAI API key"
-        value={settings.openaiApiKey ?? ''}
-        onChange={(v) => update('openaiApiKey', v || null)}
-      />
-    )
-  }
-  if (provider === 'elevenlabs') {
-    return (
-      <SecretKeyField
-        label="ElevenLabs API key"
-        value={settings.elevenlabsApiKey ?? ''}
-        onChange={(v) => update('elevenlabsApiKey', v || null)}
-      />
     )
   }
   if (provider === 'local-whisper') {
