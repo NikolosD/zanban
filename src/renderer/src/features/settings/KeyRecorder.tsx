@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
+import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
@@ -88,7 +89,7 @@ export function KeyRecorder({
             {segments.map((s, i) => (
               <span key={i} className="flex items-center gap-1">
                 {i > 0 && <span className="text-muted-foreground/40">+</span>}
-                <Kbd>{s}</Kbd>
+                <Kbd size="md">{s}</Kbd>
               </span>
             ))}
           </span>
@@ -121,14 +122,6 @@ export function KeyRecorder({
         </Button>
       )}
     </div>
-  )
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-white/15 bg-white/10 px-1.5 font-mono text-[10px] leading-none text-foreground">
-      {children}
-    </kbd>
   )
 }
 

@@ -51,7 +51,7 @@ export async function startCapture({ channel, stream, vad }: StartArgs): Promise
         if (v > peak) peak = v
       }
       const pct = Math.round((peak / 0x7fff) * 100)
-      console.log(
+      console.debug(
         `[audio:${channel}] chunk #${count}, peak=${peak}/32767 (${pct}%) ${pct < 1 ? '— SILENCE' : pct < 5 ? '— very quiet' : ''}`
       )
       count += 1
@@ -67,7 +67,7 @@ export async function startCapture({ channel, stream, vad }: StartArgs): Promise
   node.connect(silentGain)
   silentGain.connect(ctx.destination)
 
-  console.log(
+  console.debug(
     `[audio:${channel}] capture started — ctx.sampleRate=${ctx.sampleRate}, state=${ctx.state}, tracks=${stream.getAudioTracks().length}`
   )
 
