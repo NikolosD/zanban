@@ -1,57 +1,29 @@
 import 'dotenv/config'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, nativeTheme, screen, session, shell } from 'electron'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
-import {
-  ask as aiAsk,
-  cancel as aiCancel,
-  extractQuestion as aiExtractQuestion,
-  registerAiWindow
-} from './ai/aiGatewayClient.js'
+import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
 import type { AppSettings, AudioChannel } from '../shared/types.js'
-import {
-  registerSyncWindow,
-  listSessionsFromDisk,
-  readSessionFromDisk,
-  getSessionsDir,
-  getSessionMdPath,
-  deleteSessionFromDisk,
-  copySessionMarkdown
-} from './sync/sessionSync.js'
-import { capturePrimaryDisplay, captureWithOcr } from './screenshot/index.js'
+import { registerSyncWindow } from './sync/sessionSync.js'
+import { captureWithOcr } from './screenshot/index.js'
 import { runOcr } from './screenshot/ocrPipeline.js'
 import { createCropperWindow } from './windows/cropperWindow.js'
 import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
 import { registerShortcuts, unregisterShortcuts } from './shortcuts.js'
-import {
-  addDoc as addReferenceDoc,
-  listDocs as listReferenceDocs,
-  removeDoc as removeReferenceDoc,
-  setActive as setReferenceDocActive
-} from './documents/referenceStore.js'
-import { exportSessionPdf } from './documents/pdfExporter.js'
-import type { SessionExportPayload } from '../shared/types.js'
-import {
-  search as ragSearch,
-  deleteSession as ragDeleteSession,
-  countChunks as ragCountChunks
-} from './rag/index.js'
-import {
-  listPersonas,
-  createPersona,
-  updatePersona,
-  deletePersona,
-  importPersonas,
-  exportPersonas
-} from './personas/store.js'
-import type { Persona } from '../shared/types.js'
-import { checkOllama, pullModel } from './services/ollamaManager.js'
 import { registerJobsWindow } from './services/jobsManager.js'
-import { installLogger, getLogFilePath } from './services/logger.js'
+import { installLogger } from './services/logger.js'
+import { registerAiHandlers } from './ipc/ai.js'
+import { registerAppHandlers } from './ipc/app.js'
+import { registerDocumentsHandlers } from './ipc/documents.js'
+import { registerOllamaHandlers } from './ipc/ollama.js'
+import { registerPersonasHandlers } from './ipc/personas.js'
+import { registerRagHandlers } from './ipc/rag.js'
+import { registerScreenshotHandlers } from './ipc/screenshot.js'
+import { registerSessionsHandlers } from './ipc/sessions.js'
 
 installLogger()
 
@@ -112,12 +84,14 @@ app.whenReady().then(async () => {
     { useSystemPicker: false }
   )
 
-  ipcMain.handle(IPC.app.getVersion, () => app.getVersion())
-  ipcMain.handle(IPC.app.revealLog, () => {
-    const p = getLogFilePath()
-    if (p) shell.showItemInFolder(p)
-    return p
-  })
+  registerAppHandlers()
+  registerAiHandlers()
+  registerScreenshotHandlers()
+  registerDocumentsHandlers()
+  registerRagHandlers()
+  registerOllamaHandlers()
+  registerPersonasHandlers()
+  registerSessionsHandlers()
 
   // Apply the current stealth posture to both windows. setContentProtection
   // is the only mechanism that hides a Chromium window from screen-share —
@@ -245,22 +219,6 @@ app.whenReady().then(async () => {
     sessionManager.sendAudio(channel, buffer)
   })
 
-  ipcMain.handle(
-    IPC.ai.ask,
-    (
-      _e,
-      input: {
-        prompt: string
-        contextSeconds?: number
-        imageDataUrl?: string
-        ocrText?: string
-        modelOverride?: string
-      }
-    ) => aiAsk(input)
-  )
-  ipcMain.handle(IPC.ai.cancel, (_e, requestId: string) => aiCancel(requestId))
-  ipcMain.handle(IPC.ai.extractQuestion, (_e, text: string) => aiExtractQuestion(text))
-
   ipcMain.handle(IPC.settings.get, () => getSettings())
   ipcMain.handle(IPC.settings.set, (_e, patch: Partial<AppSettings>) => {
     const next = setSettings(patch)
@@ -292,85 +250,6 @@ app.whenReady().then(async () => {
     }
     return next
   })
-
-  ipcMain.handle(IPC.sessions.list, () => listSessionsFromDisk())
-  ipcMain.handle(IPC.sessions.read, (_e, id: string) => readSessionFromDisk(id))
-  ipcMain.handle(IPC.sessions.revealFolder, () => shell.openPath(getSessionsDir()))
-  ipcMain.handle(IPC.sessions.delete, async (_e, id: string) => {
-    const result = await deleteSessionFromDisk(id)
-    // Best-effort cleanup of RAG embeddings for the same session.
-    if (result.ok) {
-      try {
-        await ragDeleteSession(id)
-      } catch {
-        /* RAG may be unavailable — non-fatal. */
-      }
-    }
-    return result
-  })
-  ipcMain.handle(IPC.sessions.revealFile, (_e, id: string) => {
-    shell.showItemInFolder(getSessionMdPath(id))
-  })
-  ipcMain.handle(IPC.sessions.exportMarkdown, async (e, id: string) => {
-    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
-    const opts = {
-      title: 'Export session',
-      defaultPath: `${id}.md`,
-      filters: [{ name: 'Markdown', extensions: ['md'] }]
-    }
-    const result = win
-      ? await dialog.showSaveDialog(win, opts)
-      : await dialog.showSaveDialog(opts)
-    if (result.canceled || !result.filePath) return null
-    await copySessionMarkdown(id, result.filePath)
-    return result.filePath
-  })
-
-  ipcMain.handle(IPC.screenshot.capture, () => capturePrimaryDisplay())
-  ipcMain.handle(IPC.screenshot.captureWithOcr, () => captureWithOcr())
-
-  ipcMain.handle(IPC.documents.list, () => listReferenceDocs())
-  ipcMain.handle(IPC.documents.upload, async (_e, filePaths: string[]) => {
-    const added = []
-    for (const p of filePaths) {
-      try {
-        added.push(await addReferenceDoc(p))
-      } catch (err) {
-        added.push({ error: (err as Error).message, path: p })
-      }
-    }
-    return added
-  })
-  ipcMain.handle(IPC.documents.remove, (_e, id: string) => {
-    removeReferenceDoc(id)
-    return listReferenceDocs()
-  })
-  ipcMain.handle(IPC.documents.setActive, (_e, id: string, active: boolean) => {
-    setReferenceDocActive(id, active)
-    return listReferenceDocs()
-  })
-  ipcMain.handle(
-    IPC.documents.exportSessionPdf,
-    (_e, payload: SessionExportPayload) => exportSessionPdf(payload)
-  )
-
-  ipcMain.handle(IPC.rag.search, (_e, query: string, k?: number) => ragSearch(query, k ?? 6))
-  ipcMain.handle(IPC.rag.deleteSession, (_e, sessionId: string) => ragDeleteSession(sessionId))
-  ipcMain.handle(IPC.rag.count, () => ragCountChunks())
-
-  ipcMain.handle(IPC.ollama.health, () => checkOllama())
-  ipcMain.handle(IPC.ollama.pull, (_e, name: string) => pullModel(name))
-
-  ipcMain.handle(IPC.personas.list, () => listPersonas())
-  ipcMain.handle(IPC.personas.create, (_e, input: Omit<Persona, 'id' | 'builtin' | 'createdAt'>) =>
-    createPersona(input)
-  )
-  ipcMain.handle(IPC.personas.update, (_e, id: string, patch: Partial<Persona>) =>
-    updatePersona(id, patch)
-  )
-  ipcMain.handle(IPC.personas.delete, (_e, id: string) => deletePersona(id))
-  ipcMain.handle(IPC.personas.importJson, (_e, json: string) => importPersonas(json))
-  ipcMain.handle(IPC.personas.exportJson, (_e, ids?: string[]) => exportPersonas(ids))
 
   mainWindow = createMainWindow()
   overlayWindow = createOverlayWindow()

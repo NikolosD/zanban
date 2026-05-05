@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Lock, RefreshCw } from 'lucide-react'
-import type { AppSettings, SttProvider } from '@shared/types'
+import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { Textarea } from '@renderer/components/ui/textarea'
 import type { OllamaHealth as OllamaHealthType } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
@@ -15,7 +15,7 @@ interface Props {
 }
 
 interface LlmProviderEntry {
-  value: AppSettings['llmProvider']
+  value: LlmProvider
   name: string
   description: string
   badge: 'recommended' | 'experimental' | 'local' | null
@@ -331,7 +331,7 @@ function LlmCredentials({
   ollama,
   onRefreshOllama
 }: {
-  provider: AppSettings['llmProvider']
+  provider: LlmProvider
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   ollama: OllamaHealthType | null

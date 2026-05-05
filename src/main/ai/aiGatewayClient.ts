@@ -294,14 +294,6 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   return { requestId }
 }
 
-export function cancel(requestId: string): void {
-  const live = inflight.get(requestId)
-  if (live) {
-    live.abort.abort()
-    inflight.delete(requestId)
-  }
-}
-
 export async function extractQuestion(text: string): Promise<string | null> {
   const trimmed = text.trim().slice(0, 1000)
   if (!trimmed) return null

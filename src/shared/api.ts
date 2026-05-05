@@ -76,7 +76,6 @@ export interface ZanbanApi {
   }
   ai: {
     ask(input: AiAskInput): Promise<{ requestId: string }>
-    cancel(requestId: string): Promise<void>
     onChunk(cb: (chunk: AiChunk) => void): () => void
     onDone(cb: (done: AiDone) => void): () => void
     onError(cb: (err: AiError) => void): () => void

@@ -6,7 +6,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Card, CardContent } from '@renderer/components/ui/card'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
-import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/types'
+import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
 import { cn } from '@renderer/lib/utils'
 
 export function AskPanel({

@@ -1,9 +1,6 @@
 import { getSettings } from '../settings.js'
-import type {
-  ILlmProvider,
-  IWebSearchProvider,
-  LlmProviderId
-} from './types.js'
+import type { LlmProvider } from '../../shared/types.js'
+import type { ILlmProvider, IWebSearchProvider } from './types.js'
 import { makeAnthropicProvider } from './llm/anthropic.js'
 import { makeOpenAiProvider } from './llm/openai.js'
 import { makeGroqProvider } from './llm/groq.js'
@@ -38,7 +35,7 @@ export function getActiveVisionProvider(): ILlmProvider | null {
   return overridden
 }
 
-function resolveProvider(id: LlmProviderId): ILlmProvider | null {
+function resolveProvider(id: LlmProvider): ILlmProvider | null {
   const s = getSettings()
   switch (id) {
     case 'anthropic':
@@ -57,17 +54,6 @@ function resolveProvider(id: LlmProviderId): ILlmProvider | null {
       return null
     default:
       return null
-  }
-}
-
-export function llmProviderLabels(): Record<LlmProviderId, string> {
-  return {
-    'vercel-gateway': 'Vercel AI Gateway (default)',
-    anthropic: 'Anthropic Claude',
-    openai: 'OpenAI',
-    groq: 'Groq',
-    'google-gemini': 'Google Gemini',
-    ollama: 'Ollama (local)'
   }
 }
 

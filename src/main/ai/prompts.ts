@@ -65,19 +65,6 @@ function languageDirective(language?: ResponseLanguage): string | null {
   return `Forced response language: write the answer in ${name[language]}, even if the question or screenshot is in another language. Keep code, code identifiers, error messages, and quoted source verbatim.`
 }
 
-export const SCREENSHOT_DEFAULT_PROMPT =
-  'Help me with what is on this screenshot — solve it, fix it, or do whatever it asks for. Skip describing the image.'
-
-// Back-compat for any caller that still imports the constant.
-export const SYSTEM_PROMPT = BASE_SYSTEM_PROMPT
-
-export const ANSWER_LAST_PROMPT = `Look at the recent transcript. Find the most recent question asked by THEM (the other speaker, not YOU).
-Answer that question directly as if you were YOU answering live in the meeting.
-- 4-6 short bullets or 2-4 sentences. Include a brief reason or quick example when it strengthens the answer.
-- No "Here is the answer", no preamble.
-- Match the question's language.
-- If you cannot find a clear question from THEM in the transcript, say so in one short sentence.`
-
 export const QUESTION_EXTRACTOR_PROMPT = `You receive a short snippet from a live meeting transcript. Your job: return ONLY the actual question/request being asked, or exactly the word "NONE" if there is no real question.
 
 What COUNTS as a real question:
