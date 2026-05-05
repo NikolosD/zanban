@@ -2,7 +2,6 @@ import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   ask as aiAsk,
-  cancel as aiCancel,
   extractQuestion as aiExtractQuestion
 } from '../ai/aiGatewayClient.js'
 
@@ -20,6 +19,5 @@ export function registerAiHandlers(): void {
       }
     ) => aiAsk(input)
   )
-  ipcMain.handle(IPC.ai.cancel, (_e, requestId: string) => aiCancel(requestId))
   ipcMain.handle(IPC.ai.extractQuestion, (_e, text: string) => aiExtractQuestion(text))
 }

@@ -1,5 +1,5 @@
 import { getSettings } from '../settings.js'
-import { PROVIDER_MODEL_DEFAULTS, type AiRole, type AppSettings } from '../../shared/types.js'
+import { PROVIDER_MODEL_DEFAULTS, type AiRole, type LlmProvider } from '../../shared/types.js'
 
 /**
  * Resolve the model ID for a given role.
@@ -16,7 +16,7 @@ import { PROVIDER_MODEL_DEFAULTS, type AiRole, type AppSettings } from '../../sh
  */
 export function modelFor(role: AiRole): string {
   const settings = getSettings()
-  const provider: AppSettings['llmProvider'] =
+  const provider: LlmProvider =
     role === 'vision' && settings.visionProvider
       ? settings.visionProvider
       : settings.llmProvider

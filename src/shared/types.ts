@@ -132,6 +132,18 @@ export const STT_PROVIDERS: Array<{
 
 export type AiRole = 'fast' | 'filter' | 'summary' | 'vision'
 
+/**
+ * IDs for the LLM providers Zanban can talk to. Single source of truth — used
+ * in settings, model catalogues, and the main-process provider registry.
+ */
+export type LlmProvider =
+  | 'vercel-gateway'
+  | 'anthropic'
+  | 'openai'
+  | 'google-gemini'
+  | 'groq'
+  | 'ollama'
+
 export interface AiModelSettings {
   /** Streaming answers (Ask hotkey, Answer last). Empty string = use default. */
   fast: string
@@ -169,13 +181,7 @@ export interface AppSettings {
   deepgramApiKey: string | null
   vercelApiKey: string | null
   /** Which LLM provider drives `ai.ask`. Default: 'vercel-gateway'. */
-  llmProvider:
-    | 'vercel-gateway'
-    | 'anthropic'
-    | 'openai'
-    | 'google-gemini'
-    | 'groq'
-    | 'ollama'
+  llmProvider: LlmProvider
   /**
    * Optional override: when set, ai.ask requests that include an image are
    * routed through this provider instead of `llmProvider`. Useful when the
@@ -183,14 +189,7 @@ export interface AppSettings {
    * a different vendor (e.g. Vercel for text, Google Gemini for image).
    * `null` falls back to `llmProvider`.
    */
-  visionProvider:
-    | null
-    | 'vercel-gateway'
-    | 'anthropic'
-    | 'openai'
-    | 'google-gemini'
-    | 'groq'
-    | 'ollama'
+  visionProvider: LlmProvider | null
   anthropicApiKey: string | null
   openaiApiKey: string | null
   googleAiApiKey: string | null
@@ -211,7 +210,7 @@ export interface AppSettings {
    * the user doesn't have to re-type `claude-haiku-4-5` after picking
    * Anthropic, etc.
    */
-  aiModels: Partial<Record<AppSettings['llmProvider'], AiModelSettings>>
+  aiModels: Partial<Record<LlmProvider, AiModelSettings>>
   transcriptionLanguage: string
   contextSeconds: number
   meetingContext: string
@@ -314,7 +313,7 @@ export const RESPONSE_LANGUAGES: Array<{ value: ResponseLanguage; label: string 
  * and win when set.
  */
 export const PROVIDER_MODEL_DEFAULTS: Record<
-  AppSettings['llmProvider'],
+  LlmProvider,
   AiModelSettings
 > = {
   'vercel-gateway': {
@@ -372,7 +371,7 @@ export const DEFAULT_AI_MODELS: AiModelSettings = PROVIDER_MODEL_DEFAULTS['verce
  * provider. Each list is what the picker shows when that provider is selected
  * — so the user doesn't see "openai/gpt-oss-120b" while talking to Anthropic.
  */
-export const PROVIDER_FAST_MODELS: Record<AppSettings['llmProvider'], string[]> = {
+export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
     'openai/gpt-oss-120b',
     'openai/gpt-oss-20b',
@@ -401,7 +400,7 @@ export const PROVIDER_FAST_MODELS: Record<AppSettings['llmProvider'], string[]> 
   ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:9b']
 }
 
-export const PROVIDER_VISION_MODELS: Record<AppSettings['llmProvider'], string[]> = {
+export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
     'google/gemini-3.1-flash-lite-preview',
     'google/gemini-3-pro-preview',

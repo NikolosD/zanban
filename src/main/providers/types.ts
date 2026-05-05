@@ -4,26 +4,7 @@
  * rest of the app can swap them at runtime via the registry.
  */
 
-export type LlmProviderId =
-  | 'vercel-gateway'
-  | 'anthropic'
-  | 'openai'
-  | 'google-gemini'
-  | 'groq'
-  | 'ollama'
-
-export type SttProviderId =
-  | 'deepgram'
-  | 'google-cloud'
-  | 'elevenlabs'
-  | 'openai-whisper'
-  | 'local-whisper'
-
-export type EmbeddingsProviderId =
-  | 'local-xenova'
-  | 'ollama'
-  | 'openai'
-  | 'gemini'
+import type { LlmProvider } from '../../shared/types.js'
 
 export type WebSearchProviderId = 'tavily'
 
@@ -38,7 +19,7 @@ export interface LlmStreamArgs {
 }
 
 export interface ILlmProvider {
-  readonly id: LlmProviderId
+  readonly id: LlmProvider
   readonly label: string
   /** Stream textual chunks for `args.prompt`. The async iterable yields raw
    *  text deltas; consumers are responsible for accumulating. */

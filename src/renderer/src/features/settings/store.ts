@@ -4,17 +4,12 @@ import type { AppSettings } from '@shared/types'
 interface SettingsState {
   settings: AppSettings | null
   load(): Promise<void>
-  refresh(): Promise<void>
   apply(next: AppSettings): void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   settings: null,
   async load() {
-    const settings = await window.zanban.settings.get()
-    set({ settings })
-  },
-  async refresh() {
     const settings = await window.zanban.settings.get()
     set({ settings })
   },

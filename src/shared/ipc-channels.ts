@@ -32,7 +32,6 @@ export const IPC = {
   },
   ai: {
     ask: 'ai:ask',
-    cancel: 'ai:cancel',
     chunk: 'ai:chunk',
     done: 'ai:done',
     error: 'ai:error',

@@ -21,7 +21,7 @@ import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
-  type AppSettings
+  type LlmProvider
 } from '@shared/types'
 import {
   ANSWER_LAST_PROMPT,
@@ -60,7 +60,7 @@ export function OverlayApp() {
   const t0 = session.kind === 'running' ? session.startedAt : null
   const elapsed = useElapsed(session.kind === 'running', t0)
   const settings = useSettingsStore((s) => s.settings)
-  const refreshSettings = useSettingsStore((s) => s.refresh)
+  const refreshSettings = useSettingsStore((s) => s.load)
   const status = useTranscript((s) => s.status)
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
@@ -682,7 +682,7 @@ function ModelOverridePicker({
   value: string | null
   onChange: (m: string | null) => void
   /** Currently active LLM provider. Determines which model list to show. */
-  provider: AppSettings['llmProvider']
+  provider: LlmProvider
   /** Current default model for `fast` role under `provider` — shown in trigger. */
   defaultModel: string
   noDrag: React.CSSProperties
@@ -791,7 +791,7 @@ function InputPill({
   onClearImage: () => void
   modelOverride: string | null
   onModelChange: (m: string | null) => void
-  activeProvider: AppSettings['llmProvider']
+  activeProvider: LlmProvider
   activeDefaultModel: string
 }) {
   const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
