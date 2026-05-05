@@ -43,7 +43,6 @@ import { cn } from '@renderer/lib/utils'
 import {
   formatDuration,
   formatFallbackTitle,
-  formatGroupLabel,
   formatTime,
   groupByDay
 } from '@renderer/lib/dateFormat'

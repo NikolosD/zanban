@@ -7,7 +7,6 @@ import {
   Eye,
   Square,
   Loader2,
-  Image as ImageIcon,
   ChevronDown
 } from 'lucide-react'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
