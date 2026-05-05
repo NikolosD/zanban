@@ -18,13 +18,19 @@ import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import {
-  ANSWER_LAST_PROMPT,
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
-  SCREENSHOT_DEFAULT_PROMPT,
   type AppSettings
 } from '@shared/types'
+import {
+  ANSWER_LAST_PROMPT,
+  FOLLOW_UP_PROMPT,
+  RECAP_PROMPT,
+  SCREENSHOT_DEFAULT_PROMPT,
+  SHORTEN_PROMPT,
+  WHAT_TO_ANSWER_PROMPT
+} from '@shared/prompts'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/components/ui/tooltip'
@@ -40,15 +46,6 @@ import { Toaster } from '@renderer/components/ui/sonner'
 import { cn } from '@renderer/lib/utils'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
-
-const FOLLOW_UP_PROMPT =
-  'Based on the previous answer, suggest 2-3 sharp follow-up questions I should ask. Output as a short bullet list, no preamble.'
-const RECAP_PROMPT =
-  'Recap what was discussed in the last 90 seconds of this meeting. 3-5 short bullets. No preamble.'
-const WHAT_TO_ANSWER_PROMPT =
-  'Based on what was just said in this meeting, what is the single most important question I should answer right now? State the question in one short line, no preamble.'
-const SHORTEN_PROMPT =
-  'Take the previous answer and rewrite it 2-3x shorter without losing key information. No preamble.'
 
 export function OverlayApp() {
   const [stealth, setStealth] = useState(true)

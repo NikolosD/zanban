@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Loader2,
-  Eye,
-  EyeOff,
   RefreshCw,
   Cpu,
-  Mic,
   User,
   Keyboard,
   SlidersHorizontal,
@@ -16,23 +13,21 @@ import {
   Check
 } from 'lucide-react'
 import {
-  PERSONA_PRESETS,
   DEFAULT_SETTINGS,
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
-  RESPONSE_LANGUAGES,
   type AiModelSettings,
   type AiRole,
-  type AppSettings,
-  type ResponseLanguage
+  type AppSettings
 } from '@shared/types'
+import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
+import { hotkeyHint, hotkeyLabel } from '@renderer/lib/hotkeys'
 import { KeyRecorder } from './KeyRecorder'
-import { ReferenceDocsTab, REFERENCE_DOCS_ICON } from './ReferenceDocsTab'
+import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
 import {
   ProvidersTab,
-  PROVIDERS_ICON,
   SttProviderCards,
   WebSearchCard,
   LLM_PROVIDER_LIST
@@ -184,11 +179,6 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ classN
   { id: 'about', label: 'About', icon: Info }
 ]
 
-interface MicDevice {
-  deviceId: string
-  label: string
-}
-
 export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
 
@@ -197,11 +187,6 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
   }, [initialTab])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [reveal, setReveal] = useState({
-    google: false,
-    deepgram: false,
-    vercel: false
-  })
   const [mics, setMics] = useState<MicDevice[]>([])
   const [micsError, setMicsError] = useState<string | null>(null)
   const [version, setVersion] = useState<string>('')
@@ -536,8 +521,6 @@ function GeneralTab({
     </>
   )
 }
-
-type RevealState = { google: boolean; deepgram: boolean; vercel: boolean }
 
 function ModelsTab({
   settings,
@@ -964,101 +947,6 @@ function TranscriptionLanguageSection({
   )
 }
 
-function PersonaTab({
-  settings,
-  update
-}: {
-  settings: AppSettings
-  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
-}) {
-  return (
-    <>
-      <Section
-        title="assistant persona"
-        hint="Goes into the model's system instruction — tells the AI WHO you are."
-      >
-        <Field label="Preset">
-          <div className="flex items-center gap-2">
-            <Select
-              value=""
-              onValueChange={(id) => {
-                const preset = PERSONA_PRESETS.find((p) => p.id === id)
-                if (preset) update('assistantPersona', preset.prompt)
-              }}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Pick a preset…" />
-              </SelectTrigger>
-              <SelectContent>
-                {PERSONA_PRESETS.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {settings.assistantPersona && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => update('assistantPersona', '')}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </Field>
-        <div>
-          <Textarea
-            rows={5}
-            value={settings.assistantPersona}
-            onChange={(e) => update('assistantPersona', e.target.value)}
-            placeholder="e.g. I am a senior React developer interviewing at a FAANG company. Help me answer at senior level with concrete trade-offs."
-          />
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            Tip: edit any preset after picking it. Persona is fixed for the whole session.
-          </p>
-        </div>
-      </Section>
-
-      <Section
-        title="response language"
-        hint="What language Zanban replies in. Useful for screenshots — they often have English text but you want a Russian explanation."
-      >
-        <Field label="Reply language">
-          <Select
-            value={settings.responseLanguage}
-            onValueChange={(v) => update('responseLanguage', v as ResponseLanguage)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RESPONSE_LANGUAGES.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </Section>
-
-      <Section
-        title="meeting context"
-        hint="Situational details for THIS meeting — pasted as a context block in every prompt."
-      >
-        <Textarea
-          rows={5}
-          value={settings.meetingContext}
-          onChange={(e) => update('meetingContext', e.target.value)}
-          placeholder="Job description, your resume, what you're trying to learn from this call…"
-        />
-      </Section>
-    </>
-  )
-}
-
 function HotkeysTab({
   settings,
   updateHotkey,
@@ -1097,27 +985,6 @@ function HotkeysTab({
       )}
     </Section>
   )
-}
-
-function hotkeyHint(k: string): string {
-  switch (k) {
-    case 'toggleOverlay':
-      return 'Show or hide the floating assistant.'
-    case 'askAi':
-      return 'Focus the Ask input from anywhere.'
-    case 'answerLast':
-      return 'Answer the last detected question with one keypress.'
-    case 'hideShow':
-      return 'Toggle stealth — hides from screen-share.'
-    case 'screenshot':
-      return 'Capture full screen, OCR it, attach to next Ask.'
-    case 'cropper':
-      return 'Drag a region, OCR only that area, attach to next Ask.'
-    case 'chat':
-      return 'Open the standalone chat window (no transcript context).'
-    default:
-      return ''
-  }
 }
 
 function AboutTab({ version }: { version: string }) {
@@ -1280,30 +1147,3 @@ function OpacitySlider({
   )
 }
 
-async function enumerateMics(): Promise<MicDevice[]> {
-  const list = await navigator.mediaDevices.enumerateDevices()
-  return list
-    .filter((d) => d.kind === 'audioinput')
-    .map((d) => ({ deviceId: d.deviceId, label: d.label }))
-}
-
-function hotkeyLabel(k: string): string {
-  switch (k) {
-    case 'toggleOverlay':
-      return 'Toggle overlay'
-    case 'askAi':
-      return 'Focus ask'
-    case 'answerLast':
-      return 'Answer last'
-    case 'hideShow':
-      return 'Hide / show'
-    case 'screenshot':
-      return 'Snap full screen → Ask'
-    case 'cropper':
-      return 'Drag region → OCR Ask'
-    case 'chat':
-      return 'Open chat window'
-    default:
-      return k
-  }
-}

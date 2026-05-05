@@ -509,12 +509,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   }
 }
 
-export const ANSWER_LAST_PROMPT =
-  'Look at the recent transcript. Find the most recent question asked by THEM (the other speaker, not YOU). Answer that question directly and concisely as if YOU were answering live in the meeting. 3-5 short bullets or 1-2 sentences max. No preamble. Match the question language.'
-
-export const SCREENSHOT_DEFAULT_PROMPT =
-  'Help me with what is on this screenshot — solve it, fix it, or do whatever it asks for. Skip describing the image.'
-
 /**
  * A reusable assistant role (system prompt + per-role overrides). Shipped
  * "built-ins" can be edited or deleted just like user-created ones — the
