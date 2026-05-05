@@ -43,6 +43,7 @@ import {
   DropdownMenuSeparator
 } from '@renderer/components/ui/dropdown-menu'
 import { Toaster } from '@renderer/components/ui/sonner'
+import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
@@ -893,14 +894,6 @@ function InputPill({
         )}
       </Button>
     </div>
-  )
-}
-
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded bg-white/10 px-1 font-mono text-[9px] leading-none text-foreground/80">
-      {children}
-    </span>
   )
 }
 

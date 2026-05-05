@@ -30,7 +30,7 @@ import {
   ProvidersTab,
   SttProviderCards,
   WebSearchCard,
-  LLM_PROVIDER_LIST
+  LLM_PROVIDERS
 } from './ProvidersTab'
 import { OverlayMockup } from './OverlayMockup'
 import { Button } from '@renderer/components/ui/button'
@@ -658,7 +658,7 @@ function ModelsTab({
                 <SelectItem value="__same__">
                   same as text · {provider}
                 </SelectItem>
-                {LLM_PROVIDER_LIST.map((p) => (
+                {LLM_PROVIDERS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>
                     {p.name}
                   </SelectItem>

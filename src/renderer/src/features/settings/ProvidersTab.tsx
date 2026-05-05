@@ -22,7 +22,7 @@ interface LlmProviderEntry {
   keyUrl?: string
 }
 
-const LLM_PROVIDERS: LlmProviderEntry[] = [
+export const LLM_PROVIDERS: LlmProviderEntry[] = [
   {
     value: 'vercel-gateway',
     name: 'Vercel AI Gateway',
@@ -189,10 +189,6 @@ export function ProvidersTab({ settings, update }: Props) {
     </div>
   )
 }
-
-// Exported so ModelsTab can render the same provider list inside its
-// vision-override picker without re-declaring the catalogue.
-export const LLM_PROVIDER_LIST = LLM_PROVIDERS
 
 /**
  * STT provider cards — exported so AudioTab can render them next to the
@@ -486,6 +482,3 @@ function SttCredentials({
   }
   return null
 }
-
-// re-export so the parent can show an icon in the sidebar without importing lucide there
-export const PROVIDERS_ICON = Lock

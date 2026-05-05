@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, Trash2, UploadCloud, Loader2, FileType2 } from 'lucide-react'
+import { Trash2, UploadCloud, Loader2, FileType2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReferenceDoc } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
@@ -186,7 +186,3 @@ export function ReferenceDocsTab() {
     </div>
   )
 }
-
-// Re-export the icon so the parent can show it in the sidebar without
-// re-importing lucide there.
-export const REFERENCE_DOCS_ICON = FileText
