@@ -2,6 +2,11 @@ import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { visualizer } from 'rollup-plugin-visualizer'
+
+// Pass ANALYZE=1 to a build to drop a treemap into out/bundle-stats.html.
+// Useful for chasing down chunks like the 932 kB sonner one.
+const analyze = !!process.env.ANALYZE
 
 export default defineConfig({
   main: {
@@ -34,7 +39,21 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      ...(analyze
+        ? [
+            visualizer({
+              filename: 'out/bundle-stats.html',
+              template: 'treemap',
+              gzipSize: true,
+              brotliSize: true,
+              open: false
+            })
+          ]
+        : [])
+    ],
     build: {
       rollupOptions: {
         input: {
