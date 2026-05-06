@@ -29,13 +29,19 @@ import {
 import { AskPanel } from '@renderer/features/ai/AskPanel'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc } from '@renderer/features/ai/store'
+import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import {
   startCapturesFromSettings,
   stopCaptures,
   wireCaptureAutostop
 } from '@renderer/audio/captureController'
 import { Button } from '@renderer/components/ui/button'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@renderer/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription
+} from '@renderer/components/ui/dialog'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -66,8 +72,10 @@ export function DashboardApp() {
 
   useEffect(() => {
     void window.zanban.getVersion().then(setVersion)
+    void useSettingsStore.getState().load()
     const offTr = wireTranscriptIpc()
     const offAi = wireAiIpc()
+    const offSettings = wireSettingsIpc()
     // The session list is loaded via React Query and the dashboard window
     // never loses focus when a session ends in the overlay — so without an
     // explicit invalidation the user would only see the new session after a
@@ -82,6 +90,7 @@ export function DashboardApp() {
       offTr()
       offAi()
       offSession()
+      offSettings()
     }
   }, [queryClient])
 
@@ -116,7 +125,13 @@ export function DashboardApp() {
           }}
         />
         <div className="mt-10">
-          <MeetingsList onSelect={setSelected} />
+          <MeetingsList
+            onSelect={setSelected}
+            onOpenSettings={() => {
+              setSettingsTab('general')
+              setSettingsOpen(true)
+            }}
+          />
         </div>
       </main>
 
@@ -264,8 +279,7 @@ function SearchPill({
     if (!q) return []
     return SETTINGS_TABS.filter(
       (t) =>
-        t.label.toLowerCase().includes(q) ||
-        t.keywords.some((k) => k.toLowerCase().includes(q))
+        t.label.toLowerCase().includes(q) || t.keywords.some((k) => k.toLowerCase().includes(q))
     )
       .slice(0, 4)
       .map((t) => ({
@@ -374,12 +388,8 @@ function SearchPill({
               >
                 <SettingsIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">
-                    {hit.kind === 'settings' ? hit.label : ''}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="truncate text-sm">{hit.kind === 'settings' ? hit.label : ''}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -405,12 +415,8 @@ function SearchPill({
               >
                 <Search className="size-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">
-                    {hit.kind === 'session' ? hit.title : ''}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="truncate text-sm">{hit.kind === 'session' ? hit.title : ''}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -442,9 +448,7 @@ function SearchPill({
                   <div className="truncate text-[12px] text-muted-foreground">
                     {hit.kind === 'rag' ? hit.snippet : ''}
                   </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -452,7 +456,8 @@ function SearchPill({
           {text && matches.length === 0 && (
             <div className="px-3 py-2 text-[12px] text-muted-foreground">
               Nothing matches — press{' '}
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd> to ask Zanban instead.
+              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd> to ask Zanban
+              instead.
             </div>
           )}
           <div className="border-t border-white/[0.05]" />
@@ -553,7 +558,13 @@ function SessionStartButton() {
   )
 }
 
-function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
+function MeetingsList({
+  onSelect,
+  onOpenSettings
+}: {
+  onSelect(id: string): void
+  onOpenSettings(): void
+}) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['sessions-local'],
     queryFn: () => window.zanban.sessions.list(),
@@ -573,7 +584,7 @@ function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
     )
   }
   if (!data || data.length === 0) {
-    return <EmptyMeetings />
+    return <EmptyMeetings onOpenSettings={onOpenSettings} />
   }
 
   return (
@@ -778,11 +789,9 @@ function MeetingRow({
             Delete this session?
           </DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
-            <span className="text-foreground">
-              {session.title || formatFallbackTitle(date)}
-            </span>{' '}
-            will be removed from your machine — transcript, markdown export, and
-            embeddings. Cloud copies are not affected. This can&apos;t be undone.
+            <span className="text-foreground">{session.title || formatFallbackTitle(date)}</span>{' '}
+            will be removed from your machine — transcript, markdown export, and embeddings. Cloud
+            copies are not affected. This can&apos;t be undone.
           </DialogDescription>
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button
@@ -809,11 +818,14 @@ function MeetingRow({
   )
 }
 
-function EmptyMeetings() {
+function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // Empty state: typographic, not iconographic. A single faint dot anchors
   // the column and echoes the recording-dot motif used elsewhere — quieter
   // than a centered illustration and consistent with the tools-not-bragging
-  // tone in PRODUCT.md.
+  // tone in PRODUCT.md. Adds an inline CTA when API keys are missing so a
+  // brand-new user doesn't only learn about the requirement at session start.
+  const settings = useSettingsStore((s) => s.settings)
+  const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />
@@ -821,11 +833,28 @@ function EmptyMeetings() {
         no sessions yet
       </div>
       <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
-        Hit <span className="text-foreground">Start session</span> in the
-        header. Each session is saved locally as Markdown when you stop —
-        nothing leaves your machine.
+        Hit <span className="text-foreground">Start session</span> in the header. Each session is
+        saved locally as Markdown when you stop — nothing leaves your machine.
       </p>
+      {apiKeysMissing && (
+        <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-amber-300">
+            set up first
+          </div>
+          <p className="text-[12px] leading-relaxed text-amber-100/90">
+            Sessions need a Google Cloud project ID (STT) and a Vercel AI Gateway key (LLM) before
+            they can run.
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[12px] text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
+            onClick={onOpenSettings}
+          >
+            Open Settings
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
-

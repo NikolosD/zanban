@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Quote, Loader2, Wand2, Image as ImageIcon, X } from 'lucide-react'
+import {
+  Send,
+  Quote,
+  Loader2,
+  Wand2,
+  Image as ImageIcon,
+  X,
+  Copy,
+  ArrowDownToLine
+} from 'lucide-react'
 import { useAi } from './store'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { Button } from '@renderer/components/ui/button'
@@ -8,6 +17,7 @@ import { Card, CardContent } from '@renderer/components/ui/card'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
 import { cn } from '@renderer/lib/utils'
+import { copyToClipboard } from '@renderer/lib/clipboard'
 
 export function AskPanel({
   autoFocusKey = 0,
@@ -29,14 +39,17 @@ export function AskPanel({
     inputRef.current?.focus()
   }, [autoFocusKey])
 
-  // When a fresh ask starts, jump to top so the new answer's beginning is visible.
+  // History view: when a fresh ask starts, jump to the bottom so the new card
+  // is visible. While streaming the user can scroll up to read older Q&A
+  // without being yanked — we only re-pin on a new message id.
   useEffect(() => {
     if (!latest) return
     const root = scrollRef.current
     if (!root) return
     const viewport = root.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
     const target = viewport ?? root
-    target.scrollTop = 0
+    target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latest?.id])
 
   async function send(prompt?: string) {
@@ -99,12 +112,14 @@ export function AskPanel({
   return (
     <div className={cn('flex flex-col gap-2 min-h-0', className)}>
       <ScrollArea ref={scrollRef} className="flex-1 min-h-0">
-        {latest ? (
-          <div className="pr-2">
-            <AskCard message={latest} />
-          </div>
-        ) : (
+        {messages.length === 0 ? (
           <Empty onSend={send} onAnswerLast={answerLast} />
+        ) : (
+          <div className="flex flex-col gap-3 pr-2">
+            {messages.map((m) => (
+              <AskCard key={m.id} message={m} onContinue={() => void send('continue')} />
+            ))}
+          </div>
         )}
       </ScrollArea>
       <div className="flex flex-col gap-1.5 shrink-0">
@@ -147,7 +162,11 @@ export function AskPanel({
             title="Attach a screenshot of the primary display"
             className="size-8 shrink-0"
           >
-            {snapping ? <Loader2 className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}
+            {snapping ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <ImageIcon className="size-3.5" />
+            )}
           </Button>
           <Button
             onClick={() => void answerLast()}
@@ -183,7 +202,10 @@ function Empty({
 }) {
   const suggestions = [
     { label: 'Answer last question (Ctrl+Shift+Enter)', action: onAnswerLast, primary: true },
-    { label: 'Summarize the last 60 seconds', action: () => onSend('Summarize the last 60 seconds') },
+    {
+      label: 'Summarize the last 60 seconds',
+      action: () => onSend('Summarize the last 60 seconds')
+    },
     { label: 'What should I say next?', action: () => onSend('What should I say next?') }
   ]
   return (
@@ -218,7 +240,14 @@ interface AskMessage {
   finishReason?: string
 }
 
-export function AskCard({ message: m }: { message: AskMessage }) {
+export function AskCard({
+  message: m,
+  onContinue
+}: {
+  message: AskMessage
+  onContinue?: () => void
+}) {
+  const canCopy = m.status !== 'error' && m.answer.length > 0
   return (
     <Card
       className={cn(
@@ -228,8 +257,19 @@ export function AskCard({ message: m }: { message: AskMessage }) {
     >
       <CardContent className="px-1 py-1">
         <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          <Quote className="size-3" />
-          <span className="truncate">{m.prompt}</span>
+          <Quote className="size-3 shrink-0" />
+          <span className="flex-1 truncate">{m.prompt}</span>
+          {canCopy && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => void copyToClipboard(m.answer, 'Answer copied')}
+              title="Copy answer"
+            >
+              <Copy className="size-3" />
+            </Button>
+          )}
         </div>
         {m.status === 'error' ? (
           <div className="text-xs text-destructive">{m.error}</div>
@@ -243,8 +283,18 @@ export function AskCard({ message: m }: { message: AskMessage }) {
           </div>
         )}
         {m.status === 'done' && m.finishReason === 'length' && (
-          <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
-            answer truncated — hit max output tokens. ask "continue" to resume.
+          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
+            <span className="flex-1">answer truncated — hit max output tokens.</span>
+            {onContinue && (
+              <button
+                onClick={onContinue}
+                className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
+                title="Submit a 'continue' prompt to resume the answer"
+              >
+                <ArrowDownToLine className="size-3" />
+                continue
+              </button>
+            )}
           </div>
         )}
       </CardContent>

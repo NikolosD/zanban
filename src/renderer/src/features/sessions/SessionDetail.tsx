@@ -13,6 +13,7 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
+import { copyToClipboard } from '@renderer/lib/clipboard'
 import { startCapturesFromSettings } from '@renderer/audio/captureController'
 import { useTranscript } from '@renderer/features/transcript/store'
 import { useAi } from '@renderer/features/ai/store'
@@ -216,9 +217,11 @@ function SummaryActions({ session }: { session: SessionDetailPayload }) {
 
   async function copySummary() {
     if (!summary) return
-    await navigator.clipboard.writeText(summary.answer)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
+    const ok = await copyToClipboard(summary.answer, 'Summary copied')
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    }
   }
 
   if (!summary) return null

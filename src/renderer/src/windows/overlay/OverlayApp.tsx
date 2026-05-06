@@ -7,7 +7,9 @@ import {
   Eye,
   Square,
   Loader2,
-  ChevronDown
+  ChevronDown,
+  Copy,
+  ArrowDownToLine
 } from 'lucide-react'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { useQuestions } from '@renderer/features/transcript/questionsStore'
@@ -32,7 +34,12 @@ import {
 } from '@shared/prompts'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@renderer/components/ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -44,6 +51,7 @@ import {
 import { Toaster } from '@renderer/components/ui/sonner'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
+import { copyToClipboard } from '@renderer/lib/clipboard'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
 
@@ -56,6 +64,7 @@ export function OverlayApp() {
   const [ocrText, setOcrText] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const historyRef = useRef<HTMLDivElement>(null)
   const session = useTranscript((s) => s.session)
   const t0 = session.kind === 'running' ? session.startedAt : null
   const elapsed = useElapsed(session.kind === 'running', t0)
@@ -65,6 +74,18 @@ export function OverlayApp() {
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
   const allQuestions = useQuestions((s) => s.questions)
+
+  // Pin the history pane to the bottom whenever a new Q&A starts. While a
+  // single answer is streaming we don't auto-scroll — the user may scroll up
+  // to read older Q&A within the session. Depending on `latest?.id` is
+  // intentional: streaming chunk updates change the object but not the id.
+  useEffect(() => {
+    if (!latest) return
+    const el = historyRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latest?.id])
   const pendingQuestions = useMemo(
     () => allQuestions.filter((q) => q.status === 'pending').slice(-2),
     [allQuestions]
@@ -77,8 +98,7 @@ export function OverlayApp() {
         ? status.system.message
         : null
 
-  const apiKeysMissing =
-    !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
+  const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -254,7 +274,11 @@ export function OverlayApp() {
 
   const running = session.kind === 'running'
   const hasAnswer = !!latest
-  const hasContent = hasAnswer || apiKeysMissing || transcriptionError ||
+  const hasHistory = messages.length > 0
+  const hasContent =
+    hasHistory ||
+    apiKeysMissing ||
+    transcriptionError ||
     (pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false)
   // Hide is now strictly "make me invisible to screen-share". It no longer
   // collapses the overlay's own UI: action chips, input, and answer pane
@@ -348,9 +372,8 @@ export function OverlayApp() {
                         <AlertTriangle className="size-4 text-amber-400" />
                         <AlertTitle>API keys not configured</AlertTitle>
                         <AlertDescription>
-                          Open the dashboard → Settings. Need a Google Cloud project ID
-                          (STT — auth via gcloud or pasted JSON) and a Vercel AI Gateway
-                          key (LLM).{' '}
+                          Open the dashboard → Settings. Need a Google Cloud project ID (STT — auth
+                          via gcloud or pasted JSON) and a Vercel AI Gateway key (LLM).{' '}
                           <button
                             className="underline underline-offset-2"
                             onClick={() => void refreshSettings()}
@@ -397,9 +420,19 @@ export function OverlayApp() {
                   </div>
                 )}
 
-                {latest && (
-                  <div className="max-h-[360px] overflow-y-auto px-1 py-1">
-                    <AnswerPane message={latest} />
+                {hasHistory && (
+                  <div
+                    ref={historyRef}
+                    data-interactive
+                    className="flex max-h-[360px] flex-col gap-3 overflow-y-auto px-1 py-1"
+                  >
+                    {messages.map((m) => (
+                      <AnswerPane
+                        key={m.id}
+                        message={m}
+                        onContinue={() => void runPrompt('continue', 'Continue')}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -459,10 +492,7 @@ function StatusBar({
             )}
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            <ZanbanMark
-              size={18}
-              signal={running ? 'oklch(0.72 0.18 25)' : undefined}
-            />
+            <ZanbanMark size={18} signal={running ? 'oklch(0.72 0.18 25)' : undefined} />
           </button>
         </TooltipTrigger>
         <TooltipContent>Open dashboard · session keeps running</TooltipContent>
@@ -591,11 +621,7 @@ function ActionChipsRow({
     >
       {/* Recap is the most-used "look back at the last 90s" gesture. Visible
           only while running — there's no transcript to recap when idle. */}
-      <ActionChip
-        label="Recap"
-        disabled={busy || !running}
-        onClick={onRecap}
-      />
+      <ActionChip label="Recap" disabled={busy || !running} onClick={onRecap} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -618,10 +644,7 @@ function ActionChipsRow({
           data-interactive
           className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
         >
-          <DropdownMenuItem
-            disabled={busy || !running}
-            onSelect={onWhatToAnswer}
-          >
+          <DropdownMenuItem disabled={busy || !running} onSelect={onWhatToAnswer}>
             <span className="text-[12px]">What to answer?</span>
           </DropdownMenuItem>
           <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten}>
@@ -692,7 +715,7 @@ function ModelOverridePicker({
 
   const label = value
     ? value.includes('/')
-      ? value.split('/').pop() ?? value
+      ? (value.split('/').pop() ?? value)
       : value
     : 'Default'
 
@@ -726,7 +749,8 @@ function ModelOverridePicker({
         </DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onChange(null)}>
           <span className={cn('flex-1 truncate text-[12px]', !value && 'text-foreground')}>
-            Default · <span className="font-mono text-[10px] text-muted-foreground">{defaultModel}</span>
+            Default ·{' '}
+            <span className="font-mono text-[10px] text-muted-foreground">{defaultModel}</span>
           </span>
           {!value && <span className="text-[10px] text-emerald-400">●</span>}
         </DropdownMenuItem>
@@ -738,7 +762,12 @@ function ModelOverridePicker({
         )}
         {fastModels.map((m) => (
           <DropdownMenuItem key={`f-${m}`} onSelect={() => onChange(m)}>
-            <span className={cn('flex-1 truncate font-mono text-[11px]', value === m && 'text-foreground')}>
+            <span
+              className={cn(
+                'flex-1 truncate font-mono text-[11px]',
+                value === m && 'text-foreground'
+              )}
+            >
               {m}
             </span>
             {value === m && <span className="text-[10px] text-emerald-400">●</span>}
@@ -752,7 +781,12 @@ function ModelOverridePicker({
         )}
         {visionModels.map((m) => (
           <DropdownMenuItem key={`v-${m}`} onSelect={() => onChange(m)}>
-            <span className={cn('flex-1 truncate font-mono text-[11px]', value === m && 'text-foreground')}>
+            <span
+              className={cn(
+                'flex-1 truncate font-mono text-[11px]',
+                value === m && 'text-foreground'
+              )}
+            >
               {m}
             </span>
             {value === m && <span className="text-[10px] text-emerald-400">●</span>}
@@ -831,9 +865,7 @@ function InputPill({
         onChange={(e) => onTextChange(e.target.value)}
         onKeyDown={onKey}
         placeholder={
-          image
-            ? 'Ask about the screenshot…'
-            : 'Ask anything on screen or conversation, or'
+          image ? 'Ask about the screenshot…' : 'Ask anything on screen or conversation, or'
         }
         style={noDrag}
         className={cn(
@@ -886,11 +918,7 @@ function InputPill({
         style={noDrag}
         className="size-7 shrink-0 rounded-full"
       >
-        {busy ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <Send className="size-3.5" />
-        )}
+        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
       </Button>
     </div>
   )
@@ -905,11 +933,27 @@ interface AskMessage {
   finishReason?: string
 }
 
-function AnswerPane({ message: m }: { message: AskMessage }) {
+function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinue: () => void }) {
+  const canCopy = m.status !== 'error' && m.answer.length > 0
   return (
     <div className="space-y-2">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
-        {m.prompt}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
+          {m.prompt}
+        </div>
+        {canCopy && (
+          <button
+            data-interactive
+            onClick={() => void copyToClipboard(m.answer, 'Answer copied')}
+            title="Copy answer"
+            className={cn(
+              'inline-flex shrink-0 items-center justify-center rounded',
+              'size-5 text-muted-foreground/70 hover:bg-white/10 hover:text-foreground'
+            )}
+          >
+            <Copy className="size-3" />
+          </button>
+        )}
       </div>
       {m.status === 'error' ? (
         <div className="text-xs text-destructive">{m.error}</div>
@@ -923,8 +967,17 @@ function AnswerPane({ message: m }: { message: AskMessage }) {
         </div>
       )}
       {m.status === 'done' && m.finishReason === 'length' && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
-          answer truncated — hit max output tokens. type "continue" to resume.
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
+          <span className="flex-1">answer truncated — hit max output tokens.</span>
+          <button
+            data-interactive
+            onClick={onContinue}
+            title="Submit a 'continue' prompt to resume the answer"
+            className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
+          >
+            <ArrowDownToLine className="size-3" />
+            continue
+          </button>
         </div>
       )}
     </div>
