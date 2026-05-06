@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { getAppIcon } from '../appIcon.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -12,7 +13,8 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: '',
+    title: 'Zanban',
+    icon: getAppIcon(),
     backgroundColor: '#0b0b0d',
     titleBarStyle: 'hiddenInset',
     autoHideMenuBar: true,

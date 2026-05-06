@@ -83,9 +83,20 @@ function decrypt(enc: string | null | undefined): string | null {
 
 export function getSettings(): AppSettings {
   const raw = store.store as PersistedSettings & Record<string, unknown>
+  // Migrate the old macOS-only `hideDockMacOS` flag into the cross-platform
+  // `hideFromAppSwitcher`. Old installs that toggled the dock-hide should
+  // keep that behaviour after upgrade without re-toggling.
+  const legacyHideDock = raw['hideDockMacOS']
+  const hideFromAppSwitcher =
+    typeof raw.hideFromAppSwitcher === 'boolean'
+      ? raw.hideFromAppSwitcher
+      : typeof legacyHideDock === 'boolean'
+        ? legacyHideDock
+        : DEFAULT_SETTINGS.hideFromAppSwitcher
   const merged: AppSettings = {
     ...DEFAULT_SETTINGS,
     ...raw,
+    hideFromAppSwitcher,
     hotkeys: { ...DEFAULT_SETTINGS.hotkeys, ...(raw.hotkeys ?? {}) },
     audio: { ...DEFAULT_SETTINGS.audio, ...(raw.audio ?? {}) },
     aiModels: migrateAiModels(raw.aiModels),

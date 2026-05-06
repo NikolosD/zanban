@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { getAppIcon } from '../appIcon.js'
 
 export function createChatWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -8,6 +9,7 @@ export function createChatWindow(): BrowserWindow {
     minWidth: 360,
     minHeight: 480,
     title: 'Zanban Chat',
+    icon: getAppIcon(),
     backgroundColor: '#0e0e10',
     titleBarStyle: 'hiddenInset',
     frame: process.platform !== 'darwin',

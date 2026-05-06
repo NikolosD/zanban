@@ -466,12 +466,12 @@ function GeneralTab({
           />
         </Row>
         <Row
-          label="Hide dock icon (macOS)"
-          hint="Stay invisible in the dock. Restart the app for changes to apply. No effect on Windows/Linux."
+          label="Hide from app switcher"
+          hint="Drop Zanban from the dock + Cmd+Tab on macOS, and the taskbar + Alt+Tab on Windows. Restart on macOS for the dock change to take effect."
         >
           <Switch
-            checked={settings.hideDockMacOS}
-            onCheckedChange={(v) => update('hideDockMacOS', v)}
+            checked={settings.hideFromAppSwitcher}
+            onCheckedChange={(v) => update('hideFromAppSwitcher', v)}
           />
         </Row>
       </Section>
