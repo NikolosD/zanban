@@ -35,6 +35,16 @@ export function getActiveVisionProvider(): ILlmProvider | null {
   return overridden
 }
 
+/**
+ * Resolve a specific provider by id without consulting `settings.llmProvider`.
+ * Used by the fallback chain to walk the user-configured fallback list, where
+ * each entry is a known provider id and the active selection doesn't matter.
+ * Returns null when the provider has no configured key.
+ */
+export function getLlmProviderById(id: LlmProvider): ILlmProvider | null {
+  return resolveProvider(id)
+}
+
 function resolveProvider(id: LlmProvider): ILlmProvider | null {
   const s = getSettings()
   switch (id) {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { Input } from '@renderer/components/ui/input'
 import { Button } from '@renderer/components/ui/button'
+import { ProviderStatusDot, type ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
 import { cn } from '@renderer/lib/utils'
 
 export interface ProviderCardProps {
@@ -15,6 +16,10 @@ export interface ProviderCardProps {
   active: boolean
   /** "recommended" or "experimental" or null. */
   badge?: 'recommended' | 'experimental' | 'local' | null
+  /** Status dot drawn next to the provider name. Optional — when omitted no
+   *  dot is rendered (keeps the existing layout for callers that don't yet
+   *  pass a status). */
+  status?: ProviderDotStatus
   /** Click on the body to make this the active provider. */
   onActivate?: () => void
   /** External link to the provider's API console (the "get key →" affordance). */
@@ -42,6 +47,7 @@ export function ProviderCard({
   description,
   active,
   badge,
+  status,
   onActivate,
   keyUrl,
   children
@@ -63,9 +69,8 @@ export function ProviderCard({
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[14px] font-medium leading-none text-foreground">
-              {name}
-            </span>
+            {status && <ProviderStatusDot status={status} />}
+            <span className="text-[14px] font-medium leading-none text-foreground">{name}</span>
             {badge && (
               <span
                 className={cn(
@@ -83,9 +88,7 @@ export function ProviderCard({
               </span>
             )}
           </div>
-          <p className="mt-1.5 text-[12px] text-muted-foreground leading-relaxed">
-            {description}
-          </p>
+          <p className="mt-1.5 text-[12px] text-muted-foreground leading-relaxed">{description}</p>
         </div>
         {keyUrl && (
           <a

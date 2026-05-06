@@ -15,11 +15,13 @@ import {
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieveContext } from '../rag/index.js'
 import { generateOneShot } from './llm/baseLlm.js'
+import { streamWithFallback } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
 import {
   getActiveLlmProvider,
   getActiveVisionProvider,
-  getActiveWebSearch
+  getActiveWebSearch,
+  getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
 import { modelFor, FAST_MAX_OUTPUT_TOKENS } from './models.js'
@@ -173,9 +175,25 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         return
       }
       if (altProvider) {
+        // Build the providers we'll try in order: the active provider first,
+        // then any user-configured fallback ids. Fallbacks whose keys aren't
+        // present (resolveProvider returns null) are dropped. We also dedupe
+        // so the active provider isn't tried twice if it appears in the
+        // fallback list.
+        const seenIds = new Set<string>([altProvider.id])
+        const providers = [altProvider]
+        for (const id of settings.llmFallbackOrder ?? []) {
+          if (seenIds.has(id)) continue
+          const p = getLlmProviderById(id)
+          if (!p) continue
+          seenIds.add(id)
+          providers.push(p)
+        }
+
         try {
           let fullAnswer = ''
-          for await (const text of altProvider.stream({
+          let chosenProviderId: string = altProvider.id
+          const stream = streamWithFallback(providers, {
             model: overrideModel,
             system: hasImage
               ? buildVisionSystemPrompt(personaText, responseLanguage)
@@ -185,16 +203,27 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             maxOutputTokens: hasImage ? 8000 : FAST_MAX_OUTPUT_TOKENS,
             imageDataUrl: opts.imageDataUrl,
             signal: abort.signal
-          })) {
+          })
+          for await (const ev of stream) {
             if (abort.signal.aborted) return
-            if (text) {
-              fullAnswer += text
-              broadcast(IPC.ai.chunk, { requestId, text })
+            if (ev.kind === 'fallback') {
+              chosenProviderId = ev.toProviderId
+              console.warn(
+                `[ai] provider ${ev.fromProviderId} failed before emitting; falling back to ${ev.toProviderId}: ${ev.reason}`
+              )
+              continue
             }
+            fullAnswer += ev.text
+            broadcast(IPC.ai.chunk, { requestId, text: ev.text })
           }
           recordExchange(opts.prompt, fullAnswer)
           void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
           broadcast(IPC.ai.done, { requestId })
+          // Best-effort: log which provider actually answered, useful when
+          // the fallback chain kicks in and the user's primary was unhealthy.
+          if (chosenProviderId !== altProvider.id) {
+            console.info(`[ai] answered via fallback provider: ${chosenProviderId}`)
+          }
           return
         } catch (err) {
           // Provider failure: surface it to the user instead of silently

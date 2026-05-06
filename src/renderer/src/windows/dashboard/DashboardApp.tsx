@@ -27,18 +27,26 @@ import {
   type SettingsTabId
 } from '@renderer/features/settings/SettingsPanel'
 import { AskPanel } from '@renderer/features/ai/AskPanel'
+import { OnboardingWizard } from '@renderer/features/onboarding/OnboardingWizard'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc } from '@renderer/features/ai/store'
+import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import {
   startCapturesFromSettings,
   stopCaptures,
   wireCaptureAutostop
 } from '@renderer/audio/captureController'
 import { Button } from '@renderer/components/ui/button'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@renderer/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription
+} from '@renderer/components/ui/dialog'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useTranslation, Trans } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import {
   formatDuration,
@@ -62,12 +70,25 @@ export function DashboardApp() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('general')
   const [askKey, setAskKey] = useState(0)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const settings = useSettingsStore((s) => s.settings)
   const queryClient = useQueryClient()
+
+  // Open the wizard when settings load and `onboardingCompleted` is still
+  // false. We don't reset on subsequent loads — the user can dismiss it and
+  // we won't re-pop until they manually re-run from Settings.
+  useEffect(() => {
+    if (settings && !settings.onboardingCompleted) {
+      setOnboardingOpen(true)
+    }
+  }, [settings?.onboardingCompleted])
 
   useEffect(() => {
     void window.zanban.getVersion().then(setVersion)
+    void useSettingsStore.getState().load()
     const offTr = wireTranscriptIpc()
     const offAi = wireAiIpc()
+    const offSettings = wireSettingsIpc()
     // The session list is loaded via React Query and the dashboard window
     // never loses focus when a session ends in the overlay — so without an
     // explicit invalidation the user would only see the new session after a
@@ -82,6 +103,7 @@ export function DashboardApp() {
       offTr()
       offAi()
       offSession()
+      offSettings()
     }
   }, [queryClient])
 
@@ -116,7 +138,13 @@ export function DashboardApp() {
           }}
         />
         <div className="mt-10">
-          <MeetingsList onSelect={setSelected} />
+          <MeetingsList
+            onSelect={setSelected}
+            onOpenSettings={() => {
+              setSettingsTab('general')
+              setSettingsOpen(true)
+            }}
+          />
         </div>
       </main>
 
@@ -139,10 +167,24 @@ export function DashboardApp() {
             API keys, audio devices, hotkeys.
           </DialogDescription>
           <div className="h-full min-h-0">
-            <SettingsPanel initialTab={settingsTab} />
+            <SettingsPanel
+              initialTab={settingsTab}
+              onReRunOnboarding={() => {
+                setSettingsOpen(false)
+                setOnboardingOpen(true)
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>
+
+      {settings && (
+        <OnboardingWizard
+          open={onboardingOpen}
+          settings={settings}
+          onClose={() => setOnboardingOpen(false)}
+        />
+      )}
 
       <Toaster richColors theme="dark" />
     </div>
@@ -162,10 +204,10 @@ function Header({
   onOpenSettingsTab(tab: SettingsTabId): void
   onSettings(): void
 }) {
+  const { t } = useTranslation()
   return (
     <header className="flex items-center gap-5">
-      {/* Brand lockup: phase-dot mark + lowercase wordmark + faint mono version.
-          Lowercase wordmark matches in-app tone ("idle", "recording 02:31"). */}
+      {/* Brand lockup: phase-dot mark + lowercase wordmark + faint mono version. */}
       <Wordmark
         size={20}
         className="shrink-0 text-foreground"
@@ -175,10 +217,6 @@ function Header({
           </span>
         }
       />
-      {/* Primary CTA sits immediately after the lockup — this is the one
-          action 95% of opens are about. Keeping search to the right of it
-          lets the search bar consume any remaining space without burying
-          the CTA between two siblings. */}
       <SessionStartButton />
       <SearchPill
         onAsk={onAsk}
@@ -187,10 +225,10 @@ function Header({
       />
       <button
         onClick={onSettings}
-        aria-label="Settings"
+        aria-label={t('settings.title')}
         className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        Settings
+        {t('dashboard.settings')}
       </button>
     </header>
   )
@@ -264,8 +302,7 @@ function SearchPill({
     if (!q) return []
     return SETTINGS_TABS.filter(
       (t) =>
-        t.label.toLowerCase().includes(q) ||
-        t.keywords.some((k) => k.toLowerCase().includes(q))
+        t.label.toLowerCase().includes(q) || t.keywords.some((k) => k.toLowerCase().includes(q))
     )
       .slice(0, 4)
       .map((t) => ({
@@ -374,12 +411,8 @@ function SearchPill({
               >
                 <SettingsIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">
-                    {hit.kind === 'settings' ? hit.label : ''}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="truncate text-sm">{hit.kind === 'settings' ? hit.label : ''}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -405,12 +438,8 @@ function SearchPill({
               >
                 <Search className="size-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">
-                    {hit.kind === 'session' ? hit.title : ''}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="truncate text-sm">{hit.kind === 'session' ? hit.title : ''}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -442,9 +471,7 @@ function SearchPill({
                   <div className="truncate text-[12px] text-muted-foreground">
                     {hit.kind === 'rag' ? hit.snippet : ''}
                   </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">
-                    {hit.subtitle}
-                  </div>
+                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
                 </div>
               </button>
             )
@@ -452,7 +479,8 @@ function SearchPill({
           {text && matches.length === 0 && (
             <div className="px-3 py-2 text-[12px] text-muted-foreground">
               Nothing matches — press{' '}
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd> to ask Zanban instead.
+              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd> to ask Zanban
+              instead.
             </div>
           )}
           <div className="border-t border-white/[0.05]" />
@@ -487,6 +515,7 @@ function SearchPill({
 }
 
 function SessionStartButton() {
+  const { t } = useTranslation()
   const session = useTranscript((s) => s.session)
   const [busy, setBusy] = useState(false)
 
@@ -548,12 +577,19 @@ function SessionStartButton() {
       ) : (
         <Mic className="size-4" />
       )}
-      {running ? 'Stop session' : 'Start session'}
+      {running ? t('dashboard.stop_session') : t('dashboard.start_session')}
     </Button>
   )
 }
 
-function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
+function MeetingsList({
+  onSelect,
+  onOpenSettings
+}: {
+  onSelect(id: string): void
+  onOpenSettings(): void
+}) {
+  const { t } = useTranslation()
   const { data, isLoading, error } = useQuery({
     queryKey: ['sessions-local'],
     queryFn: () => window.zanban.sessions.list(),
@@ -563,17 +599,17 @@ function MeetingsList({ onSelect }: { onSelect(id: string): void }) {
   const groups = useMemo(() => groupByDay(data ?? []), [data])
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>
+    return <p className="text-sm text-muted-foreground">{t('dashboard.loading')}</p>
   }
   if (error) {
     return (
       <p className="text-sm text-destructive">
-        {error instanceof Error ? error.message : 'failed to load'}
+        {error instanceof Error ? error.message : t('dashboard.load_failed')}
       </p>
     )
   }
   if (!data || data.length === 0) {
-    return <EmptyMeetings />
+    return <EmptyMeetings onOpenSettings={onOpenSettings} />
   }
 
   return (
@@ -608,6 +644,7 @@ function MeetingRow({
   onSelect(id: string): void
   isLast: boolean
 }) {
+  const { t } = useTranslation()
   const liveSession = useTranscript((s) => s.session)
   const queryClient = useQueryClient()
   const isRunningElsewhere = liveSession.kind === 'running'
@@ -620,7 +657,7 @@ function MeetingRow({
 
   async function resume(): Promise<void> {
     if (isRunningElsewhere) {
-      toast.error('A session is already running. Stop it first.')
+      toast.error(t('dashboard.session_running_elsewhere'))
       return
     }
     try {
@@ -628,7 +665,7 @@ function MeetingRow({
       await window.zanban.session.start({ resumeId: session.id })
       await startCapturesFromSettings(settings)
     } catch (err) {
-      toast.error('Could not resume session', {
+      toast.error(t('dashboard.could_not_resume'), {
         description: err instanceof Error ? err.message : String(err)
       })
     }
@@ -778,11 +815,9 @@ function MeetingRow({
             Delete this session?
           </DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
-            <span className="text-foreground">
-              {session.title || formatFallbackTitle(date)}
-            </span>{' '}
-            will be removed from your machine — transcript, markdown export, and
-            embeddings. Cloud copies are not affected. This can&apos;t be undone.
+            <span className="text-foreground">{session.title || formatFallbackTitle(date)}</span>{' '}
+            will be removed from your machine — transcript, markdown export, and embeddings. Cloud
+            copies are not affected. This can&apos;t be undone.
           </DialogDescription>
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button
@@ -809,23 +844,45 @@ function MeetingRow({
   )
 }
 
-function EmptyMeetings() {
+function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // Empty state: typographic, not iconographic. A single faint dot anchors
   // the column and echoes the recording-dot motif used elsewhere — quieter
   // than a centered illustration and consistent with the tools-not-bragging
-  // tone in PRODUCT.md.
+  // tone in PRODUCT.md. Adds an inline CTA when API keys are missing so a
+  // brand-new user doesn't only learn about the requirement at session start.
+  const { t } = useTranslation()
+  const settings = useSettingsStore((s) => s.settings)
+  const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />
       <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        no sessions yet
+        {t('dashboard.no_sessions_label')}
       </div>
       <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
-        Hit <span className="text-foreground">Start session</span> in the
-        header. Each session is saved locally as Markdown when you stop —
-        nothing leaves your machine.
+        <Trans
+          i18nKey="dashboard.no_sessions_body"
+          components={[<span key="0" className="text-foreground" />]}
+        />
       </p>
+      {apiKeysMissing && (
+        <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-amber-300">
+            {t('dashboard.setup_first')}
+          </div>
+          <p className="text-[12px] leading-relaxed text-amber-100/90">
+            {t('dashboard.setup_first_body')}
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[12px] text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
+            onClick={onOpenSettings}
+          >
+            {t('common.open_settings')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
-
