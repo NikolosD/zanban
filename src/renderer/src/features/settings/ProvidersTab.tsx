@@ -7,6 +7,8 @@ import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderCard, SecretKeyField } from './ProviderCard'
+import { LlmFallbackOrderField } from './LlmFallbackOrderField'
+import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
 
 interface Props {
@@ -26,8 +28,7 @@ export const LLM_PROVIDERS: LlmProviderEntry[] = [
   {
     value: 'vercel-gateway',
     name: 'Vercel AI Gateway',
-    description:
-      'One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.',
+    description: 'One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.',
     badge: 'recommended',
     keyUrl: 'https://vercel.com/dashboard/ai/gateway'
   },
@@ -145,10 +146,7 @@ export function ProvidersTab({ settings, update }: Props) {
     <div className="flex flex-col gap-8">
       {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
           at the top because it overrides the provider selection below. */}
-      <PrivacyModeRow
-        active={settings.privacyMode}
-        onToggle={togglePrivacy}
-      />
+      <PrivacyModeRow active={settings.privacyMode} onToggle={togglePrivacy} />
 
       {/* LLM provider cards */}
       <div className="flex flex-col gap-3">
@@ -160,6 +158,7 @@ export function ProvidersTab({ settings, update }: Props) {
         <div className="flex flex-col gap-2.5">
           {LLM_PROVIDERS.map((p) => {
             const active = settings.llmProvider === p.value
+            const status = llmProviderStatus(p.value, settings, ollama)
             return (
               <ProviderCard
                 key={p.value}
@@ -167,6 +166,7 @@ export function ProvidersTab({ settings, update }: Props) {
                 name={p.name}
                 description={p.description}
                 badge={p.badge}
+                status={status}
                 keyUrl={p.keyUrl}
                 active={active}
                 onActivate={() => update('llmProvider', p.value)}
@@ -185,6 +185,7 @@ export function ProvidersTab({ settings, update }: Props) {
           })}
         </div>
 
+        <LlmFallbackOrderField settings={settings} update={update} />
       </div>
     </div>
   )
@@ -210,13 +211,7 @@ export function SttProviderCards({ settings, update }: Props) {
             active={active}
             onActivate={() => update('sttProvider', p.value)}
           >
-            {active && (
-              <SttCredentials
-                provider={p.value}
-                settings={settings}
-                update={update}
-              />
-            )}
+            {active && <SttCredentials provider={p.value} settings={settings} update={update} />}
           </ProviderCard>
         )
       })}
@@ -235,8 +230,8 @@ export function WebSearchCard({ settings, update }: Props) {
         <div className="min-w-0">
           <div className="text-[14px] font-medium">Tavily Search API</div>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            Powers live web search for company research. If empty, LLM general
-            knowledge is used and may be outdated.
+            Powers live web search for company research. If empty, LLM general knowledge is used and
+            may be outdated.
           </p>
         </div>
         <a
@@ -277,33 +272,21 @@ function SectionHead({ title, hint }: { title: string; hint?: string }) {
       <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
         {title}
       </h3>
-      {hint && (
-        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{hint}</p>
-      )}
+      {hint && <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{hint}</p>}
     </div>
   )
 }
 
-function PrivacyModeRow({
-  active,
-  onToggle
-}: {
-  active: boolean
-  onToggle(v: boolean): void
-}) {
+function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boolean): void }) {
   return (
     <div
       className={cn(
         'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors',
-        active
-          ? 'border-accent/40 bg-accent/[0.06]'
-          : 'border-white/[0.06] bg-white/[0.02]'
+        active ? 'border-accent/40 bg-accent/[0.06]' : 'border-white/[0.06] bg-white/[0.02]'
       )}
     >
       <div className="flex items-center gap-3">
-        <Lock
-          className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted-foreground')}
-        />
+        <Lock className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted-foreground')} />
         <div>
           <div className="text-[13px] font-medium">Privacy mode</div>
           <div className="text-[11px] text-muted-foreground">
@@ -339,10 +322,22 @@ const LLM_KEY_FIELDS: Partial<
     }
   >
 > = {
-  'vercel-gateway': { label: 'Vercel AI Gateway key', placeholder: 'vck_…', settingsKey: 'vercelApiKey' },
-  anthropic: { label: 'Anthropic API key', placeholder: 'sk-ant-…', settingsKey: 'anthropicApiKey' },
+  'vercel-gateway': {
+    label: 'Vercel AI Gateway key',
+    placeholder: 'vck_…',
+    settingsKey: 'vercelApiKey'
+  },
+  anthropic: {
+    label: 'Anthropic API key',
+    placeholder: 'sk-ant-…',
+    settingsKey: 'anthropicApiKey'
+  },
   openai: { label: 'OpenAI API key', placeholder: 'sk-…', settingsKey: 'openaiApiKey' },
-  'google-gemini': { label: 'Google AI API key', placeholder: 'AIza…', settingsKey: 'googleAiApiKey' },
+  'google-gemini': {
+    label: 'Google AI API key',
+    placeholder: 'AIza…',
+    settingsKey: 'googleAiApiKey'
+  },
   groq: { label: 'Groq API key', placeholder: 'gsk_…', settingsKey: 'groqApiKey' }
 }
 
@@ -409,10 +404,7 @@ const STT_KEY_FIELDS: Partial<
     SttProvider,
     {
       label: string
-      settingsKey: keyof Pick<
-        AppSettings,
-        'deepgramApiKey' | 'openaiApiKey' | 'elevenlabsApiKey'
-      >
+      settingsKey: keyof Pick<AppSettings, 'deepgramApiKey' | 'openaiApiKey' | 'elevenlabsApiKey'>
     }
   >
 > = {
@@ -475,8 +467,7 @@ function SttCredentials({
   if (provider === 'local-whisper') {
     return (
       <p className="text-[11px] text-muted-foreground">
-        On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB
-        on first use).
+        On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB on first use).
       </p>
     )
   }

@@ -193,6 +193,15 @@ export interface AppSettings {
   tavilyApiKey: string | null
   /** Local Ollama HTTP host. Empty = http://127.0.0.1:11434. */
   ollamaHost: string
+  /**
+   * Ordered list of providers to try when the active LLM call fails before
+   * any chunks have been streamed. Empty = no fallback (current behavior).
+   * Listed providers are tried in order; a provider whose key is missing is
+   * skipped silently. The fallback never kicks in mid-stream — once the user
+   * has seen partial text, errors bubble up rather than silently rerouting
+   * to a different model that would produce a totally different answer.
+   */
+  llmFallbackOrder: LlmProvider[]
   /** Privacy Mode toggle (Phase 5.6) — flips active LLM/STT/embeddings to local. */
   privacyMode: boolean
   /** Auto-augment AI prompts with Tavily web search results when the query
@@ -490,6 +499,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   elevenlabsApiKey: null,
   tavilyApiKey: null,
   ollamaHost: '',
+  llmFallbackOrder: [],
   privacyMode: false,
   autoWebSearch: false,
   aiModels: {},
