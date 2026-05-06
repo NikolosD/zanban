@@ -1,5 +1,16 @@
 import 'dotenv/config'
-import { app, BrowserWindow, desktopCapturer, ipcMain, nativeTheme, screen, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  screen,
+  session,
+  shell
+} from 'electron'
+import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { IPC } from '../shared/ipc-channels.js'
@@ -26,6 +37,11 @@ import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
 
 installLogger()
+
+// Display name used by app menus, the macOS About panel, and any code that
+// reads `app.getName()`. Without this the dev build shows "Electron" in
+// places electron-builder's productName doesn't reach.
+app.setName('Zanban')
 
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
@@ -54,12 +70,32 @@ app.whenReady().then(async () => {
   // Force dark window chrome (Windows 11 paints the native title bar dark).
   nativeTheme.themeSource = 'dark'
 
-  // Stealth: optionally hide the macOS dock icon. Has to be called before
-  // any window is created — calling it after `dock.show()` is a no-op until
-  // the next launch. Linux/Windows: app.dock is undefined.
-  if (process.platform === 'darwin' && getSettings().hideDockMacOS) {
-    app.dock?.hide()
+  // About-panel content (macOS shows it via the app menu; Linux ditto via
+  // GTK). Windows uses electron-builder's installer metadata instead.
+  app.setAboutPanelOptions({
+    applicationName: 'Zanban',
+    applicationVersion: app.getVersion(),
+    copyright: 'MIT licensed · github.com/NikolosD/zanban',
+    iconPath: undefined
+  })
+
+  // Replace the default menu (Edit/View/Help boilerplate) with a minimal
+  // app menu on macOS — required there for Cmd+Q/H to work — and drop the
+  // menu bar entirely on Windows/Linux where it would only add noise.
+  installAppMenu()
+
+  // Override the dev-mode dock icon on macOS so Cmd+Tab and the dock show
+  // our brand instead of the generic Electron mark. In packaged builds the
+  // bundle's Info.plist already wins; this is a no-op there but harmless.
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(getAppIcon())
   }
+
+  // App-switcher posture: macOS hides the dock icon (also drops Cmd+Tab);
+  // Windows/Linux toggle setSkipTaskbar on every BrowserWindow we make.
+  // Has to run before any window is created on macOS — calling dock.hide()
+  // after the dock has been shown is a no-op until next launch.
+  applyAppSwitcherVisibility()
 
   // Seed in-memory stealth state from persisted settings.
   stealthOn = !getSettings().detectable
@@ -138,11 +174,17 @@ app.whenReady().then(async () => {
   // on Windows applies WS_EX_TOOLWINDOW which removes the window from both
   // surfaces. Combined with setContentProtection (screen-share blackout) it's
   // the same posture the overlay already uses.
+  //
+  // The cross-platform `hideFromAppSwitcher` flag also forces low-profile —
+  // it's a stronger "I don't want the app to show up anywhere" toggle and
+  // should override `dashboardForcedVisible` only on Windows (macOS handles
+  // its own app-switcher posture via `app.dock.hide()`).
   function applyDashboardVisibility(): void {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const settings = getSettings()
     const lowProfile =
-      stealthOn && settings.hideWidgetWhenHidden && !dashboardForcedVisible
+      settings.hideFromAppSwitcher ||
+      (stealthOn && settings.hideWidgetWhenHidden && !dashboardForcedVisible)
     mainWindow.setSkipTaskbar(lowProfile)
   }
 
@@ -154,6 +196,24 @@ app.whenReady().then(async () => {
     // window completely from the screen by accident.
     const opacity = Math.min(1, Math.max(0.4, raw))
     overlayWindow.setOpacity(opacity)
+  }
+
+  // Cross-platform "hide me from the OS app-switcher". On macOS this is the
+  // dock; on Windows/Linux it's the taskbar/Alt+Tab. Called once on launch
+  // and again whenever the user toggles the setting.
+  //
+  // macOS dock.hide() must be called before any window paints — calling it
+  // after the dock has surfaced is a no-op until next launch (we surface a
+  // restart hint in the UI to match). Windows updates apply immediately.
+  function applyAppSwitcherVisibility(): void {
+    const hide = getSettings().hideFromAppSwitcher
+    if (process.platform === 'darwin') {
+      if (hide) app.dock?.hide()
+      else app.dock?.show()
+    }
+    // Dashboard taskbar posture lives in applyDashboardVisibility — keep
+    // the two in lockstep when this flag changes.
+    applyDashboardVisibility()
   }
 
   function showOverlay(): void {
@@ -238,6 +298,9 @@ app.whenReady().then(async () => {
       Object.prototype.hasOwnProperty.call(patch, 'hideWidgetWhenHidden')
     ) {
       applyDashboardVisibility()
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'hideFromAppSwitcher')) {
+      applyAppSwitcherVisibility()
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'overlayOpacity')) {
       applyOverlayOpacity()
@@ -409,6 +472,55 @@ app.whenReady().then(async () => {
     }
   })
 })
+
+/**
+ * On macOS Cocoa requires an app menu — the OS menu bar is rendered from
+ * it, and Cmd+Q / Cmd+H / About wire up via the standard roles. Build the
+ * smallest such menu so the app looks native instead of inheriting
+ * Electron's default Edit/View/Help boilerplate.
+ *
+ * On Windows/Linux there's no required menu; clear it so no menu bar
+ * appears at all. Per-window `autoHideMenuBar: true` already hides it
+ * visually, but `Menu.setApplicationMenu(null)` makes it impossible to
+ * surface via Alt.
+ */
+function installAppMenu(): void {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+    return
+  }
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'Zanban',
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'close' }]
+    }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 app.on('will-quit', () => {
   unregisterShortcuts()

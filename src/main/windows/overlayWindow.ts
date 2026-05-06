@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { getAppIcon } from '../appIcon.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -25,6 +26,7 @@ export function createOverlayWindow(): BrowserWindow {
     hasShadow: false,
     roundedCorners: true,
     show: false,
+    icon: getAppIcon(),
     backgroundColor: '#00000000',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),

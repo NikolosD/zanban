@@ -240,8 +240,13 @@ export interface AppSettings {
    * the floating widget visible at all while hidden.
    */
   hideWidgetWhenHidden: boolean
-  /** macOS: hide the dock icon while the app is running. Restart required. */
-  hideDockMacOS: boolean
+  /**
+   * Hide Zanban from the OS app-switcher and dock/taskbar entirely. macOS:
+   * `app.dock.hide()` (also drops the app from Cmd+Tab). Windows/Linux:
+   * `setSkipTaskbar(true)` on every window so it doesn't appear in the
+   * taskbar or Alt+Tab. Requires restart on macOS for the dock change.
+   */
+  hideFromAppSwitcher: boolean
   /**
    * Overall opacity of the overlay window in [0.4, 1]. Lets the user blend
    * the HUD into the screen background — useful in glance-only mode or when
@@ -487,7 +492,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   responseLanguage: 'auto',
   detectable: false,
   hideWidgetWhenHidden: false,
-  hideDockMacOS: false,
+  hideFromAppSwitcher: false,
   overlayOpacity: 1,
   autoDetectQuestions: true,
   hotkeys: {
