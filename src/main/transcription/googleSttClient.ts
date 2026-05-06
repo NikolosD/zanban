@@ -1,11 +1,7 @@
 import { v2 } from '@google-cloud/speech'
 import { randomUUID } from 'node:crypto'
 import type { Duplex } from 'node:stream'
-import type {
-  AudioChannel,
-  TranscriptSegment,
-  TranscriptionStatus
-} from '../../shared/types.js'
+import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 
 export interface GoogleSttChannelOptions {
   /**
@@ -182,7 +178,11 @@ export class GoogleSttChannel {
       this.stream = stream
 
       stream.on('error', (err: Error) => {
-        const details = (err as unknown as { details?: unknown; statusDetails?: unknown; metadata?: { internalRepr?: Map<string, unknown> } })
+        const details = err as unknown as {
+          details?: unknown
+          statusDetails?: unknown
+          metadata?: { internalRepr?: Map<string, unknown> }
+        }
         const meta = details.metadata?.internalRepr
           ? Object.fromEntries(details.metadata.internalRepr)
           : undefined
@@ -195,11 +195,29 @@ export class GoogleSttChannel {
             metadata: meta
           })
         )
-        this.opts.onStatus({
-          kind: 'error',
-          channel: this.opts.channel,
-          message: err.message
-        })
+        // Google STT enforces a ~5-minute streaming limit and aborts with
+        // "Stream timed out after receiving no more client requests" — that's
+        // expected, not a user-facing failure. Same for typical transient
+        // network blips that scheduleReconnect handles automatically. We
+        // downgrade these to `closed` so the overlay's transcription-error
+        // banner doesn't flash every five minutes; the next `open` event
+        // restores the running state. Real failures (auth, project mis-config,
+        // exhausted retries) still surface through `kind: 'error'` from the
+        // other code paths in this client.
+        const isTransient =
+          /Stream timed out/i.test(err.message) ||
+          /ABORTED/i.test(err.message) ||
+          /UNAVAILABLE/i.test(err.message) ||
+          /CANCELLED/i.test(err.message)
+        if (isTransient && !this.closed) {
+          this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+        } else {
+          this.opts.onStatus({
+            kind: 'error',
+            channel: this.opts.channel,
+            message: err.message
+          })
+        }
         this.ready = false
         if (!this.closed) this.scheduleReconnect()
       })
@@ -224,9 +242,7 @@ export class GoogleSttChannel {
           const endSec = Number(result.resultEndOffset?.seconds ?? 0)
           const endNanos = Number(result.resultEndOffset?.nanos ?? 0)
           const endMs = Math.round(endSec * 1000 + endNanos / 1_000_000)
-          console.log(
-            `[google-stt:${this.opts.channel}] final=${isFinal} text="${text}"`
-          )
+          console.log(`[google-stt:${this.opts.channel}] final=${isFinal} text="${text}"`)
           this.opts.onSegment({
             id: randomUUID(),
             channel: this.opts.channel,

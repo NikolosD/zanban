@@ -174,6 +174,19 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         })
         return
       }
+      // Same guard for the main LLM pick: user chose e.g. Gemini in Settings
+      // but never entered the key. Without this check we'd silently route the
+      // request to Vercel Gateway with a Gemini model id, which surfaces as a
+      // confusing 403 from Vercel instead of an actionable "set your key" hint.
+      const useVisionRouting = hasImage && !!settings.visionProvider
+      const requestedProvider = useVisionRouting ? settings.visionProvider : settings.llmProvider
+      if (!altProvider && requestedProvider && requestedProvider !== 'vercel-gateway') {
+        broadcast(IPC.ai.error, {
+          requestId,
+          message: `LLM provider "${requestedProvider}" is missing its API key. Open Settings → AI Provider.`
+        })
+        return
+      }
       if (altProvider) {
         // Build the providers we'll try in order: the active provider first,
         // then any user-configured fallback ids. Fallbacks whose keys aren't

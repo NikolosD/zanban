@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   X,
   Send,
@@ -99,34 +99,44 @@ export function OverlayApp() {
 
   const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
 
-  // Auto-grow the OS window to fit the visible panel. Without this the user
-  // has to drag the window edge whenever a long answer streams in. Throttled
-  // by rAF so a chunk-per-token stream doesn't spam IPC. Main clamps the
-  // height to the work area, so very long answers fall back to internal
-  // scrolling rather than running off-screen.
-  useEffect(() => {
+  // Auto-grow the OS window to fit the visible panel. Mirrors the approach
+  // used in natively-cluely-ai-assistant: useLayoutEffect runs before paint,
+  // sends dimensions directly (no rAF throttle) so streaming answers don't
+  // get clipped by a frame-late IPC. Main clamps to the work area, so very
+  // long answers fall back to internal scrolling rather than running
+  // off-screen.
+  useLayoutEffect(() => {
     const el = panelRef.current
     if (!el) return
-    let pending = false
-    let lastSent = 0
     const send = (): void => {
-      pending = false
       const rect = el.getBoundingClientRect()
-      // 24px = outer p-3 padding above and below the panel (12px each).
-      const next = Math.ceil(rect.height + 24)
-      if (Math.abs(next - lastSent) < 2) return
-      lastSent = next
+      // 24px = outer p-3 padding above and below the panel (12px each), plus
+      // an extra 4px so the rounded bottom border isn't shaved when the OS
+      // rounds the content size. Without this, fast streams left ~2-3px of
+      // the answer's last line clipped under the window edge.
+      const next = Math.ceil(rect.height + 28)
       void window.zanban.overlay.setContentHeight(next)
     }
-    const ro = new ResizeObserver(() => {
-      if (pending) return
-      pending = true
-      requestAnimationFrame(send)
-    })
+    const ro = new ResizeObserver(send)
     ro.observe(el)
     send()
     return () => ro.disconnect()
   }, [])
+
+  // Safety re-measure on content-state transitions. ResizeObserver alone is
+  // usually enough, but rapid state flips (alert appears + answer streams in
+  // the same frame) sometimes settle to a height that ResizeObserver missed
+  // because the entry was coalesced. Forcing a measure on the next frame
+  // catches that case.
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const id = requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect()
+      void window.zanban.overlay.setContentHeight(Math.ceil(rect.height + 28))
+    })
+    return () => cancelAnimationFrame(id)
+  }, [messages.length, latest?.answer.length, transcriptionError, apiKeysMissing])
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -452,12 +462,15 @@ export function OverlayApp() {
                   <div
                     ref={historyRef}
                     data-interactive
-                    // Cap at the viewport height minus space for chips + input
-                    // so a single very long answer can still scroll inside the
-                    // pane when the OS window can't grow any taller.
+                    // Cap with a clamp instead of raw `100vh - 180px`. The old
+                    // formula deadlocked: when the window had just opened
+                    // small (no messages → ~150px tall), 100vh-180px went
+                    // negative, the inner scroll snapped on, and the panel
+                    // could no longer push the window taller. clamp's 320px
+                    // floor forces the panel to claim enough room to grow.
                     // overflow-x-hidden + min-w-0 forces inline code / long
                     // tokens to wrap instead of pushing the panel wide.
-                    className="flex min-w-0 max-h-[calc(100vh-180px)] flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
+                    className="flex min-w-0 max-h-[clamp(320px,calc(100vh-180px),640px)] flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
                   >
                     {messages.map((m) => (
                       <AnswerPane

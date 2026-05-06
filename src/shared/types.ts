@@ -343,9 +343,10 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     // detector — filter runs on every utterance so TTFT matters.
     filter: 'openai/gpt-oss-20b',
     summary: 'xiaomi/mimo-v2.5',
-    // gemini-3.1-flash-lite-preview: 1M context, 284 tps, $0.25 in / $1.50 out
-    // — cheaper and higher throughput than gemini-2.5-flash for vision Q&A.
-    vision: 'google/gemini-3.1-flash-lite-preview'
+    // gemini-2.5-flash-lite: GA, 244 tps, 1M context, $0.10 in / $0.40 out.
+    // We dropped the 3.1-flash-lite-preview default because the preview tier
+    // was noticeably slower in real use — likely smaller deployment fleet.
+    vision: 'google/gemini-2.5-flash-lite'
   },
   anthropic: {
     fast: 'claude-haiku-4-5',
@@ -360,10 +361,10 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     vision: 'gpt-5.4'
   },
   'google-gemini': {
-    fast: 'gemini-3.1-flash-lite-preview',
+    fast: 'gemini-2.5-flash-lite',
     filter: 'gemini-2.5-flash-lite',
-    summary: 'gemini-3.1-flash-lite-preview',
-    vision: 'gemini-3.1-flash-lite-preview'
+    summary: 'gemini-2.5-flash-lite',
+    vision: 'gemini-2.5-flash-lite'
   },
   groq: {
     fast: 'llama-3.3-70b-versatile',
@@ -397,7 +398,7 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'openai/gpt-oss-20b',
     'openai/gpt-5.4-mini',
     'anthropic/claude-haiku-4-5',
-    'google/gemini-3.1-flash-lite-preview',
+    'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'deepseek/deepseek-v4',
     'xai/grok-4-fast'
@@ -412,33 +413,21 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'o4-mini',
     'o3'
   ],
-  'google-gemini': [
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3-pro-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-pro'
-  ],
+  'google-gemini': ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
   groq: ['llama-3.3-70b-versatile', 'llama-4-scout', 'mixtral-8x7b-instruct', 'gemma2-9b-it'],
   ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:9b']
 }
 
 export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
-    'google/gemini-3.1-flash-lite-preview',
-    'google/gemini-3-pro-preview',
+    'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
     'anthropic/claude-sonnet-4-6'
   ],
   anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6'],
   openai: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-oss-120b'],
-  'google-gemini': [
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3-pro-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-pro'
-  ],
+  'google-gemini': ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
   groq: ['llama-3.2-90b-vision-preview'],
   ollama: ['llava:7b', 'llava:13b', 'llama3.2-vision:11b']
 }
@@ -453,7 +442,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'openai/gpt-oss-120b',
     'openai/gpt-5.4-mini',
     'anthropic/claude-haiku-4-5',
-    'google/gemini-3.1-flash-lite-preview',
+    'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'deepseek/deepseek-v4',
     'xai/grok-4-fast'
@@ -472,12 +461,11 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
   summary: [
     'xiaomi/mimo-v2.5',
     'openai/gpt-5.4-mini',
-    'google/gemini-3.1-flash-lite-preview',
+    'google/gemini-2.5-flash-lite',
     'anthropic/claude-haiku-4-5'
   ],
   vision: [
-    'google/gemini-3.1-flash-lite-preview',
-    'google/gemini-3-pro-preview',
+    'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
     'anthropic/claude-sonnet-4-6'

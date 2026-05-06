@@ -17,11 +17,24 @@ interface GeminiLike {
   }
 }
 
+// Cache the GoogleGenAI instance per API key. The constructor itself is light,
+// but the SDK lazily warms up an internal HTTP client on first use; reusing
+// the instance across requests keeps that warmup amortized instead of paying
+// it on every Ask. Keyed by apiKey so a user rotating their key in Settings
+// doesn't keep talking to the old client.
+const clientCache = new Map<string, Promise<GeminiLike>>()
+
 async function client(apiKey: string): Promise<GeminiLike> {
-  const mod = (await import('@google/genai')) as unknown as {
-    GoogleGenAI: new (opts: { apiKey: string }) => GeminiLike
-  }
-  return new mod.GoogleGenAI({ apiKey })
+  const cached = clientCache.get(apiKey)
+  if (cached) return cached
+  const promise = (async () => {
+    const mod = (await import('@google/genai')) as unknown as {
+      GoogleGenAI: new (opts: { apiKey: string }) => GeminiLike
+    }
+    return new mod.GoogleGenAI({ apiKey })
+  })()
+  clientCache.set(apiKey, promise)
+  return promise
 }
 
 function buildContents(args: LlmStreamArgs): unknown {
