@@ -174,7 +174,10 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ classN
     { id: 'about', label: 'About', icon: Info }
   ]
 
-export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {}) {
+export function SettingsPanel({
+  initialTab,
+  onReRunOnboarding
+}: { initialTab?: SettingsTabId; onReRunOnboarding?: () => void } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
 
   useEffect(() => {
@@ -260,7 +263,9 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
       <SettingsSidebar tab={tab} setTab={setTab} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-8 py-7">
-          {tab === 'general' && <GeneralTab settings={settings} update={update} />}
+          {tab === 'general' && (
+            <GeneralTab settings={settings} update={update} onReRunOnboarding={onReRunOnboarding} />
+          )}
           {tab === 'ai' && (
             <>
               <ProvidersTab settings={settings} update={update} />
@@ -416,10 +421,12 @@ function Field({
 
 function GeneralTab({
   settings,
-  update
+  update,
+  onReRunOnboarding
 }: {
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+  onReRunOnboarding?: () => void
 }) {
   return (
     <>
@@ -504,6 +511,15 @@ function GeneralTab({
           </Button>
         </div>
       </Section>
+      {onReRunOnboarding && (
+        <Section title="setup" hint="Replay the first-run wizard to swap providers or re-add keys.">
+          <div>
+            <Button variant="outline" size="sm" className="gap-2" onClick={onReRunOnboarding}>
+              Re-run onboarding
+            </Button>
+          </div>
+        </Section>
+      )}
     </>
   )
 }

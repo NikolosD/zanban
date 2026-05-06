@@ -91,12 +91,7 @@ export interface AiError {
   message: string
 }
 
-export type SttProvider =
-  | 'google'
-  | 'deepgram'
-  | 'elevenlabs'
-  | 'openai-whisper'
-  | 'local-whisper'
+export type SttProvider = 'google' | 'deepgram' | 'elevenlabs' | 'openai-whisper' | 'local-whisper'
 
 export const STT_PROVIDERS: Array<{
   value: SttProvider
@@ -281,6 +276,20 @@ export interface AppSettings {
     /** RMS threshold in [0,1] for the energy-gated VAD. Default 0.005 ≈ -46 dBFS — quiet but real speech still passes. */
     vadThreshold: number
   }
+  /**
+   * True once the user has finished (or explicitly skipped) the first-run
+   * onboarding wizard. Until this flips, the dashboard mounts the wizard on
+   * top of itself so a brand-new user can't get stuck on a blank "no sessions
+   * yet" screen without knowing they need API keys.
+   */
+  onboardingCompleted: boolean
+  /**
+   * UI language. Independent of `responseLanguage` (which the LLM sees) so
+   * the user can have a Russian UI but still ask the assistant in English,
+   * or vice versa. Used by the i18n provider once it lands; today it just
+   * persists the preference picked during onboarding.
+   */
+  uiLocale: 'en' | 'ru'
 }
 
 export type ResponseLanguage =
@@ -317,10 +326,7 @@ export const RESPONSE_LANGUAGES: Array<{ value: ResponseLanguage; label: string 
  * picking Anthropic. Custom overrides live alongside (see `providerModels`)
  * and win when set.
  */
-export const PROVIDER_MODEL_DEFAULTS: Record<
-  LlmProvider,
-  AiModelSettings
-> = {
+export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
   'vercel-gateway': {
     fast: 'openai/gpt-oss-120b',
     // gpt-oss-20b: 0.1s TTFT, 252 tps, $0.07 in / $0.30 out per 1M.
@@ -388,7 +394,15 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'xai/grok-4-fast'
   ],
   anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-  openai: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-oss-120b', 'gpt-oss-20b', 'o4-mini', 'o3'],
+  openai: [
+    'gpt-5.4',
+    'gpt-5.4-mini',
+    'gpt-5.4-nano',
+    'gpt-oss-120b',
+    'gpt-oss-20b',
+    'o4-mini',
+    'o3'
+  ],
   'google-gemini': [
     'gemini-3.1-flash-lite-preview',
     'gemini-3-pro-preview',
@@ -396,12 +410,7 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'gemini-2.5-flash-lite',
     'gemini-2.5-pro'
   ],
-  groq: [
-    'llama-3.3-70b-versatile',
-    'llama-4-scout',
-    'mixtral-8x7b-instruct',
-    'gemma2-9b-it'
-  ],
+  groq: ['llama-3.3-70b-versatile', 'llama-4-scout', 'mixtral-8x7b-instruct', 'gemma2-9b-it'],
   ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:9b']
 }
 
@@ -510,7 +519,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     systemEnabled: true,
     vadEnabled: false,
     vadThreshold: 0.005
-  }
+  },
+  onboardingCompleted: false,
+  uiLocale: 'en'
 }
 
 /**

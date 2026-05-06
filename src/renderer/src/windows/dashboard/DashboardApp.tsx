@@ -27,6 +27,7 @@ import {
   type SettingsTabId
 } from '@renderer/features/settings/SettingsPanel'
 import { AskPanel } from '@renderer/features/ai/AskPanel'
+import { OnboardingWizard } from '@renderer/features/onboarding/OnboardingWizard'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc } from '@renderer/features/ai/store'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
@@ -68,7 +69,18 @@ export function DashboardApp() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('general')
   const [askKey, setAskKey] = useState(0)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const settings = useSettingsStore((s) => s.settings)
   const queryClient = useQueryClient()
+
+  // Open the wizard when settings load and `onboardingCompleted` is still
+  // false. We don't reset on subsequent loads — the user can dismiss it and
+  // we won't re-pop until they manually re-run from Settings.
+  useEffect(() => {
+    if (settings && !settings.onboardingCompleted) {
+      setOnboardingOpen(true)
+    }
+  }, [settings?.onboardingCompleted])
 
   useEffect(() => {
     void window.zanban.getVersion().then(setVersion)
@@ -154,10 +166,24 @@ export function DashboardApp() {
             API keys, audio devices, hotkeys.
           </DialogDescription>
           <div className="h-full min-h-0">
-            <SettingsPanel initialTab={settingsTab} />
+            <SettingsPanel
+              initialTab={settingsTab}
+              onReRunOnboarding={() => {
+                setSettingsOpen(false)
+                setOnboardingOpen(true)
+              }}
+            />
           </div>
         </DialogContent>
       </Dialog>
+
+      {settings && (
+        <OnboardingWizard
+          open={onboardingOpen}
+          settings={settings}
+          onClose={() => setOnboardingOpen(false)}
+        />
+      )}
 
       <Toaster richColors theme="dark" />
     </div>
