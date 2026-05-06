@@ -22,7 +22,6 @@ import {
   type AppSettings
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
-import { hotkeyHint, hotkeyLabel } from '@renderer/lib/hotkeys'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
@@ -179,6 +178,7 @@ export function SettingsPanel({
   initialTab,
   onReRunOnboarding
 }: { initialTab?: SettingsTabId; onReRunOnboarding?: () => void } = {}) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
 
   useEffect(() => {
@@ -271,14 +271,14 @@ export function SettingsPanel({
             <>
               <ProvidersTab settings={settings} update={update} />
               <Section
-                title="models per role"
-                hint="What model handles each task. Selector lists only the active provider's catalogue — no more `openai/gpt-oss-120b` showing up while talking to Anthropic."
+                title={t('settings.ai.models_card_title')}
+                hint={t('settings.ai.models_card_hint')}
               >
                 <ModelsTab settings={settings} update={update} />
               </Section>
               <Section
-                title="web search"
-                hint="External knowledge for company research. Uses Tavily; falls back to LLM general knowledge if no key."
+                title={t('settings.ai.web_search_title')}
+                hint={t('settings.ai.web_search_hint')}
               >
                 <WebSearchCard settings={settings} update={update} />
               </Section>
@@ -553,6 +553,7 @@ function ModelsTab({
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
+  const { t } = useTranslation()
   const provider = settings.llmProvider
   const providerOverrides: AiModelSettings = settings.aiModels?.[provider] ?? {
     fast: '',
@@ -617,7 +618,7 @@ function ModelsTab({
             className="h-7 shrink-0 text-[11px] text-muted-foreground"
             onClick={resetForProvider}
           >
-            Reset to defaults
+            {t('settings.ai.reset_to_defaults')}
           </Button>
         )}
       </div>
@@ -625,8 +626,8 @@ function ModelsTab({
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
         <div className="flex flex-col gap-3">
           <ModelRoleField
-            label="Streaming answers"
-            hint="Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels."
+            label={t('settings.ai.streaming_label')}
+            hint={t('settings.ai.streaming_hint')}
             value={providerOverrides.fast ?? ''}
             fallback={providerDefaults.fast}
             options={PROVIDER_FAST_MODELS[provider] ?? []}
@@ -634,8 +635,8 @@ function ModelsTab({
           />
           <Divider />
           <ModelRoleField
-            label="Question detector"
-            hint="Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast."
+            label={t('settings.ai.question_detector_label')}
+            hint={t('settings.ai.question_detector_hint')}
             value={providerOverrides.filter ?? ''}
             fallback={providerDefaults.filter}
             options={PROVIDER_FAST_MODELS[provider] ?? []}
@@ -643,8 +644,8 @@ function ModelsTab({
           />
           <Divider />
           <ModelRoleField
-            label="Session title"
-            hint="Generates a short title at the end of a recorded call. Quality matters more than latency."
+            label={t('settings.ai.session_title_label')}
+            hint={t('settings.ai.session_title_hint')}
             value={providerOverrides.summary ?? ''}
             fallback={providerDefaults.summary}
             options={PROVIDER_FAST_MODELS[provider] ?? []}
@@ -659,10 +660,9 @@ function ModelsTab({
       <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
         <div className="flex items-baseline justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[13px] font-medium">Vision (screenshots)</div>
+            <div className="text-[13px] font-medium">{t('settings.ai.vision_title')}</div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-              Used when you snap a screenshot and ask about it. Must be multimodal — can ride a
-              different provider than text.
+              {t('settings.ai.vision_hint')}
             </p>
           </div>
         </div>
@@ -670,7 +670,9 @@ function ModelsTab({
         {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-            <label className="text-[11px] text-muted-foreground">Provider</label>
+            <label className="text-[11px] text-muted-foreground">
+              {t('settings.ai.provider_label')}
+            </label>
             <Select
               value={settings.visionProvider ?? '__same__'}
               onValueChange={(v) =>
@@ -684,7 +686,9 @@ function ModelsTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__same__">same as text · {provider}</SelectItem>
+                <SelectItem value="__same__">
+                  {t('settings.ai.same_as_text', { provider })}
+                </SelectItem>
                 {LLM_PROVIDERS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>
                     {p.name}
@@ -694,7 +698,9 @@ function ModelsTab({
             </Select>
           </div>
           <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-            <label className="text-[11px] text-muted-foreground">Model</label>
+            <label className="text-[11px] text-muted-foreground">
+              {t('settings.ai.model_label')}
+            </label>
             <ModelOptionSelect
               value={visionOverrides.vision ?? ''}
               fallback={visionDefaults.vision}
@@ -750,6 +756,7 @@ function ModelOptionSelect({
   options: string[]
   onChange(v: string): void
 }) {
+  const { t } = useTranslation()
   // Empty value = "use the provider default" — show fallback in the trigger,
   // but the select highlight stays cleared so the user sees they're on auto.
   const matched = options.includes(value) ? value : ''
@@ -757,14 +764,16 @@ function ModelOptionSelect({
     <div className="flex flex-col gap-1.5">
       <Select value={matched} onValueChange={onChange}>
         <SelectTrigger className="w-full">
-          <SelectValue placeholder={`default · ${fallback}`} />
+          <SelectValue placeholder={t('settings.ai.default_placeholder', { model: fallback })} />
         </SelectTrigger>
         <SelectContent>
           {options.map((m) => (
             <SelectItem key={m} value={m}>
               <span className="font-mono text-xs">{m}</span>
               {m === fallback && (
-                <span className="ml-2 text-[10px] text-muted-foreground">default</span>
+                <span className="ml-2 text-[10px] text-muted-foreground">
+                  {t('settings.ai.default_chip')}
+                </span>
               )}
             </SelectItem>
           ))}
@@ -775,7 +784,7 @@ function ModelOptionSelect({
           className="font-mono text-[11px]"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={`custom id — empty = ${fallback}`}
+          placeholder={t('settings.ai.custom_id_placeholder', { model: fallback })}
         />
         {value && (
           <Button
@@ -783,10 +792,10 @@ function ModelOptionSelect({
             size="sm"
             className="h-7 px-2 text-[11px]"
             onClick={() => onChange('')}
-            title="Reset to default"
+            title={t('settings.ai.reset_to_default')}
           >
             <Zap className="size-3" />
-            default
+            {t('settings.ai.default_chip')}
           </Button>
         )}
       </div>
@@ -807,13 +816,11 @@ function AudioTab({
   micsError: string | null
   onRescan(): void
 }) {
+  const { t } = useTranslation()
   return (
     <>
-      <Section
-        title="audio capture"
-        hint="Microphone for your voice. System loopback captures the other speaker."
-      >
-        <Field label="Microphone">
+      <Section title={t('settings.audio.capture_title')} hint={t('settings.audio.capture_hint')}>
+        <Field label={t('settings.audio.mic_label')}>
           <div className="flex items-center gap-2">
             <Select
               value={settings.audio.micDeviceId ?? 'default'}
@@ -828,10 +835,10 @@ function AudioTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Default device</SelectItem>
+                <SelectItem value="default">{t('settings.audio.default_device')}</SelectItem>
                 {mics.map((m) => (
                   <SelectItem key={m.deviceId} value={m.deviceId}>
-                    {m.label || `device ${m.deviceId.slice(0, 8)}…`}
+                    {m.label || t('settings.audio.device_unnamed', { id: m.deviceId.slice(0, 8) })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -839,7 +846,7 @@ function AudioTab({
             <Button
               variant="outline"
               size="icon"
-              title="Re-scan and request mic permission"
+              title={t('settings.audio.rescan_tooltip')}
               onClick={onRescan}
             >
               <RefreshCw className="size-3.5" />
@@ -847,16 +854,13 @@ function AudioTab({
           </div>
           {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
         </Field>
-        <Row label="Capture system audio" hint="Loopback the other side of the call automatically.">
+        <Row label={t('settings.audio.system_label')} hint={t('settings.audio.system_hint')}>
           <Switch
             checked={settings.audio.systemEnabled}
             onCheckedChange={(v) => update('audio', { ...settings.audio, systemEnabled: v })}
           />
         </Row>
-        <Row
-          label="Skip silence on mic (VAD)"
-          hint="Drop pure-silence batches from the MIC channel before sending to STT. Saves bandwidth on quiet sessions. Never applied to system audio (the other speaker's loopback is left alone). Takes effect on next session start."
-        >
+        <Row label={t('settings.audio.vad_label')} hint={t('settings.audio.vad_hint')}>
           <Switch
             checked={settings.audio.vadEnabled}
             onCheckedChange={(v) => update('audio', { ...settings.audio, vadEnabled: v })}
@@ -864,10 +868,7 @@ function AudioTab({
         </Row>
       </Section>
 
-      <Section
-        title="speech-to-text providers"
-        hint="How Zanban transcribes mic + system audio. Click a card to make it active — credentials stay in the OS keychain."
-      >
+      <Section title={t('settings.audio.stt_title')} hint={t('settings.audio.stt_hint')}>
         <SttProviderCards settings={settings} update={update} />
       </Section>
 
@@ -876,27 +877,29 @@ function AudioTab({
   )
 }
 
-const TRANSCRIPTION_LANGUAGES_POPULAR: Array<{ value: string; flag: string; label: string }> = [
-  { value: 'multi', flag: '🌐', label: 'Multilingual · auto-switch' },
-  { value: 'en', flag: '🇬🇧', label: 'English' },
-  { value: 'ru', flag: '🇷🇺', label: 'Russian · Русский' },
-  { value: 'es', flag: '🇪🇸', label: 'Spanish · Español' },
-  { value: 'de', flag: '🇩🇪', label: 'German · Deutsch' },
-  { value: 'fr', flag: '🇫🇷', label: 'French · Français' }
+// Language labels are pulled from i18n at render time (see
+// `settings.transcription.lang.*`). Only the value + flag stay here.
+const TRANSCRIPTION_LANGUAGES_POPULAR: Array<{ value: string; flag: string }> = [
+  { value: 'multi', flag: '🌐' },
+  { value: 'en', flag: '🇬🇧' },
+  { value: 'ru', flag: '🇷🇺' },
+  { value: 'es', flag: '🇪🇸' },
+  { value: 'de', flag: '🇩🇪' },
+  { value: 'fr', flag: '🇫🇷' }
 ]
 
-const TRANSCRIPTION_LANGUAGES_OTHER: Array<{ value: string; flag: string; label: string }> = [
-  { value: 'it', flag: '🇮🇹', label: 'Italian · Italiano' },
-  { value: 'pt', flag: '🇵🇹', label: 'Portuguese · Português' },
-  { value: 'nl', flag: '🇳🇱', label: 'Dutch · Nederlands' },
-  { value: 'pl', flag: '🇵🇱', label: 'Polish · Polski' },
-  { value: 'tr', flag: '🇹🇷', label: 'Turkish · Türkçe' },
-  { value: 'uk', flag: '🇺🇦', label: 'Ukrainian · Українська' },
-  { value: 'ja', flag: '🇯🇵', label: 'Japanese · 日本語' },
-  { value: 'ko', flag: '🇰🇷', label: 'Korean · 한국어' },
-  { value: 'zh', flag: '🇨🇳', label: 'Chinese · 中文' },
-  { value: 'hi', flag: '🇮🇳', label: 'Hindi · हिन्दी' },
-  { value: 'ar', flag: '🇸🇦', label: 'Arabic · العربية' }
+const TRANSCRIPTION_LANGUAGES_OTHER: Array<{ value: string; flag: string }> = [
+  { value: 'it', flag: '🇮🇹' },
+  { value: 'pt', flag: '🇵🇹' },
+  { value: 'nl', flag: '🇳🇱' },
+  { value: 'pl', flag: '🇵🇱' },
+  { value: 'tr', flag: '🇹🇷' },
+  { value: 'uk', flag: '🇺🇦' },
+  { value: 'ja', flag: '🇯🇵' },
+  { value: 'ko', flag: '🇰🇷' },
+  { value: 'zh', flag: '🇨🇳' },
+  { value: 'hi', flag: '🇮🇳' },
+  { value: 'ar', flag: '🇸🇦' }
 ]
 
 function TranscriptionLanguageSection({
@@ -906,63 +909,68 @@ function TranscriptionLanguageSection({
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
+  const { t } = useTranslation()
   // Different STT providers handle 'multi' differently — Deepgram has native
   // multilingual streaming, the others do per-utterance language detection or
   // require a single locked language. The hint changes accordingly so the
   // user knows what to expect for THEIR provider.
   const provider = settings.sttProvider
   const supportsMulti = provider === 'deepgram' || provider === 'openai-whisper'
-  const showFlag = (v: string) =>
+  const findLang = (v: string) =>
     [...TRANSCRIPTION_LANGUAGES_POPULAR, ...TRANSCRIPTION_LANGUAGES_OTHER].find(
       (l) => l.value === v
     )
 
-  const current = showFlag(settings.transcriptionLanguage)
+  const current = findLang(settings.transcriptionLanguage)
   return (
     <Section
-      title="transcription language"
+      title={t('settings.transcription.title')}
       hint={
         supportsMulti
-          ? `Pick "Multilingual" for code-switching, or pin a specific language for sharper accuracy. Provider: ${provider}.`
-          : `Provider "${provider}" works best with a single locked language. Pick the one most of your speech is in.`
+          ? t('settings.transcription.hint_multi', { provider })
+          : t('settings.transcription.hint_single', { provider })
       }
     >
-      <Field label="Language">
+      <Field label={t('settings.transcription.language_label')}>
         <Select
           value={settings.transcriptionLanguage}
           onValueChange={(v) => update('transcriptionLanguage', v)}
         >
           <SelectTrigger className="w-full">
             <SelectValue>
-              {current ? `${current.flag}  ${current.label}` : settings.transcriptionLanguage}
+              {current
+                ? `${current.flag}  ${t(`settings.transcription.lang.${current.value}`)}`
+                : settings.transcriptionLanguage}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Popular
+              {t('settings.transcription.popular')}
             </div>
             {TRANSCRIPTION_LANGUAGES_POPULAR.filter(
               (l) => l.value !== 'multi' || supportsMulti
             ).map((l) => (
               <SelectItem key={l.value} value={l.value}>
                 <span className="mr-2">{l.flag}</span>
-                {l.label}
+                {t(`settings.transcription.lang.${l.value}`)}
               </SelectItem>
             ))}
             <div className="mt-1 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Other
+              {t('settings.transcription.other')}
             </div>
             {TRANSCRIPTION_LANGUAGES_OTHER.map((l) => (
               <SelectItem key={l.value} value={l.value}>
                 <span className="mr-2">{l.flag}</span>
-                {l.label}
+                {t(`settings.transcription.lang.${l.value}`)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </Field>
       <p className="text-[11px] text-muted-foreground">
-        Switch STT provider in the <span className="font-mono">Providers</span> tab.
+        {t('settings.transcription.switch_provider_note_before')}{' '}
+        <span className="font-mono">{t('settings.transcription.switch_provider_note_tab')}</span>
+        {t('settings.transcription.switch_provider_note_after')}
       </p>
     </Section>
   )
@@ -977,18 +985,20 @@ function HotkeysTab({
   updateHotkey(key: keyof AppSettings['hotkeys'], value: string): void
   resetAll(): void
 }) {
+  const { t } = useTranslation()
   const allDefault = (Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>).every(
     (k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k]
   )
 
   return (
-    <Section
-      title="hotkeys"
-      hint="Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear."
-    >
+    <Section title={t('settings.hotkeys_section.title')} hint={t('settings.hotkeys_section.hint')}>
       <div className="flex flex-col gap-2">
         {(Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>).map((k) => (
-          <Field key={k} label={hotkeyLabel(k)} hint={hotkeyHint(k)}>
+          <Field
+            key={k}
+            label={t(`settings.hotkey.${k}.label`)}
+            hint={t(`settings.hotkey.${k}.hint`)}
+          >
             <KeyRecorder
               value={settings.hotkeys[k]}
               defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
@@ -1000,7 +1010,7 @@ function HotkeysTab({
       {!allDefault && (
         <div className="mt-2 flex justify-end">
           <Button variant="ghost" size="sm" onClick={resetAll}>
-            Reset all to defaults
+            {t('settings.hotkeys_section.reset_all')}
           </Button>
         </div>
       )}

@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from 'i18next'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -26,7 +28,7 @@ type TabId = 'summary' | 'transcript' | 'usage'
 
 async function resume(id: string): Promise<void> {
   if (useTranscript.getState().session.kind === 'running') {
-    toast.error('A session is already running. Stop it first.')
+    toast.error(i18n.t('dashboard.session_running_elsewhere'))
     return
   }
   try {
@@ -34,13 +36,14 @@ async function resume(id: string): Promise<void> {
     await window.zanban.session.start({ resumeId: id })
     await startCapturesFromSettings(settings)
   } catch (err) {
-    toast.error('Could not resume session', {
+    toast.error(i18n.t('dashboard.could_not_resume'), {
       description: err instanceof Error ? err.message : String(err)
     })
   }
 }
 
 export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack(): void }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<TabId>('summary')
 
   const { data, isLoading, error } = useQuery({
@@ -51,14 +54,14 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" /> Loading session…
+        <Loader2 className="size-3.5 animate-spin" /> {t('session_detail.loading')}
       </div>
     )
   }
   if (error) {
     return (
       <p className="text-sm text-destructive">
-        {error instanceof Error ? error.message : 'failed to load'}
+        {error instanceof Error ? error.message : t('dashboard.load_failed')}
       </p>
     )
   }
@@ -66,9 +69,9 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
     return (
       <div className="flex flex-col gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-3.5" /> Back
+          <ArrowLeft className="size-3.5" /> {t('session_detail.back')}
         </Button>
-        <p className="text-sm text-muted-foreground">Session file not found.</p>
+        <p className="text-sm text-muted-foreground">{t('session_detail.not_found')}</p>
       </div>
     )
   }
@@ -87,7 +90,7 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
           className="gap-1.5 -ml-2 text-muted-foreground hover:text-foreground"
           onClick={onBack}
         >
-          <ArrowLeft className="size-3.5" /> Back
+          <ArrowLeft className="size-3.5" /> {t('session_detail.back')}
         </Button>
         <div className="flex items-center gap-3">
           <ExportPdfButton session={data} />
@@ -122,25 +125,22 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
 }
 
 function TabSwitcher({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
-  const TABS: Array<{ id: TabId; label: string }> = [
-    { id: 'summary', label: 'Summary' },
-    { id: 'transcript', label: 'Transcript' },
-    { id: 'usage', label: 'Usage' }
-  ]
+  const { t } = useTranslation()
+  const TABS: Array<{ id: TabId }> = [{ id: 'summary' }, { id: 'transcript' }, { id: 'usage' }]
   return (
     <div className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
-      {TABS.map((t) => (
+      {TABS.map((tabDef) => (
         <button
-          key={t.id}
-          onClick={() => setTab(t.id)}
+          key={tabDef.id}
+          onClick={() => setTab(tabDef.id)}
           className={cn(
             'rounded-full px-3.5 py-1.5 text-[13px] transition-colors',
-            tab === t.id
+            tab === tabDef.id
               ? 'bg-white/[0.08] text-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t.label}
+          {t(`session_detail.tabs.${tabDef.id}`)}
         </button>
       ))}
     </div>
@@ -150,6 +150,7 @@ function TabSwitcher({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
 const SUMMARY_LABEL = '__zanban_session_summary__'
 
 function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
+  const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
 
   async function exportPdf() {
@@ -157,9 +158,9 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
     try {
       const payload = buildExportPayload(session)
       const path = await window.zanban.documents.exportSessionPdf(payload)
-      if (path) toast.success('Exported', { description: path })
+      if (path) toast.success(t('session_detail.exported_toast'), { description: path })
     } catch (err) {
-      toast.error('Export failed', {
+      toast.error(t('session_detail.export_failed_toast'), {
         description: err instanceof Error ? err.message : String(err)
       })
     } finally {
@@ -176,7 +177,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
       disabled={busy}
     >
       {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-      Export PDF
+      {t('session_detail.export_pdf')}
     </Button>
   )
 }
@@ -358,26 +359,43 @@ function UsageTab({
   startedAt: number
   ended: Date | null
 }) {
+  const { t } = useTranslation()
   const stats = useMemo(() => computeStats(session, startedAt, ended), [session, startedAt, ended])
   return (
     <ScrollArea className="h-full pr-3">
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Duration" value={stats.duration} />
-        <Stat label="Status" value={ended ? 'Completed' : 'In progress'} />
-        <Stat label="Segments" value={String(stats.totalSegments)} />
-        <Stat label="You / Them" value={`${stats.youSegments} / ${stats.themSegments}`} />
-        <Stat label="AI exchanges" value={String(stats.exchangeCount)} />
+        <Stat label={t('session_detail.stats.duration')} value={stats.duration} />
         <Stat
-          label="Avg answer length"
+          label={t('session_detail.stats.status')}
+          value={
+            ended ? t('session_detail.stats.completed') : t('session_detail.stats.in_progress')
+          }
+        />
+        <Stat label={t('session_detail.stats.segments')} value={String(stats.totalSegments)} />
+        <Stat
+          label={t('session_detail.stats.you_them')}
+          value={`${stats.youSegments} / ${stats.themSegments}`}
+        />
+        <Stat label={t('session_detail.stats.ai_exchanges')} value={String(stats.exchangeCount)} />
+        <Stat
+          label={t('session_detail.stats.avg_answer')}
           value={stats.avgAnswerChars ? `${stats.avgAnswerChars} chars` : '—'}
         />
-        <Stat label="Models used" value={stats.models.join(', ') || '—'} className="col-span-2" />
-        <Stat label="Last activity" value={stats.lastActivity || '—'} className="col-span-2" />
+        <Stat
+          label={t('session_detail.stats.models_used')}
+          value={stats.models.join(', ') || '—'}
+          className="col-span-2"
+        />
+        <Stat
+          label={t('session_detail.stats.last_activity')}
+          value={stats.lastActivity || '—'}
+          className="col-span-2"
+        />
       </div>
       {session.exchanges.length > 0 && (
         <div className="mt-6 flex flex-col gap-2">
           <div className="px-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Recent AI exchanges
+            {t('session_detail.recent_ai_exchanges')}
           </div>
           {session.exchanges
             .slice(-5)
@@ -436,6 +454,7 @@ function Stat({ label, value, className }: { label: string; value: string; class
 }
 
 function BottomBar({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -445,7 +464,7 @@ function BottomBar({ sessionId }: { sessionId: string }) {
     if (!q || busy) return
     const session = await window.zanban.sessions.read(sessionId).catch(() => null)
     if (!session) {
-      toast.error('Cannot read this session.')
+      toast.error(t('session_detail.cannot_read'))
       return
     }
     const transcript = session.segments
@@ -465,9 +484,11 @@ ${q}
     try {
       const { requestId } = await window.zanban.ai.ask({ prompt })
       useAi.getState().newRequest(`Q: ${q}`, requestId)
-      toast.success('Asked — see the answer in Ask')
+      toast.success(t('session_detail.asked_toast'))
     } catch (err) {
-      toast.error('Failed', { description: err instanceof Error ? err.message : 'unknown' })
+      toast.error(t('session_detail.ask_failed'), {
+        description: err instanceof Error ? err.message : 'unknown'
+      })
     } finally {
       setBusy(false)
     }
@@ -481,7 +502,7 @@ ${q}
         className="shrink-0 gap-1.5 rounded-full"
         onClick={() => void resume(sessionId)}
       >
-        <Play className="size-3.5 fill-current" /> Resume Session
+        <Play className="size-3.5 fill-current" /> {t('session_detail.resume_session')}
       </Button>
       <input
         ref={inputRef}
@@ -493,7 +514,7 @@ ${q}
             void send()
           }
         }}
-        placeholder="Ask about this meeting…"
+        placeholder={t('session_detail.ask_placeholder')}
         className="flex-1 bg-transparent px-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
       />
       <Button
@@ -502,7 +523,7 @@ ${q}
         className="size-8 shrink-0 rounded-full"
         onClick={() => void send()}
         disabled={busy || !text.trim()}
-        title="Send"
+        title={t('session_detail.send')}
       >
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />}
       </Button>

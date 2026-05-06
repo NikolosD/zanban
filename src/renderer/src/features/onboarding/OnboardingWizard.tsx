@@ -79,10 +79,10 @@ export function OnboardingWizard({
         if (!o) void complete()
       }}
     >
-      <DialogContent className="sm:max-w-xl gap-0 overflow-hidden p-0">
+      <DialogContent className="sm:max-w-xl gap-0 overflow-hidden p-0 max-h-[90vh] flex flex-col">
         <WizardTitles />
         <Stepper current={step} />
-        <div className="px-6 py-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
           {step === 'language' && <LanguageStep {...stepProps} />}
           {step === 'provider' && <ProviderStep {...stepProps} />}
           {step === 'keys' && <ApiKeysStep {...stepProps} />}

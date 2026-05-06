@@ -8,6 +8,7 @@ export const IPC = {
     hide: 'overlay:hide',
     toggle: 'overlay:toggle',
     setIgnoreMouse: 'overlay:set-ignore-mouse',
+    setContentHeight: 'overlay:set-content-height',
     focusAsk: 'overlay:focus-ask',
     answerLast: 'overlay:answer-last',
     snapshotAsk: 'overlay:snapshot-ask',

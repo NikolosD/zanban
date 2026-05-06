@@ -53,6 +53,7 @@ import { Kbd } from '@renderer/components/ui/kbd'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
+import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
 
@@ -66,7 +67,7 @@ export function OverlayApp() {
   const [ocrText, setOcrText] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const historyRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const session = useTranscript((s) => s.session)
   const t0 = session.kind === 'running' ? session.startedAt : null
   const elapsed = useElapsed(session.kind === 'running', t0)
@@ -77,17 +78,13 @@ export function OverlayApp() {
   const latest = messages.at(-1)
   const allQuestions = useQuestions((s) => s.questions)
 
-  // Pin the history pane to the bottom whenever a new Q&A starts. While a
-  // single answer is streaming we don't auto-scroll — the user may scroll up
-  // to read older Q&A within the session. Depending on `latest?.id` is
-  // intentional: streaming chunk updates change the object but not the id.
-  useEffect(() => {
-    if (!latest) return
-    const el = historyRef.current
-    if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latest?.id])
+  // Keep the history pane pinned to the latest answer as it streams. The pin
+  // releases when the user scrolls up to read older Q&A, so we don't yank
+  // them back; a fresh Q&A re-arms it.
+  const { rootRef: historyRef } = useStickToBottom<HTMLDivElement>(
+    latest?.id,
+    latest?.answer.length
+  )
   const pendingQuestions = useMemo(
     () => allQuestions.filter((q) => q.status === 'pending').slice(-2),
     [allQuestions]
@@ -101,6 +98,35 @@ export function OverlayApp() {
         : null
 
   const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
+
+  // Auto-grow the OS window to fit the visible panel. Without this the user
+  // has to drag the window edge whenever a long answer streams in. Throttled
+  // by rAF so a chunk-per-token stream doesn't spam IPC. Main clamps the
+  // height to the work area, so very long answers fall back to internal
+  // scrolling rather than running off-screen.
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    let pending = false
+    let lastSent = 0
+    const send = (): void => {
+      pending = false
+      const rect = el.getBoundingClientRect()
+      // 24px = outer p-3 padding above and below the panel (12px each).
+      const next = Math.ceil(rect.height + 24)
+      if (Math.abs(next - lastSent) < 2) return
+      lastSent = next
+      void window.zanban.overlay.setContentHeight(next)
+    }
+    const ro = new ResizeObserver(() => {
+      if (pending) return
+      pending = true
+      requestAnimationFrame(send)
+    })
+    ro.observe(el)
+    send()
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -295,6 +321,7 @@ export function OverlayApp() {
         style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}
       >
         <div
+          ref={panelRef}
           data-interactive
           className={cn(
             'pointer-events-auto mx-auto flex w-full flex-col gap-1.5',
@@ -425,7 +452,12 @@ export function OverlayApp() {
                   <div
                     ref={historyRef}
                     data-interactive
-                    className="flex max-h-[360px] flex-col gap-3 overflow-y-auto px-1 py-1"
+                    // Cap at the viewport height minus space for chips + input
+                    // so a single very long answer can still scroll inside the
+                    // pane when the OS window can't grow any taller.
+                    // overflow-x-hidden + min-w-0 forces inline code / long
+                    // tokens to wrap instead of pushing the panel wide.
+                    className="flex min-w-0 max-h-[calc(100vh-180px)] flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
                   >
                     {messages.map((m) => (
                       <AnswerPane
@@ -465,6 +497,7 @@ function StatusBar({
   onClose: () => void
   onOpenDashboard: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <div
       className={cn(
@@ -484,7 +517,7 @@ function StatusBar({
           <button
             data-interactive
             onClick={onOpenDashboard}
-            aria-label="Open dashboard — session keeps running"
+            aria-label={t('overlay.open_dashboard_keep_session')}
             className={cn(
               'group flex h-7 w-7 -translate-y-px items-center justify-center rounded-full',
               'text-foreground transition-all',
@@ -496,7 +529,7 @@ function StatusBar({
             <ZanbanMark size={18} signal={running ? 'oklch(0.72 0.18 25)' : undefined} />
           </button>
         </TooltipTrigger>
-        <TooltipContent>Open dashboard · session keeps running</TooltipContent>
+        <TooltipContent>{t('overlay.open_dashboard_keep_session')}</TooltipContent>
       </Tooltip>
       <div
         className="flex items-center gap-1"
@@ -522,7 +555,7 @@ function StatusBar({
                 <Square className="ml-0.5 size-2.5 fill-current" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Click to stop recording</TooltipContent>
+            <TooltipContent>{t('overlay.stop_recording_tooltip')}</TooltipContent>
           </Tooltip>
         ) : (
           <span
@@ -530,7 +563,7 @@ function StatusBar({
             className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 font-mono text-[10px] text-muted-foreground"
           >
             <span className="inline-flex size-1.5 rounded-full bg-muted-foreground/40" />
-            idle
+            {t('overlay.idle')}
           </span>
         )}
 
@@ -555,24 +588,13 @@ function StatusBar({
               onClick={onToggleStealth}
             >
               {stealth ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-              <span>{stealth ? 'stealth on' : 'stealth off'}</span>
+              <span>{stealth ? t('overlay.stealth_on') : t('overlay.stealth_off')}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {stealth
-              ? 'Invisible to screen-share. Click to expose.'
-              : 'Visible to screen-share — others can see this. Click to hide.'}
+            {stealth ? t('overlay.stealth_on_tooltip') : t('overlay.stealth_off_tooltip')}
           </TooltipContent>
         </Tooltip>
-
-        {/* Hotkey hint slot. Two-tone monospace per DESIGN.md — modifier
-            keys at lower contrast than the trigger. Lives between Hide and
-            Close so the pill reads: status · hide · ⌥hint · ✕ */}
-        <span className="hidden items-center gap-1 px-1 font-mono text-[10px] tabular-nums sm:inline-flex">
-          <span className="text-muted-foreground/55">⌃⇧</span>
-          <span className="text-muted-foreground">␣</span>
-          <span className="text-muted-foreground/40">ask</span>
-        </span>
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -586,7 +608,7 @@ function StatusBar({
               <X className="size-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Back to dashboard</TooltipContent>
+          <TooltipContent>{t('overlay.back_to_dashboard')}</TooltipContent>
         </Tooltip>
       </div>
     </div>
@@ -612,6 +634,7 @@ function ActionChipsRow({
   onFollowUp: () => void
   onAnswer: () => void
 }) {
+  const { t } = useTranslation()
   // Hierarchy revamp: 5 equally-weighted chips → 2 visible primaries (Answer
   // + Recap) and a `more` dropdown for the rest. Reduces eye-traversal cost
   // during a live call where attention is already fragmented.
@@ -622,7 +645,7 @@ function ActionChipsRow({
     >
       {/* Recap is the most-used "look back at the last 90s" gesture. Visible
           only while running — there's no transcript to recap when idle. */}
-      <ActionChip label="Recap" disabled={busy || !running} onClick={onRecap} />
+      <ActionChip label={t('overlay.chips.recap')} disabled={busy || !running} onClick={onRecap} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -636,7 +659,7 @@ function ActionChipsRow({
               'disabled:cursor-not-allowed disabled:opacity-40'
             )}
           >
-            more
+            {t('overlay.more')}
             <ChevronDown className="size-3 opacity-60" />
           </button>
         </DropdownMenuTrigger>
@@ -646,13 +669,13 @@ function ActionChipsRow({
           className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
         >
           <DropdownMenuItem disabled={busy || !running} onSelect={onWhatToAnswer}>
-            <span className="text-[12px]">What to answer?</span>
+            <span className="text-[12px]">{t('overlay.chips.what_to_answer')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten}>
-            <span className="text-[12px]">Shorten last answer</span>
+            <span className="text-[12px]">{t('overlay.chips.shorten')}</span>
           </DropdownMenuItem>
           <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onFollowUp}>
-            <span className="text-[12px]">Suggest follow-up</span>
+            <span className="text-[12px]">{t('overlay.chips.follow_up')}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -661,7 +684,7 @@ function ActionChipsRow({
 
       {/* Answer — single primary CTA. Foreground-on-bg per the design canvas;
           no sparkle — emphasis comes from the inverted color, not an icon. */}
-      <ActionChip label="Answer" emphasis disabled={busy} onClick={onAnswer} />
+      <ActionChip label={t('overlay.chips.answer')} emphasis disabled={busy} onClick={onAnswer} />
     </div>
   )
 }
@@ -711,6 +734,7 @@ function ModelOverridePicker({
   defaultModel: string
   noDrag: React.CSSProperties
 }) {
+  const { t } = useTranslation()
   const fastModels = PROVIDER_FAST_MODELS[provider] ?? []
   const visionModels = PROVIDER_VISION_MODELS[provider] ?? []
 
@@ -718,7 +742,7 @@ function ModelOverridePicker({
     ? value.includes('/')
       ? (value.split('/').pop() ?? value)
       : value
-    : 'Default'
+    : t('overlay.model_picker.default')
 
   return (
     <DropdownMenu>
@@ -731,7 +755,7 @@ function ModelOverridePicker({
           'hover:bg-white/[0.08] hover:text-foreground transition-colors',
           'focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20'
         )}
-        title={`Override model for this request · provider: ${provider}`}
+        title={t('overlay.model_picker.tooltip', { provider })}
       >
         <span className="max-w-[110px] truncate">{label}</span>
         <ChevronDown className="size-3 shrink-0 opacity-60" />
@@ -746,11 +770,11 @@ function ModelOverridePicker({
         className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
       >
         <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-          Override · {provider}
+          {t('overlay.model_picker.override_label', { provider })}
         </DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onChange(null)}>
           <span className={cn('flex-1 truncate text-[12px]', !value && 'text-foreground')}>
-            Default ·{' '}
+            {t('overlay.model_picker.default')} ·{' '}
             <span className="font-mono text-[10px] text-muted-foreground">{defaultModel}</span>
           </span>
           {!value && <span className="text-[10px] text-emerald-400">●</span>}
@@ -758,7 +782,7 @@ function ModelOverridePicker({
         {fastModels.length > 0 && <DropdownMenuSeparator />}
         {fastModels.length > 0 && (
           <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-            Text answers
+            {t('overlay.model_picker.text_answers')}
           </DropdownMenuLabel>
         )}
         {fastModels.map((m) => (
@@ -777,7 +801,7 @@ function ModelOverridePicker({
         {visionModels.length > 0 && <DropdownMenuSeparator />}
         {visionModels.length > 0 && (
           <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-            Vision (screenshots)
+            {t('overlay.model_picker.vision')}
           </DropdownMenuLabel>
         )}
         {visionModels.map((m) => (
@@ -829,6 +853,7 @@ function InputPill({
   activeProvider: LlmProvider
   activeDefaultModel: string
 }) {
+  const { t } = useTranslation()
   const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
   return (
     <div
@@ -843,7 +868,7 @@ function InputPill({
               onClick={onClearImage}
               style={noDrag}
               className="group relative shrink-0"
-              title="Remove screenshot"
+              title={t('overlay.input.remove_screenshot')}
             >
               <img
                 src={image}
@@ -855,7 +880,7 @@ function InputPill({
               </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>Screenshot attached · click to remove</TooltipContent>
+          <TooltipContent>{t('overlay.input.screenshot_attached_tooltip')}</TooltipContent>
         </Tooltip>
       )}
       <textarea
@@ -865,9 +890,7 @@ function InputPill({
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
         onKeyDown={onKey}
-        placeholder={
-          image ? 'Ask about the screenshot…' : 'Ask anything on screen or conversation, or'
-        }
+        placeholder={image ? t('overlay.ask_about_screenshot') : t('overlay.ask_placeholder')}
         style={noDrag}
         className={cn(
           'flex-1 resize-none bg-transparent py-1 text-[13px] text-foreground placeholder:text-muted-foreground/60',
@@ -907,7 +930,7 @@ function InputPill({
               )}
             </button>
           </TooltipTrigger>
-          <TooltipContent>Snap a screenshot to send with your question</TooltipContent>
+          <TooltipContent>{t('overlay.input.snap_tooltip')}</TooltipContent>
         </Tooltip>
       )}
       <Button
@@ -974,7 +997,7 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
           <button
             data-interactive
             onClick={onContinue}
-            title="Submit a 'continue' prompt to resume the answer"
+            title={t('overlay.continue_tooltip')}
             className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
           >
             <ArrowDownToLine className="size-3" />

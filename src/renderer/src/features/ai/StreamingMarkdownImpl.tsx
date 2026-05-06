@@ -22,7 +22,7 @@ const components = {
       )
     }
     return (
-      <code className="rounded bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 text-[0.85em] font-mono text-foreground">
+      <code className="break-all rounded bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 text-[0.85em] font-mono text-foreground">
         {children}
       </code>
     )
@@ -72,7 +72,7 @@ const components = {
 
 export default function StreamingMarkdownImpl({ text }: { text: string }) {
   return (
-    <div className="text-xs leading-relaxed text-foreground">
+    <div className="min-w-0 text-xs leading-relaxed text-foreground break-words">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}

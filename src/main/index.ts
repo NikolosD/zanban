@@ -244,6 +244,23 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
     overlayWindow?.setIgnoreMouseEvents(ignore, { forward: true })
   })
+  // Renderer measures the visible glass panel and asks us to resize the
+  // window to match. We clamp to the current display's work area so a long
+  // streamed answer never drives the window off-screen — anything beyond the
+  // cap falls back to the inner pane scrolling.
+  ipcMain.handle(IPC.overlay.setContentHeight, (_e, requested: number) => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    const bounds = overlayWindow.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    const workH = display.workArea.height
+    const margin = 24
+    const min = 120
+    const max = Math.max(min, workH - bounds.y - margin)
+    const next = Math.max(min, Math.min(max, Math.ceil(requested)))
+    const [curW, curH] = overlayWindow.getContentSize()
+    if (Math.abs(curH - next) < 2) return
+    overlayWindow.setContentSize(curW, next, false)
+  })
   ipcMain.handle(IPC.overlay.getStealth, () => stealthOn)
   ipcMain.handle(IPC.overlay.setStealth, (_e, on: boolean) => {
     stealthOn = !!on

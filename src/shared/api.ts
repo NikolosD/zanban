@@ -52,6 +52,7 @@ export interface ZanbanApi {
     hide(): Promise<void>
     toggle(): Promise<void>
     setIgnoreMouse(ignore: boolean): Promise<void>
+    setContentHeight(height: number): Promise<void>
     onFocusAsk(cb: () => void): () => void
     onAnswerLast(cb: () => void): () => void
     onSnapshotAsk(cb: (snap: ScreenSnapshot) => void): () => void

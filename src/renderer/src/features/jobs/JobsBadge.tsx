@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useJobs } from './jobsStore'
 
 /**
@@ -6,6 +7,7 @@ import { useJobs } from './jobsStore'
  * (RAG indexing, OCR, model pull, …). Auto-collapses when there are 0 jobs.
  */
 export function JobsBadge() {
+  const { t } = useTranslation()
   const jobs = useJobs((s) => s.jobs)
   if (jobs.length === 0) return null
   const first = jobs[0]
@@ -16,7 +18,7 @@ export function JobsBadge() {
     >
       <Loader2 className="size-3 animate-spin" />
       <span>
-        {jobs.length} working
+        {t('jobs.working_other', { count: jobs.length })}
         {first ? ` · ${first.title}` : ''}
       </span>
     </div>

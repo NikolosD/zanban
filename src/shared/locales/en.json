@@ -7,7 +7,8 @@
     "save": "Save",
     "loading": "Loading…",
     "saving": "Saving…",
-    "open_settings": "Open Settings"
+    "open_settings": "Open Settings",
+    "copied": "Copied"
   },
   "overlay": {
     "streaming": "streaming…",
@@ -21,7 +22,40 @@
     "answer_pill": "answer ↵",
     "open_dashboard_keep_session": "Open dashboard · session keeps running",
     "ask_placeholder": "Ask anything on screen or conversation, or",
-    "ask_about_screenshot": "Ask about the screenshot…"
+    "ask_about_screenshot": "Ask about the screenshot…",
+    "idle": "idle",
+    "stealth_on": "stealth on",
+    "stealth_off": "stealth off",
+    "stealth_on_tooltip": "Invisible to screen-share. Click to expose.",
+    "stealth_off_tooltip": "Visible to screen-share — others can see this. Click to hide.",
+    "stop_recording_tooltip": "Click to stop recording",
+    "back_to_dashboard": "Back to dashboard",
+    "more": "more",
+    "chips": {
+      "recap": "Recap",
+      "answer": "Answer",
+      "what_to_answer": "What to answer?",
+      "shorten": "Shorten last answer",
+      "follow_up": "Suggest follow-up"
+    },
+    "model_picker": {
+      "default": "Default",
+      "override_label": "Override · {{provider}}",
+      "default_with_model": "Default · {{model}}",
+      "text_answers": "Text answers",
+      "vision": "Vision (screenshots)",
+      "tooltip": "Override model for this request · provider: {{provider}}"
+    },
+    "input": {
+      "remove_screenshot": "Remove screenshot",
+      "screenshot_attached_tooltip": "Screenshot attached · click to remove",
+      "snap_tooltip": "Snap a screenshot to send with your question"
+    },
+    "continue_tooltip": "Submit a 'continue' prompt to resume the answer"
+  },
+  "jobs": {
+    "working_one": "{{count}} working",
+    "working_other": "{{count}} working"
   },
   "ask_panel": {
     "ask_placeholder": "Ask anything about the call…",
@@ -34,7 +68,12 @@
     "answer_last_question": "Answer last question (Ctrl+Shift+Enter)",
     "summarize_last_60s": "Summarize the last 60 seconds",
     "what_to_say_next": "What should I say next?",
-    "copy_toast": "Answer copied"
+    "copy_toast": "Answer copied",
+    "copy_answer": "Copy answer",
+    "streaming": "streaming…",
+    "answer_truncated": "answer truncated — hit max output tokens.",
+    "continue": "continue",
+    "continue_tooltip": "Submit a 'continue' prompt to resume the answer"
   },
   "dashboard": {
     "start_session": "Start session",
@@ -47,7 +86,37 @@
     "session_running_elsewhere": "A session is already running. Stop it first.",
     "could_not_resume": "Could not resume session",
     "setup_first": "set up first",
-    "setup_first_body": "Sessions need a Google Cloud project ID (STT) and a Vercel AI Gateway key (LLM) before they can run."
+    "setup_first_body": "Sessions need a Google Cloud project ID (STT) and a Vercel AI Gateway key (LLM) before they can run.",
+    "search": {
+      "placeholder": "Search or ask anything…",
+      "section_settings": "Settings",
+      "section_sessions": "Sessions",
+      "section_past_transcripts": "From past transcripts",
+      "no_match_before": "Nothing matches — press",
+      "no_match_after": "to ask Zanban instead.",
+      "ask_anything": "Ask Zanban anything…",
+      "ask_with_text": "Ask Zanban:"
+    },
+    "session_actions": {
+      "resume_tooltip": "Resume — append new audio to this session",
+      "menu_aria": "Session actions",
+      "export_markdown": "Export markdown…",
+      "reveal_in_folder": "Reveal in folder",
+      "delete": "Delete session",
+      "confirm_title": "Delete this session?",
+      "confirm_body": "<0>{{title}}</0> will be removed from your machine — transcript, markdown export, and embeddings. Cloud copies are not affected. This can't be undone.",
+      "cancel": "Cancel",
+      "confirm_delete": "Delete"
+    },
+    "toasts": {
+      "could_not_start": "Could not start session",
+      "exported": "Exported",
+      "export_failed": "Export failed",
+      "stop_before_delete": "Stop the live session before deleting.",
+      "session_deleted": "Session deleted",
+      "could_not_delete": "Could not delete session",
+      "delete_failed": "Delete failed"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -84,6 +153,111 @@
       "setup_title": "setup",
       "setup_hint": "Replay the first-run wizard to swap providers or re-add keys.",
       "rerun_onboarding": "Re-run onboarding"
+    },
+    "ai": {
+      "models_card_title": "models per role",
+      "models_card_hint": "What model handles each task. Selector lists only the active provider's catalogue — no more `openai/gpt-oss-120b` showing up while talking to Anthropic.",
+      "web_search_title": "web search",
+      "web_search_hint": "External knowledge for company research. Uses Tavily; falls back to LLM general knowledge if no key.",
+      "streaming_label": "Streaming answers",
+      "streaming_hint": "Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels.",
+      "question_detector_label": "Question detector",
+      "question_detector_hint": "Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast.",
+      "session_title_label": "Session title",
+      "session_title_hint": "Generates a short title at the end of a recorded call. Quality matters more than latency.",
+      "vision_title": "Vision (screenshots)",
+      "vision_hint": "Used when you snap a screenshot and ask about it. Must be multimodal — can ride a different provider than text.",
+      "provider_label": "Provider",
+      "model_label": "Model",
+      "same_as_text": "same as text · {{provider}}",
+      "default_placeholder": "default · {{model}}",
+      "custom_id_placeholder": "custom id — empty = {{model}}",
+      "reset_to_default": "Reset to default",
+      "default_chip": "default",
+      "reset_to_defaults": "Reset to defaults"
+    },
+    "audio": {
+      "capture_title": "audio capture",
+      "capture_hint": "Microphone for your voice. System loopback captures the other speaker.",
+      "mic_label": "Microphone",
+      "default_device": "Default device",
+      "rescan_tooltip": "Re-scan and request mic permission",
+      "device_unnamed": "device {{id}}…",
+      "system_label": "Capture system audio",
+      "system_hint": "Loopback the other side of the call automatically.",
+      "vad_label": "Skip silence on mic (VAD)",
+      "vad_hint": "Drop pure-silence batches from the MIC channel before sending to STT. Saves bandwidth on quiet sessions. Never applied to system audio (the other speaker's loopback is left alone). Takes effect on next session start.",
+      "stt_title": "speech-to-text providers",
+      "stt_hint": "How Zanban transcribes mic + system audio. Click a card to make it active — credentials stay in the OS keychain."
+    },
+    "transcription": {
+      "title": "transcription language",
+      "hint_multi": "Pick \"Multilingual\" for code-switching, or pin a specific language for sharper accuracy. Provider: {{provider}}.",
+      "hint_single": "Provider \"{{provider}}\" works best with a single locked language. Pick the one most of your speech is in.",
+      "language_label": "Language",
+      "popular": "Popular",
+      "other": "Other",
+      "switch_provider_note_before": "Switch STT provider in the",
+      "switch_provider_note_tab": "Providers",
+      "switch_provider_note_after": "tab.",
+      "lang": {
+        "multi": "Multilingual · auto-switch",
+        "en": "English",
+        "ru": "Russian · Русский",
+        "es": "Spanish · Español",
+        "de": "German · Deutsch",
+        "fr": "French · Français",
+        "it": "Italian · Italiano",
+        "pt": "Portuguese · Português",
+        "nl": "Dutch · Nederlands",
+        "pl": "Polish · Polski",
+        "tr": "Turkish · Türkçe",
+        "uk": "Ukrainian · Українська",
+        "ja": "Japanese · 日本語",
+        "ko": "Korean · 한국어",
+        "zh": "Chinese · 中文",
+        "hi": "Hindi · हिन्दी",
+        "ar": "Arabic · العربية"
+      }
+    },
+    "hotkeys_section": {
+      "title": "hotkeys",
+      "hint": "Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear.",
+      "reset_all": "Reset all to defaults"
+    },
+    "hotkey": {
+      "toggleOverlay": {
+        "label": "Toggle overlay",
+        "hint": "Show or hide the floating assistant."
+      },
+      "askAi": {
+        "label": "Focus ask",
+        "hint": "Focus the Ask input from anywhere."
+      },
+      "answerLast": {
+        "label": "Answer last",
+        "hint": "Answer the last detected question with one keypress."
+      },
+      "hideShow": {
+        "label": "Hide / show",
+        "hint": "Toggle stealth — hides from screen-share."
+      },
+      "screenshot": {
+        "label": "Snap full screen → Ask",
+        "hint": "Capture full screen, OCR it, attach to next Ask."
+      },
+      "cropper": {
+        "label": "Drag region → OCR Ask",
+        "hint": "Drag a region, OCR only that area, attach to next Ask."
+      },
+      "chat": {
+        "label": "Open chat window",
+        "hint": "Open the standalone chat window (no transcript context)."
+      },
+      "showDashboard": {
+        "label": "Force-show dashboard",
+        "hint": "Brings back the dashboard window when stealth + hide-widget mode would otherwise leave it unreachable."
+      }
     }
   },
   "onboarding": {
@@ -109,16 +283,107 @@
       "title": "Pick an LLM provider",
       "body": "You can switch later in Settings. Cloud providers stream answers faster; Ollama keeps everything on your machine.",
       "recommended_badge": "recommended",
-      "no_key_badge": "no key"
+      "no_key_badge": "no key",
+      "options": {
+        "vercel-gateway": {
+          "label": "Vercel AI Gateway",
+          "blurb": "Single key fans out to OpenAI, Anthropic, Gemini, and Groq. Recommended for most users."
+        },
+        "anthropic": {
+          "label": "Anthropic Claude",
+          "blurb": "Direct Claude API. Strong reasoning, good at structured replies."
+        },
+        "openai": {
+          "label": "OpenAI",
+          "blurb": "Direct OpenAI API. Vision-ready out of the box."
+        },
+        "google-gemini": {
+          "label": "Google Gemini",
+          "blurb": "Direct Google AI API. Long context windows, fast multimodal."
+        },
+        "groq": {
+          "label": "Groq",
+          "blurb": "Lightning-fast inference. Lower per-token cost, smaller model menu."
+        },
+        "ollama": {
+          "label": "Ollama (local)",
+          "blurb": "Fully on-device. No API key needed — point at your local Ollama install."
+        }
+      }
     },
     "keys": {
       "title": "Add your keys",
       "body": "Stored encrypted with your OS keychain. Nothing leaves the machine until you start a session.",
-      "transcription_label": "transcription"
+      "transcription_label": "transcription",
+      "stt_picker_label": "transcription engine",
+      "stt_options": {
+        "deepgram": {
+          "label": "Deepgram",
+          "blurb": "Streaming Nova-3. Single API key, low latency. Recommended."
+        },
+        "google": {
+          "label": "Google Speech-to-Text",
+          "blurb": "Multilingual streaming. Needs a Google Cloud project + auth."
+        },
+        "local-whisper": {
+          "label": "Local Whisper",
+          "blurb": "Whisper-tiny on-device. No API key, slower, lower quality."
+        }
+      },
+      "llm": {
+        "vercel-gateway": {
+          "label": "Vercel AI Gateway key",
+          "hint": "Powers the LLM. Get one from vercel.com/ai-gateway."
+        },
+        "anthropic": {
+          "label": "Anthropic API key",
+          "hint": "Get one from console.anthropic.com."
+        },
+        "openai": {
+          "label": "OpenAI API key",
+          "hint": "Get one from platform.openai.com."
+        },
+        "google-gemini": {
+          "label": "Google AI key",
+          "hint": "Get one from ai.google.dev (different from the Cloud project below)."
+        },
+        "groq": {
+          "label": "Groq API key",
+          "hint": "Get one from console.groq.com."
+        },
+        "ollama": {
+          "label": "Ollama host",
+          "hint": "Leave blank to use http://127.0.0.1:11434 (the default)."
+        }
+      },
+      "stt_fields": {
+        "deepgram_key": {
+          "label": "Deepgram API key",
+          "hint": "Get one at console.deepgram.com — free tier is enough to start."
+        },
+        "google_project_id": {
+          "label": "Google Cloud project ID",
+          "hint": "ID of a Google Cloud project that has the Speech-to-Text API enabled."
+        },
+        "google_service_account": {
+          "label": "Service account JSON (optional)",
+          "hint": "Paste a service-account JSON key for one-step auth. Leave blank if you've already run gcloud auth application-default login on this machine."
+        },
+        "google_setup_help_title": "How to set up Google STT",
+        "google_setup_help_body": "1. Open console.cloud.google.com → create or pick a project; copy its ID into the field above.\n2. In the project: APIs & Services → enable “Cloud Speech-to-Text API”.\n3. Auth — pick one:\n   • Easiest: install the gcloud CLI, run gcloud auth application-default login once. Leave the JSON field blank.\n   • Or: IAM → Service Accounts → create one with “Cloud Speech Client” role → keys → create JSON → paste contents into the field above.",
+        "local_whisper_note": "No keys needed. The model downloads on first session and runs entirely on this machine."
+      }
     },
     "hotkeys": {
       "title": "Hotkeys",
-      "body": "The five keys that matter most. All of them are global — they fire even when another app has focus. Customize them later in Settings → Hotkeys."
+      "body": "The five keys that matter most. All of them are global — they fire even when another app has focus. Customize them later in Settings → Hotkeys.",
+      "labels": {
+        "toggleOverlay": "Toggle overlay",
+        "askAi": "Focus ask",
+        "answerLast": "Answer last question",
+        "screenshot": "Snap full screen → Ask",
+        "showDashboard": "Force-show dashboard"
+      }
     },
     "done": {
       "title": "You're set",
@@ -127,5 +392,49 @@
   },
   "errors": {
     "could_not_copy": "Could not copy"
+  },
+  "session_list": {
+    "no_sessions": "No sessions yet — sessions are saved locally when you stop a recording.",
+    "count_one": "{{count}} session",
+    "count_other": "{{count}} sessions",
+    "open_folder": "Open folder",
+    "open_folder_tooltip": "Open the sessions folder",
+    "refresh": "Refresh",
+    "continue": "Continue",
+    "resume_tooltip": "Resume this session — new audio appends to the same file",
+    "session_running": "A session is already running. Stop it first.",
+    "could_not_resume": "Could not resume session"
+  },
+  "session_detail": {
+    "stats": {
+      "duration": "Duration",
+      "status": "Status",
+      "completed": "Completed",
+      "in_progress": "In progress",
+      "segments": "Segments",
+      "you_them": "You / Them",
+      "ai_exchanges": "AI exchanges",
+      "avg_answer": "Avg answer length",
+      "models_used": "Models used",
+      "last_activity": "Last activity"
+    },
+    "recent_ai_exchanges": "Recent AI exchanges",
+    "ask_placeholder": "Ask about this meeting…",
+    "send": "Send",
+    "resume_session": "Resume Session",
+    "cannot_read": "Cannot read this session.",
+    "asked_toast": "Asked — see the answer in Ask",
+    "ask_failed": "Failed",
+    "loading": "Loading session…",
+    "back": "Back",
+    "not_found": "Session file not found.",
+    "tabs": {
+      "summary": "Summary",
+      "transcript": "Transcript",
+      "usage": "Usage"
+    },
+    "export_pdf": "Export PDF",
+    "exported_toast": "Exported",
+    "export_failed_toast": "Export failed"
   }
 }

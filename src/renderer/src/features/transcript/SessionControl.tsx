@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { useTranscript } from './store'
 import {
@@ -10,6 +11,7 @@ import { Button } from '@renderer/components/ui/button'
 import { toast } from 'sonner'
 
 export function SessionControl() {
+  const { t } = useTranslation()
   const session = useTranscript((s) => s.session)
   const [busy, setBusy] = useState(false)
 
@@ -25,7 +27,7 @@ export function SessionControl() {
       await window.zanban.session.start()
       await startCapturesFromSettings(settings)
     } catch (err) {
-      toast.error('Could not start session', {
+      toast.error(t('dashboard.toasts.could_not_start'), {
         description: err instanceof Error ? err.message : String(err)
       })
       stopCaptures()
@@ -61,7 +63,7 @@ export function SessionControl() {
       ) : (
         <Mic className="size-3.5" />
       )}
-      {running ? 'Stop' : 'Start session'}
+      {running ? t('dashboard.stop_session') : t('dashboard.start_session')}
     </Button>
   )
 }

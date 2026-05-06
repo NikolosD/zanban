@@ -248,6 +248,7 @@ function SearchPill({
   onSelectSession(id: string): void
   onOpenSettingsTab(tab: SettingsTabId): void
 }) {
+  const { t } = useTranslation()
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
@@ -301,17 +302,17 @@ function SearchPill({
     const q = text.trim().toLowerCase()
     if (!q) return []
     return SETTINGS_TABS.filter(
-      (t) =>
-        t.label.toLowerCase().includes(q) || t.keywords.some((k) => k.toLowerCase().includes(q))
+      (tab) =>
+        tab.label.toLowerCase().includes(q) || tab.keywords.some((k) => k.toLowerCase().includes(q))
     )
       .slice(0, 4)
-      .map((t) => ({
+      .map((tab) => ({
         kind: 'settings' as const,
-        tab: t.id,
-        label: t.label,
-        subtitle: 'Settings'
+        tab: tab.id,
+        label: tab.label,
+        subtitle: t('dashboard.search.section_settings')
       }))
-  }, [text])
+  }, [text, t])
 
   const matches = useMemo(
     () => [...settingsHits, ...sessionHits, ...ragHits],
@@ -372,7 +373,7 @@ function SearchPill({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
-          placeholder="Search or ask anything…"
+          placeholder={t('dashboard.search.placeholder')}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
         {!text && (
@@ -392,7 +393,7 @@ function SearchPill({
         >
           {settingsHits.length > 0 && (
             <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Settings
+              {t('dashboard.search.section_settings')}
             </div>
           )}
           {settingsHits.map((hit, i) => {
@@ -419,7 +420,7 @@ function SearchPill({
           })}
           {sessionHits.length > 0 && (
             <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Sessions
+              {t('dashboard.search.section_sessions')}
             </div>
           )}
           {sessionHits.map((hit, i) => {
@@ -446,7 +447,7 @@ function SearchPill({
           })}
           {ragHits.length > 0 && (
             <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              From past transcripts
+              {t('dashboard.search.section_past_transcripts')}
             </div>
           )}
           {ragHits.map((hit, i) => {
@@ -478,9 +479,9 @@ function SearchPill({
           })}
           {text && matches.length === 0 && (
             <div className="px-3 py-2 text-[12px] text-muted-foreground">
-              Nothing matches — press{' '}
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd> to ask Zanban
-              instead.
+              {t('dashboard.search.no_match_before')}{' '}
+              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd>{' '}
+              {t('dashboard.search.no_match_after')}
             </div>
           )}
           <div className="border-t border-white/[0.05]" />
@@ -498,10 +499,11 @@ function SearchPill({
             <div className="flex-1 truncate text-sm">
               {text ? (
                 <>
-                  Ask Zanban: <span className="text-muted-foreground">{text}</span>
+                  {t('dashboard.search.ask_with_text')}{' '}
+                  <span className="text-muted-foreground">{text}</span>
                 </>
               ) : (
-                'Ask Zanban anything…'
+                t('dashboard.search.ask_anything')
               )}
             </div>
             <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -533,7 +535,7 @@ function SessionStartButton() {
       await window.zanban.session.start()
       await startCapturesFromSettings(settings)
     } catch (err) {
-      toast.error('Could not start session', {
+      toast.error(t('dashboard.toasts.could_not_start'), {
         description: err instanceof Error ? err.message : String(err)
       })
       stopCaptures()
@@ -674,9 +676,9 @@ function MeetingRow({
   async function exportMd(): Promise<void> {
     try {
       const path = await window.zanban.sessions.exportMarkdown(session.id)
-      if (path) toast.success('Exported', { description: path })
+      if (path) toast.success(t('dashboard.toasts.exported'), { description: path })
     } catch (err) {
-      toast.error('Export failed', {
+      toast.error(t('dashboard.toasts.export_failed'), {
         description: err instanceof Error ? err.message : String(err)
       })
     }
@@ -692,7 +694,7 @@ function MeetingRow({
 
   async function doDelete(): Promise<void> {
     if (isLive) {
-      toast.error('Stop the live session before deleting.')
+      toast.error(t('dashboard.toasts.stop_before_delete'))
       setConfirmDelete(false)
       return
     }
@@ -700,13 +702,13 @@ function MeetingRow({
     try {
       const result = await window.zanban.sessions.delete(session.id)
       if (result.ok) {
-        toast.success('Session deleted')
+        toast.success(t('dashboard.toasts.session_deleted'))
         await queryClient.invalidateQueries({ queryKey: ['sessions-local'] })
       } else {
-        toast.error('Could not delete session')
+        toast.error(t('dashboard.toasts.could_not_delete'))
       }
     } catch (err) {
-      toast.error('Delete failed', {
+      toast.error(t('dashboard.toasts.delete_failed'), {
         description: err instanceof Error ? err.message : String(err)
       })
     } finally {
@@ -759,7 +761,7 @@ function MeetingRow({
               e.stopPropagation()
               void resume()
             }}
-            title="Resume — append new audio to this session"
+            title={t('dashboard.session_actions.resume_tooltip')}
           >
             <Play className="size-3.5" />
           </Button>
@@ -770,7 +772,7 @@ function MeetingRow({
                 size="icon"
                 className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors data-[state=open]:text-foreground"
                 onClick={(e) => e.stopPropagation()}
-                aria-label="Session actions"
+                aria-label={t('dashboard.session_actions.menu_aria')}
               >
                 <MoreHorizontal className="size-3.5" />
               </Button>
@@ -786,7 +788,7 @@ function MeetingRow({
                 }}
               >
                 <Download className="size-3.5" />
-                <span>Export markdown…</span>
+                <span>{t('dashboard.session_actions.export_markdown')}</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
@@ -794,7 +796,7 @@ function MeetingRow({
                 }}
               >
                 <FolderOpen className="size-3.5" />
-                <span>Reveal in folder</span>
+                <span>{t('dashboard.session_actions.reveal_in_folder')}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -803,7 +805,7 @@ function MeetingRow({
                 onSelect={() => setConfirmDelete(true)}
               >
                 <Trash2 className="size-3.5" />
-                <span>Delete session</span>
+                <span>{t('dashboard.session_actions.delete')}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -812,12 +814,14 @@ function MeetingRow({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-md">
           <DialogTitle className="text-base font-semibold tracking-tight">
-            Delete this session?
+            {t('dashboard.session_actions.confirm_title')}
           </DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
-            <span className="text-foreground">{session.title || formatFallbackTitle(date)}</span>{' '}
-            will be removed from your machine — transcript, markdown export, and embeddings. Cloud
-            copies are not affected. This can&apos;t be undone.
+            <Trans
+              i18nKey="dashboard.session_actions.confirm_body"
+              values={{ title: session.title || formatFallbackTitle(date) }}
+              components={{ 0: <span className="text-foreground" /> }}
+            />
           </DialogDescription>
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button
@@ -826,7 +830,7 @@ function MeetingRow({
               disabled={deleting}
               className="text-[12px]"
             >
-              Cancel
+              {t('dashboard.session_actions.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -835,7 +839,7 @@ function MeetingRow({
               className="text-[12px]"
             >
               {deleting ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              Delete
+              {t('dashboard.session_actions.confirm_delete')}
             </Button>
           </div>
         </DialogContent>

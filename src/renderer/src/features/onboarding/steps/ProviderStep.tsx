@@ -8,34 +8,19 @@ type BadgeKey = 'recommended' | 'no_key'
 
 interface ProviderOption {
   id: LlmProvider
-  label: string
-  blurb: string
   badge?: BadgeKey
 }
 
+// Order is the suggested visual order in the wizard. Keep cloud aggregator
+// first (covers the most providers with a single key), then direct vendor
+// APIs by familiarity, with the local option last.
 const OPTIONS: ProviderOption[] = [
-  {
-    id: 'vercel-gateway',
-    label: 'Vercel AI Gateway',
-    blurb: 'Single key fans out to OpenAI, Anthropic, Gemini, Groq. Recommended for most users.',
-    badge: 'recommended'
-  },
-  {
-    id: 'anthropic',
-    label: 'Anthropic Claude',
-    blurb: 'Direct Claude API. Strong reasoning, good at structured replies.'
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    blurb: 'Direct OpenAI API. Vision-ready out of the box.'
-  },
-  {
-    id: 'ollama',
-    label: 'Ollama (local)',
-    blurb: 'Fully on-device. No API key needed — point at your local Ollama install.',
-    badge: 'no_key'
-  }
+  { id: 'vercel-gateway', badge: 'recommended' },
+  { id: 'anthropic' },
+  { id: 'openai' },
+  { id: 'google-gemini' },
+  { id: 'groq' },
+  { id: 'ollama', badge: 'no_key' }
 ]
 
 export function ProviderStep({
@@ -74,7 +59,7 @@ export function ProviderStep({
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm">{opt.label}</span>
+                <span className="text-sm">{t(`onboarding.provider.options.${opt.id}.label`)}</span>
                 {opt.badge && (
                   <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">
                     {t(`onboarding.provider.${opt.badge}_badge`)}
@@ -82,7 +67,7 @@ export function ProviderStep({
                 )}
               </div>
               <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                {opt.blurb}
+                {t(`onboarding.provider.options.${opt.id}.blurb`)}
               </div>
             </div>
           </button>

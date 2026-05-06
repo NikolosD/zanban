@@ -7,7 +7,8 @@
     "save": "Сохранить",
     "loading": "Загрузка…",
     "saving": "Сохраняю…",
-    "open_settings": "Открыть настройки"
+    "open_settings": "Открыть настройки",
+    "copied": "Скопировано"
   },
   "overlay": {
     "streaming": "печатаю…",
@@ -21,7 +22,40 @@
     "answer_pill": "ответить ↵",
     "open_dashboard_keep_session": "Открыть дашборд · сессия не прерывается",
     "ask_placeholder": "Спросите про экран или разговор, или",
-    "ask_about_screenshot": "Спросите про этот скриншот…"
+    "ask_about_screenshot": "Спросите про этот скриншот…",
+    "idle": "ожидание",
+    "stealth_on": "скрыт",
+    "stealth_off": "виден",
+    "stealth_on_tooltip": "Невидим для демонстрации экрана. Нажмите, чтобы показать.",
+    "stealth_off_tooltip": "Виден при демонстрации экрана — другие могут его видеть. Нажмите, чтобы скрыть.",
+    "stop_recording_tooltip": "Нажмите, чтобы остановить запись",
+    "back_to_dashboard": "Назад в дашборд",
+    "more": "ещё",
+    "chips": {
+      "recap": "Резюме",
+      "answer": "Ответить",
+      "what_to_answer": "Как ответить?",
+      "shorten": "Сократить ответ",
+      "follow_up": "Уточняющий вопрос"
+    },
+    "model_picker": {
+      "default": "По умолчанию",
+      "override_label": "Переопределить · {{provider}}",
+      "default_with_model": "По умолчанию · {{model}}",
+      "text_answers": "Текстовые ответы",
+      "vision": "Vision (скриншоты)",
+      "tooltip": "Выбрать модель для этого запроса · провайдер: {{provider}}"
+    },
+    "input": {
+      "remove_screenshot": "Убрать скриншот",
+      "screenshot_attached_tooltip": "Скриншот прикреплён · нажмите, чтобы убрать",
+      "snap_tooltip": "Сделайте снимок экрана и приложите к вопросу"
+    },
+    "continue_tooltip": "Отправить запрос «continue», чтобы продолжить ответ"
+  },
+  "jobs": {
+    "working_one": "{{count}} в работе",
+    "working_other": "{{count}} в работе"
   },
   "ask_panel": {
     "ask_placeholder": "Спросите что-нибудь о звонке…",
@@ -34,7 +68,12 @@
     "answer_last_question": "Ответить на последний вопрос (Ctrl+Shift+Enter)",
     "summarize_last_60s": "Кратко суммируй последние 60 секунд",
     "what_to_say_next": "Что мне сказать дальше?",
-    "copy_toast": "Ответ скопирован"
+    "copy_toast": "Ответ скопирован",
+    "copy_answer": "Скопировать ответ",
+    "streaming": "печатаю…",
+    "answer_truncated": "ответ обрезан — упёрлись в лимит токенов.",
+    "continue": "продолжить",
+    "continue_tooltip": "Отправить запрос «continue», чтобы продолжить ответ"
   },
   "dashboard": {
     "start_session": "Начать сессию",
@@ -47,7 +86,37 @@
     "session_running_elsewhere": "Сессия уже идёт. Остановите её сначала.",
     "could_not_resume": "Не удалось продолжить сессию",
     "setup_first": "сначала настройте",
-    "setup_first_body": "Чтобы запустить сессию, нужен Google Cloud project ID (STT) и ключ Vercel AI Gateway (LLM)."
+    "setup_first_body": "Чтобы запустить сессию, нужен Google Cloud project ID (STT) и ключ Vercel AI Gateway (LLM).",
+    "search": {
+      "placeholder": "Найти или спросить…",
+      "section_settings": "Настройки",
+      "section_sessions": "Сессии",
+      "section_past_transcripts": "Из прошлых транскриптов",
+      "no_match_before": "Ничего не найдено — нажмите",
+      "no_match_after": ", чтобы спросить Zanban.",
+      "ask_anything": "Спросите Zanban что угодно…",
+      "ask_with_text": "Спросить Zanban:"
+    },
+    "session_actions": {
+      "resume_tooltip": "Продолжить — новый звук добавится к этой сессии",
+      "menu_aria": "Действия с сессией",
+      "export_markdown": "Экспорт в Markdown…",
+      "reveal_in_folder": "Показать в папке",
+      "delete": "Удалить сессию",
+      "confirm_title": "Удалить эту сессию?",
+      "confirm_body": "<0>{{title}}</0> будет удалена с вашей машины — транскрипт, экспорт в Markdown и эмбеддинги. Облачные копии не затрагиваются. Действие нельзя отменить.",
+      "cancel": "Отмена",
+      "confirm_delete": "Удалить"
+    },
+    "toasts": {
+      "could_not_start": "Не удалось запустить сессию",
+      "exported": "Экспортировано",
+      "export_failed": "Экспорт не удался",
+      "stop_before_delete": "Остановите активную сессию перед удалением.",
+      "session_deleted": "Сессия удалена",
+      "could_not_delete": "Не удалось удалить сессию",
+      "delete_failed": "Удаление не удалось"
+    }
   },
   "settings": {
     "title": "Настройки",
@@ -84,6 +153,111 @@
       "setup_title": "настройка",
       "setup_hint": "Запустить мастер первого запуска снова — сменить провайдера или ключи.",
       "rerun_onboarding": "Запустить онбординг снова"
+    },
+    "ai": {
+      "models_card_title": "модели по ролям",
+      "models_card_hint": "Какая модель отвечает за какую задачу. В списке только модели активного провайдера — никаких `openai/gpt-oss-120b` при работе с Anthropic.",
+      "web_search_title": "веб-поиск",
+      "web_search_hint": "Внешние знания для ресерча компаний. Использует Tavily; без ключа — fallback на общие знания LLM.",
+      "streaming_label": "Стриминговые ответы",
+      "streaming_hint": "Хоткей Ask, Answer last и любой текстовый вопрос. Берите самую быструю модель, которой доверяете — это то, что чувствует пользователь.",
+      "question_detector_label": "Детектор вопросов",
+      "question_detector_hint": "Дешёвый классификатор, который сканирует транскрипт собеседника и решает: «это вопрос?» Работает постоянно — держите его быстрым и дешёвым.",
+      "session_title_label": "Название сессии",
+      "session_title_hint": "Генерирует короткое название в конце записанного звонка. Качество важнее скорости.",
+      "vision_title": "Vision (скриншоты)",
+      "vision_hint": "Используется, когда вы делаете скриншот и спрашиваете про него. Модель должна быть мультимодальной — можно выбрать другого провайдера, не как у текста.",
+      "provider_label": "Провайдер",
+      "model_label": "Модель",
+      "same_as_text": "как у текста · {{provider}}",
+      "default_placeholder": "по умолчанию · {{model}}",
+      "custom_id_placeholder": "свой id — пусто = {{model}}",
+      "reset_to_default": "Сбросить к default",
+      "default_chip": "default",
+      "reset_to_defaults": "Сбросить к default"
+    },
+    "audio": {
+      "capture_title": "запись звука",
+      "capture_hint": "Микрофон для вашего голоса. Системный loopback ловит собеседника.",
+      "mic_label": "Микрофон",
+      "default_device": "Устройство по умолчанию",
+      "rescan_tooltip": "Пересканировать и запросить разрешение на микрофон",
+      "device_unnamed": "устройство {{id}}…",
+      "system_label": "Захватывать системный звук",
+      "system_hint": "Автоматически ловить собеседника через loopback.",
+      "vad_label": "Пропускать тишину на микрофоне (VAD)",
+      "vad_hint": "Не отправлять в STT чистую тишину с MIC. Экономит трафик на тихих сессиях. На системный звук не применяется (loopback собеседника не трогается). Применится со следующей сессии.",
+      "stt_title": "провайдеры распознавания речи",
+      "stt_hint": "Как Zanban распознаёт микрофон + системный звук. Нажмите на карточку, чтобы выбрать — учётные данные хранятся в OS keychain."
+    },
+    "transcription": {
+      "title": "язык транскрибации",
+      "hint_multi": "Выберите «Многоязычный» для code-switching, либо зафиксируйте конкретный язык для точности. Провайдер: {{provider}}.",
+      "hint_single": "Провайдер «{{provider}}» работает лучше с одним зафиксированным языком. Выберите тот, на котором вы говорите чаще.",
+      "language_label": "Язык",
+      "popular": "Популярные",
+      "other": "Другие",
+      "switch_provider_note_before": "Сменить STT-провайдера во вкладке",
+      "switch_provider_note_tab": "Провайдеры",
+      "switch_provider_note_after": ".",
+      "lang": {
+        "multi": "Многоязычный · авто",
+        "en": "Английский · English",
+        "ru": "Русский",
+        "es": "Испанский · Español",
+        "de": "Немецкий · Deutsch",
+        "fr": "Французский · Français",
+        "it": "Итальянский · Italiano",
+        "pt": "Португальский · Português",
+        "nl": "Нидерландский · Nederlands",
+        "pl": "Польский · Polski",
+        "tr": "Турецкий · Türkçe",
+        "uk": "Украинский · Українська",
+        "ja": "Японский · 日本語",
+        "ko": "Корейский · 한국어",
+        "zh": "Китайский · 中文",
+        "hi": "Хинди · हिन्दी",
+        "ar": "Арабский · العربية"
+      }
+    },
+    "hotkeys_section": {
+      "title": "горячие клавиши",
+      "hint": "Глобальные акселераторы. Нажмите на сочетание, чтобы перепривязать — Esc отмена, ⌫ очистить.",
+      "reset_all": "Сбросить все к default"
+    },
+    "hotkey": {
+      "toggleOverlay": {
+        "label": "Переключить оверлей",
+        "hint": "Показать или скрыть плавающего ассистента."
+      },
+      "askAi": {
+        "label": "Фокус на Ask",
+        "hint": "Поставить фокус на поле Ask из любого места."
+      },
+      "answerLast": {
+        "label": "Ответить на последний",
+        "hint": "Ответить на последний обнаруженный вопрос одним нажатием."
+      },
+      "hideShow": {
+        "label": "Скрыть / показать",
+        "hint": "Переключить стелс — скрывает от демонстрации экрана."
+      },
+      "screenshot": {
+        "label": "Снимок экрана → Ask",
+        "hint": "Снять весь экран, распознать текст, приложить к следующему Ask."
+      },
+      "cropper": {
+        "label": "Выделить область → OCR Ask",
+        "hint": "Выделить область, распознать только её и приложить к следующему Ask."
+      },
+      "chat": {
+        "label": "Открыть чат",
+        "hint": "Открыть отдельное окно чата (без контекста транскрипта)."
+      },
+      "showDashboard": {
+        "label": "Показать дашборд",
+        "hint": "Возвращает окно дашборда, когда стелс + скрытие виджета сделали его недоступным."
+      }
     }
   },
   "onboarding": {
@@ -109,16 +283,107 @@
       "title": "Выберите LLM-провайдера",
       "body": "Можно поменять позже в Настройках. Облачные провайдеры стримят ответы быстрее; Ollama держит всё локально.",
       "recommended_badge": "рекомендуется",
-      "no_key_badge": "без ключа"
+      "no_key_badge": "без ключа",
+      "options": {
+        "vercel-gateway": {
+          "label": "Vercel AI Gateway",
+          "blurb": "Один ключ — доступ к OpenAI, Anthropic, Gemini и Groq. Подходит большинству."
+        },
+        "anthropic": {
+          "label": "Anthropic Claude",
+          "blurb": "Прямой API Claude. Сильное рассуждение, хорошо со структурными ответами."
+        },
+        "openai": {
+          "label": "OpenAI",
+          "blurb": "Прямой API OpenAI. Поддержка картинок из коробки."
+        },
+        "google-gemini": {
+          "label": "Google Gemini",
+          "blurb": "Прямой Google AI API. Длинный контекст, быстрая мультимодальность."
+        },
+        "groq": {
+          "label": "Groq",
+          "blurb": "Молниеносный инференс. Дешевле за токен, меню моделей поменьше."
+        },
+        "ollama": {
+          "label": "Ollama (локально)",
+          "blurb": "Полностью на машине. Ключ не нужен — укажите адрес локальной Ollama."
+        }
+      }
     },
     "keys": {
       "title": "Добавьте ключи",
       "body": "Хранятся зашифрованными в системном keychain. Ничего не уходит наружу, пока вы не запустите сессию.",
-      "transcription_label": "транскрипция"
+      "transcription_label": "транскрипция",
+      "stt_picker_label": "движок транскрипции",
+      "stt_options": {
+        "deepgram": {
+          "label": "Deepgram",
+          "blurb": "Стриминг Nova-3. Один API-ключ, низкая задержка. Рекомендуется."
+        },
+        "google": {
+          "label": "Google Speech-to-Text",
+          "blurb": "Многоязычный стриминг. Нужен проект Google Cloud и авторизация."
+        },
+        "local-whisper": {
+          "label": "Локальный Whisper",
+          "blurb": "Whisper-tiny на устройстве. Без API-ключа, медленнее, ниже качество."
+        }
+      },
+      "llm": {
+        "vercel-gateway": {
+          "label": "Ключ Vercel AI Gateway",
+          "hint": "Питает LLM. Возьмите на vercel.com/ai-gateway."
+        },
+        "anthropic": {
+          "label": "API-ключ Anthropic",
+          "hint": "Возьмите на console.anthropic.com."
+        },
+        "openai": {
+          "label": "API-ключ OpenAI",
+          "hint": "Возьмите на platform.openai.com."
+        },
+        "google-gemini": {
+          "label": "Google AI key",
+          "hint": "Возьмите на ai.google.dev (это не то же самое, что Cloud-проект ниже)."
+        },
+        "groq": {
+          "label": "API-ключ Groq",
+          "hint": "Возьмите на console.groq.com."
+        },
+        "ollama": {
+          "label": "Хост Ollama",
+          "hint": "Оставьте пустым, чтобы использовать http://127.0.0.1:11434 (по умолчанию)."
+        }
+      },
+      "stt_fields": {
+        "deepgram_key": {
+          "label": "API-ключ Deepgram",
+          "hint": "Возьмите на console.deepgram.com — бесплатного тарифа хватит для старта."
+        },
+        "google_project_id": {
+          "label": "Google Cloud project ID",
+          "hint": "ID проекта Google Cloud, в котором включён Speech-to-Text API."
+        },
+        "google_service_account": {
+          "label": "Service account JSON (опционально)",
+          "hint": "Вставьте JSON сервис-аккаунта — это даст авторизацию в один шаг. Оставьте пустым, если уже запускали gcloud auth application-default login на этой машине."
+        },
+        "google_setup_help_title": "Как настроить Google STT",
+        "google_setup_help_body": "1. Откройте console.cloud.google.com → создайте проект или выберите существующий; скопируйте его ID в поле выше.\n2. В проекте: APIs & Services → включите «Cloud Speech-to-Text API».\n3. Авторизация — выберите один из путей:\n   • Самый простой: установите gcloud CLI, один раз выполните gcloud auth application-default login. Поле JSON оставьте пустым.\n   • Или: IAM → Service Accounts → создайте аккаунт с ролью «Cloud Speech Client» → keys → create JSON → вставьте содержимое в поле выше.",
+        "local_whisper_note": "Ключи не нужны. Модель скачается при первой сессии и работает целиком на этой машине."
+      }
     },
     "hotkeys": {
       "title": "Горячие клавиши",
-      "body": "Пять клавиш, которые важнее всего. Все они глобальные — срабатывают, даже когда фокус в другом приложении. Настроить можно в Настройки → Горячие клавиши."
+      "body": "Пять клавиш, которые важнее всего. Все они глобальные — срабатывают, даже когда фокус в другом приложении. Настроить можно в Настройки → Горячие клавиши.",
+      "labels": {
+        "toggleOverlay": "Переключить оверлей",
+        "askAi": "Фокус на Ask",
+        "answerLast": "Ответить на последний вопрос",
+        "screenshot": "Снимок экрана → Ask",
+        "showDashboard": "Показать дашборд"
+      }
     },
     "done": {
       "title": "Готово",
@@ -127,5 +392,50 @@
   },
   "errors": {
     "could_not_copy": "Не удалось скопировать"
+  },
+  "session_list": {
+    "no_sessions": "Пока нет сессий — они сохраняются локально, когда вы останавливаете запись.",
+    "count_one": "{{count}} сессия",
+    "count_few": "{{count}} сессии",
+    "count_other": "{{count}} сессий",
+    "open_folder": "Открыть папку",
+    "open_folder_tooltip": "Открыть папку с сессиями",
+    "refresh": "Обновить",
+    "continue": "Продолжить",
+    "resume_tooltip": "Продолжить сессию — новый звук добавится в тот же файл",
+    "session_running": "Сессия уже идёт. Остановите её сначала.",
+    "could_not_resume": "Не удалось продолжить сессию"
+  },
+  "session_detail": {
+    "stats": {
+      "duration": "Длительность",
+      "status": "Статус",
+      "completed": "Завершена",
+      "in_progress": "Идёт",
+      "segments": "Сегменты",
+      "you_them": "Вы / Собеседник",
+      "ai_exchanges": "AI-обмены",
+      "avg_answer": "Средняя длина ответа",
+      "models_used": "Использованные модели",
+      "last_activity": "Последняя активность"
+    },
+    "recent_ai_exchanges": "Недавние AI-обмены",
+    "ask_placeholder": "Спросите про эту встречу…",
+    "send": "Отправить",
+    "resume_session": "Продолжить сессию",
+    "cannot_read": "Не удалось прочитать эту сессию.",
+    "asked_toast": "Запрос отправлен — ответ появится в Ask",
+    "ask_failed": "Не удалось",
+    "loading": "Загрузка сессии…",
+    "back": "Назад",
+    "not_found": "Файл сессии не найден.",
+    "tabs": {
+      "summary": "Сводка",
+      "transcript": "Транскрипт",
+      "usage": "Статистика"
+    },
+    "export_pdf": "Экспорт в PDF",
+    "exported_toast": "Экспортировано",
+    "export_failed_toast": "Экспорт не удался"
   }
 }

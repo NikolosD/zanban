@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Kbd } from '@renderer/components/ui/kbd'
-import { hotkeyLabel } from '@renderer/lib/hotkeys'
 import type { StepProps } from '../types'
 
 const HEADLINE_KEYS = [
@@ -35,7 +34,7 @@ export function HotkeysStep({ settings, goNext, goBack }: StepProps) {
       <div className="flex flex-col divide-y divide-border/50 rounded-md border border-border/60">
         {HEADLINE_KEYS.map((k) => (
           <div key={k} className="flex items-center justify-between gap-3 px-3 py-2">
-            <div className="text-[12px]">{hotkeyLabel(k)}</div>
+            <div className="text-[12px]">{t(`onboarding.hotkeys.labels.${k}`)}</div>
             <div className="flex items-center gap-1">
               {platformLabel(settings.hotkeys[k]).map((part, i) => (
                 <Kbd key={i}>{part}</Kbd>

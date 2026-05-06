@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Send,
   Quote,
@@ -18,6 +19,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
+import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 
 export function AskPanel({
   autoFocusKey = 0,
@@ -26,10 +28,10 @@ export function AskPanel({
   autoFocusKey?: number
   className?: string
 }) {
+  const { t } = useTranslation()
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [snapping, setSnapping] = useState(false)
@@ -39,18 +41,13 @@ export function AskPanel({
     inputRef.current?.focus()
   }, [autoFocusKey])
 
-  // History view: when a fresh ask starts, jump to the bottom so the new card
-  // is visible. While streaming the user can scroll up to read older Q&A
-  // without being yanked — we only re-pin on a new message id.
-  useEffect(() => {
-    if (!latest) return
-    const root = scrollRef.current
-    if (!root) return
-    const viewport = root.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
-    const target = viewport ?? root
-    target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latest?.id])
+  // Keep the latest answer visible while it streams. Radix ScrollArea
+  // scrolls a descendant viewport, not the root, so we resolve it.
+  const { rootRef: scrollRef } = useStickToBottom<HTMLDivElement>(
+    latest?.id,
+    latest?.answer.length,
+    (root) => root.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+  )
 
   async function send(prompt?: string) {
     const p = (prompt ?? text).trim()
@@ -131,14 +128,14 @@ export function AskPanel({
               className="h-12 w-auto rounded border border-border/50 object-cover"
             />
             <span className="font-mono text-[10px] text-muted-foreground">
-              screenshot attached · vision model will be used
+              {t('ask_panel.screenshot_attached')}
             </span>
             <Button
               variant="ghost"
               size="icon"
               className="ml-auto size-6"
               onClick={() => setImage(null)}
-              title="Remove screenshot"
+              title={t('ask_panel.remove_screenshot')}
             >
               <X className="size-3" />
             </Button>
@@ -151,7 +148,9 @@ export function AskPanel({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKey}
-            placeholder={image ? 'Ask about this screenshot…' : 'Ask anything about the call…'}
+            placeholder={
+              image ? t('ask_panel.ask_about_screenshot_short') : t('ask_panel.ask_placeholder')
+            }
             className="min-h-[28px] max-h-20 border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
           <Button
@@ -159,7 +158,7 @@ export function AskPanel({
             disabled={snapping || busy}
             size="icon"
             variant="ghost"
-            title="Attach a screenshot of the primary display"
+            title={t('ask_panel.attach_screenshot_tooltip')}
             className="size-8 shrink-0"
           >
             {snapping ? (
@@ -173,7 +172,7 @@ export function AskPanel({
             disabled={busy}
             size="icon"
             variant="ghost"
-            title="Answer the last question (Ctrl+Shift+Enter)"
+            title={t('ask_panel.answer_last_tooltip')}
             className="size-8 shrink-0"
           >
             <Wand2 className="size-3.5" />
@@ -200,18 +199,21 @@ function Empty({
   onSend: (prompt: string) => void
   onAnswerLast: () => void
 }) {
+  const { t } = useTranslation()
   const suggestions = [
-    { label: 'Answer last question (Ctrl+Shift+Enter)', action: onAnswerLast, primary: true },
+    { label: t('ask_panel.answer_last_question'), action: onAnswerLast, primary: true },
     {
-      label: 'Summarize the last 60 seconds',
+      label: t('ask_panel.summarize_last_60s'),
+      // Prompt sent to the LLM stays English so prompt engineering keeps
+      // working regardless of UI language; the user-visible label is i18n'd.
       action: () => onSend('Summarize the last 60 seconds')
     },
-    { label: 'What should I say next?', action: () => onSend('What should I say next?') }
+    { label: t('ask_panel.what_to_say_next'), action: () => onSend('What should I say next?') }
   ]
   return (
     <div className="flex flex-col gap-1.5 pt-1">
       <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        Quick actions
+        {t('ask_panel.quick_actions')}
       </div>
       {suggestions.map((s) => (
         <button
@@ -247,6 +249,7 @@ export function AskCard({
   message: AskMessage
   onContinue?: () => void
 }) {
+  const { t } = useTranslation()
   const canCopy = m.status !== 'error' && m.answer.length > 0
   return (
     <Card
@@ -264,8 +267,8 @@ export function AskCard({
               variant="ghost"
               size="icon"
               className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={() => void copyToClipboard(m.answer, 'Answer copied')}
-              title="Copy answer"
+              onClick={() => void copyToClipboard(m.answer, t('ask_panel.copy_toast'))}
+              title={t('ask_panel.copy_answer')}
             >
               <Copy className="size-3" />
             </Button>
@@ -279,20 +282,20 @@ export function AskCard({
         {m.status === 'streaming' && (
           <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
             <span className={cn('size-1.5 rounded-full bg-primary animate-pulse')} />
-            streaming…
+            {t('ask_panel.streaming')}
           </div>
         )}
         {m.status === 'done' && m.finishReason === 'length' && (
           <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
-            <span className="flex-1">answer truncated — hit max output tokens.</span>
+            <span className="flex-1">{t('ask_panel.answer_truncated')}</span>
             {onContinue && (
               <button
                 onClick={onContinue}
                 className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
-                title="Submit a 'continue' prompt to resume the answer"
+                title={t('ask_panel.continue_tooltip')}
               >
                 <ArrowDownToLine className="size-3" />
-                continue
+                {t('ask_panel.continue')}
               </button>
             )}
           </div>

@@ -15,6 +15,7 @@ const api: ZanbanApi = {
     hide: () => ipcRenderer.invoke(IPC.overlay.hide),
     toggle: () => ipcRenderer.invoke(IPC.overlay.toggle),
     setIgnoreMouse: (ignore) => ipcRenderer.invoke(IPC.overlay.setIgnoreMouse, ignore),
+    setContentHeight: (height) => ipcRenderer.invoke(IPC.overlay.setContentHeight, height),
     onFocusAsk: (cb) => on(IPC.overlay.focusAsk, () => cb()),
     onAnswerLast: (cb) => on(IPC.overlay.answerLast, () => cb()),
     onSnapshotAsk: (cb) => on(IPC.overlay.snapshotAsk, cb),
@@ -68,8 +69,7 @@ const api: ZanbanApi = {
     upload: (filePaths) => ipcRenderer.invoke(IPC.documents.upload, filePaths),
     remove: (id) => ipcRenderer.invoke(IPC.documents.remove, id),
     setActive: (id, active) => ipcRenderer.invoke(IPC.documents.setActive, id, active),
-    exportSessionPdf: (payload) =>
-      ipcRenderer.invoke(IPC.documents.exportSessionPdf, payload),
+    exportSessionPdf: (payload) => ipcRenderer.invoke(IPC.documents.exportSessionPdf, payload),
     // Electron 32 removed `File.path`. The renderer now hands File objects to
     // this bridge to recover the absolute path that the main-process upload
     // handler expects.
