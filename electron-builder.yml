@@ -23,10 +23,6 @@ asarUnpack:
   - node_modules/sqlite-vec-linux-arm64/**
   # better-sqlite3 native binding
   - node_modules/better-sqlite3/**
-protocols:
-  - name: Zanban
-    schemes:
-      - zanban
 win:
   target:
     - target: nsis

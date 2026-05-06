@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+    <!--
+      Renderer-side CSP. The renderer never talks to external APIs directly —
+      every network call goes through the preload IPC bridge into the main
+      process — so connect-src stays tight to 'self' + the dev-server WS that
+      vite HMR uses. style-src needs unsafe-inline for Tailwind runtime + the
+      inline custom properties Sonner sets per toast. script-src includes
+      unsafe-eval for vite HMR in dev; the production build doesn't need it
+      but the meta tag is static, so we keep one policy that works in both.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-src 'none'" />
     <title>Zanban</title>
   </head>
   <body class="bg-zinc-950 text-zinc-100">

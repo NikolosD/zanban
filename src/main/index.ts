@@ -2,6 +2,7 @@ import 'dotenv/config'
 import {
   app,
   BrowserWindow,
+  crashReporter,
   desktopCapturer,
   ipcMain,
   Menu,
@@ -37,6 +38,18 @@ import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
 
 installLogger()
+
+// Local-only crash dumps. submitURL is required by Electron's API but with
+// uploadToServer: false nothing is ever sent — dumps live in
+// `app.getPath('crashDumps')` so the user can attach them to a bug report
+// manually. Must be called before any window opens to capture renderer
+// crashes too.
+crashReporter.start({
+  productName: 'Zanban',
+  submitURL: '',
+  uploadToServer: false,
+  ignoreSystemCrashHandler: false
+})
 
 // Display name used by app menus, the macOS About panel, and any code that
 // reads `app.getName()`. Without this the dev build shows "Electron" in
@@ -382,7 +395,10 @@ app.whenReady().then(async () => {
       // image so we ask for the display's pixel size and crop in nativeImage.
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: { width: display.size.width * display.scaleFactor, height: display.size.height * display.scaleFactor }
+        thumbnailSize: {
+          width: display.size.width * display.scaleFactor,
+          height: display.size.height * display.scaleFactor
+        }
       })
       const primary = sources.find((s) => Number(s.display_id) === display.id) ?? sources[0]
       if (!primary || primary.thumbnail.isEmpty()) return
@@ -419,9 +435,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(IPC.cropper.open, () => openCropper())
   ipcMain.handle(IPC.cropper.cancel, () => closeCropper())
-  ipcMain.handle(
-    IPC.cropper.submit,
-    (_e, rect: { x: number; y: number; w: number; h: number }) => handleCropperSubmit(rect)
+  ipcMain.handle(IPC.cropper.submit, (_e, rect: { x: number; y: number; w: number; h: number }) =>
+    handleCropperSubmit(rect)
   )
 
   registerShortcuts({
