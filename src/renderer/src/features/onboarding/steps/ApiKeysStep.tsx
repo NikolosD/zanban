@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import type { AppSettings, LlmProvider } from '@shared/types'
@@ -80,6 +81,7 @@ const STT_FIELDS: KeyField[] = [
 ]
 
 export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
+  const { t } = useTranslation()
   const provider = settings.llmProvider
   const llmFields = fieldsFor(provider)
   const [drafts, setDrafts] = useState<Record<string, string>>(() => {
@@ -113,10 +115,9 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">Add your keys</h2>
+        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.keys.title')}</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          Stored encrypted with your OS keychain. Nothing leaves the machine until you start a
-          session.
+          {t('onboarding.keys.body')}
         </p>
       </div>
       <div className="flex flex-col gap-3">
@@ -131,7 +132,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         {!localOnly && (
           <>
             <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              transcription
+              {t('onboarding.keys.transcription_label')}
             </div>
             {STT_FIELDS.map((f) => (
               <KeyRow
@@ -146,10 +147,10 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
       </div>
       <div className="mt-2 flex justify-between">
         <Button variant="ghost" onClick={goBack} disabled={saving}>
-          Back
+          {t('common.back')}
         </Button>
         <Button onClick={() => void saveAndNext()} disabled={saving}>
-          {saving ? 'Saving…' : 'Next'}
+          {saving ? t('common.saving') : t('common.next')}
         </Button>
       </div>
     </div>

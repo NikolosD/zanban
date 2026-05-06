@@ -46,6 +46,7 @@ import {
 import { Toaster } from '@renderer/components/ui/sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useTranslation, Trans } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import {
   formatDuration,
@@ -203,10 +204,10 @@ function Header({
   onOpenSettingsTab(tab: SettingsTabId): void
   onSettings(): void
 }) {
+  const { t } = useTranslation()
   return (
     <header className="flex items-center gap-5">
-      {/* Brand lockup: phase-dot mark + lowercase wordmark + faint mono version.
-          Lowercase wordmark matches in-app tone ("idle", "recording 02:31"). */}
+      {/* Brand lockup: phase-dot mark + lowercase wordmark + faint mono version. */}
       <Wordmark
         size={20}
         className="shrink-0 text-foreground"
@@ -216,10 +217,6 @@ function Header({
           </span>
         }
       />
-      {/* Primary CTA sits immediately after the lockup — this is the one
-          action 95% of opens are about. Keeping search to the right of it
-          lets the search bar consume any remaining space without burying
-          the CTA between two siblings. */}
       <SessionStartButton />
       <SearchPill
         onAsk={onAsk}
@@ -228,10 +225,10 @@ function Header({
       />
       <button
         onClick={onSettings}
-        aria-label="Settings"
+        aria-label={t('settings.title')}
         className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        Settings
+        {t('dashboard.settings')}
       </button>
     </header>
   )
@@ -518,6 +515,7 @@ function SearchPill({
 }
 
 function SessionStartButton() {
+  const { t } = useTranslation()
   const session = useTranscript((s) => s.session)
   const [busy, setBusy] = useState(false)
 
@@ -579,7 +577,7 @@ function SessionStartButton() {
       ) : (
         <Mic className="size-4" />
       )}
-      {running ? 'Stop session' : 'Start session'}
+      {running ? t('dashboard.stop_session') : t('dashboard.start_session')}
     </Button>
   )
 }
@@ -591,6 +589,7 @@ function MeetingsList({
   onSelect(id: string): void
   onOpenSettings(): void
 }) {
+  const { t } = useTranslation()
   const { data, isLoading, error } = useQuery({
     queryKey: ['sessions-local'],
     queryFn: () => window.zanban.sessions.list(),
@@ -600,12 +599,12 @@ function MeetingsList({
   const groups = useMemo(() => groupByDay(data ?? []), [data])
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>
+    return <p className="text-sm text-muted-foreground">{t('dashboard.loading')}</p>
   }
   if (error) {
     return (
       <p className="text-sm text-destructive">
-        {error instanceof Error ? error.message : 'failed to load'}
+        {error instanceof Error ? error.message : t('dashboard.load_failed')}
       </p>
     )
   }
@@ -645,6 +644,7 @@ function MeetingRow({
   onSelect(id: string): void
   isLast: boolean
 }) {
+  const { t } = useTranslation()
   const liveSession = useTranscript((s) => s.session)
   const queryClient = useQueryClient()
   const isRunningElsewhere = liveSession.kind === 'running'
@@ -657,7 +657,7 @@ function MeetingRow({
 
   async function resume(): Promise<void> {
     if (isRunningElsewhere) {
-      toast.error('A session is already running. Stop it first.')
+      toast.error(t('dashboard.session_running_elsewhere'))
       return
     }
     try {
@@ -665,7 +665,7 @@ function MeetingRow({
       await window.zanban.session.start({ resumeId: session.id })
       await startCapturesFromSettings(settings)
     } catch (err) {
-      toast.error('Could not resume session', {
+      toast.error(t('dashboard.could_not_resume'), {
         description: err instanceof Error ? err.message : String(err)
       })
     }
@@ -850,26 +850,28 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // than a centered illustration and consistent with the tools-not-bragging
   // tone in PRODUCT.md. Adds an inline CTA when API keys are missing so a
   // brand-new user doesn't only learn about the requirement at session start.
+  const { t } = useTranslation()
   const settings = useSettingsStore((s) => s.settings)
   const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />
       <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        no sessions yet
+        {t('dashboard.no_sessions_label')}
       </div>
       <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
-        Hit <span className="text-foreground">Start session</span> in the header. Each session is
-        saved locally as Markdown when you stop — nothing leaves your machine.
+        <Trans
+          i18nKey="dashboard.no_sessions_body"
+          components={[<span key="0" className="text-foreground" />]}
+        />
       </p>
       {apiKeysMissing && (
         <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
           <div className="font-mono text-[10px] uppercase tracking-wider text-amber-300">
-            set up first
+            {t('dashboard.setup_first')}
           </div>
           <p className="text-[12px] leading-relaxed text-amber-100/90">
-            Sessions need a Google Cloud project ID (STT) and a Vercel AI Gateway key (LLM) before
-            they can run.
+            {t('dashboard.setup_first_body')}
           </p>
           <Button
             size="sm"
@@ -877,7 +879,7 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
             className="h-7 px-2 text-[12px] text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
             onClick={onOpenSettings}
           >
-            Open Settings
+            {t('common.open_settings')}
           </Button>
         </div>
       )}

@@ -1,0 +1,131 @@
+{
+  "common": {
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "cancel": "Cancel",
+    "save": "Save",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "open_settings": "Open Settings"
+  },
+  "overlay": {
+    "streaming": "streaming…",
+    "answer_truncated": "answer truncated — hit max output tokens.",
+    "continue": "continue",
+    "copy_answer": "Copy answer",
+    "api_keys_missing_title": "API keys not configured",
+    "api_keys_missing_body": "Open the dashboard → Settings. Need a Google Cloud project ID (STT — auth via gcloud or pasted JSON) and a Vercel AI Gateway key (LLM).",
+    "recheck": "re-check",
+    "transcription_error": "Transcription error",
+    "answer_pill": "answer ↵",
+    "open_dashboard_keep_session": "Open dashboard · session keeps running",
+    "ask_placeholder": "Ask anything on screen or conversation, or",
+    "ask_about_screenshot": "Ask about the screenshot…"
+  },
+  "ask_panel": {
+    "ask_placeholder": "Ask anything about the call…",
+    "ask_about_screenshot_short": "Ask about this screenshot…",
+    "screenshot_attached": "screenshot attached · vision model will be used",
+    "remove_screenshot": "Remove screenshot",
+    "answer_last_tooltip": "Answer the last question (Ctrl+Shift+Enter)",
+    "attach_screenshot_tooltip": "Attach a screenshot of the primary display",
+    "quick_actions": "Quick actions",
+    "answer_last_question": "Answer last question (Ctrl+Shift+Enter)",
+    "summarize_last_60s": "Summarize the last 60 seconds",
+    "what_to_say_next": "What should I say next?",
+    "copy_toast": "Answer copied"
+  },
+  "dashboard": {
+    "start_session": "Start session",
+    "stop_session": "Stop session",
+    "no_sessions_label": "no sessions yet",
+    "no_sessions_body": "Hit <0>Start session</0> in the header. Each session is saved locally as Markdown when you stop — nothing leaves your machine.",
+    "settings": "Settings",
+    "loading": "Loading…",
+    "load_failed": "failed to load",
+    "session_running_elsewhere": "A session is already running. Stop it first.",
+    "could_not_resume": "Could not resume session",
+    "setup_first": "set up first",
+    "setup_first_body": "Sessions need a Google Cloud project ID (STT) and a Vercel AI Gateway key (LLM) before they can run."
+  },
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "general": "General",
+      "ai": "AI",
+      "audio": "Audio",
+      "identity": "Identity",
+      "hotkeys": "Hotkeys",
+      "about": "About"
+    },
+    "general": {
+      "appearance_title": "appearance",
+      "appearance_hint": "How the overlay sits on your screen during a call.",
+      "language_title": "language",
+      "language_hint": "Pick the interface language. The assistant's answer language is set separately under Identity.",
+      "privacy_title": "privacy",
+      "privacy_hint": "How the floating widget behaves around screen-sharing and Hide.",
+      "stealth_label": "Stealth mode",
+      "stealth_hint": "On (default): the overlay is invisible to screen-share and recording. Off: shows up like any normal window.",
+      "hide_widget_label": "Hide widget when hiding",
+      "hide_widget_hint": "When you toggle Hide, also collapse the chips/input so only the tiny status pill remains.",
+      "hide_app_switcher_label": "Hide from app switcher",
+      "hide_app_switcher_hint": "Drop Zanban from the dock + Cmd+Tab on macOS, and the taskbar + Alt+Tab on Windows. Restart on macOS for the dock change to take effect.",
+      "assistant_title": "assistant",
+      "assistant_hint": "How proactively Zanban surfaces helpers during the call.",
+      "auto_detect_label": "Auto-detect questions from the other speaker",
+      "auto_detect_hint": "When the other side asks something, surface it as a chip you can answer in one click.",
+      "transcript_window_label": "Transcript window",
+      "transcript_window_hint": "Seconds of recent audio sent as context for each Ask.",
+      "sessions_title": "sessions",
+      "sessions_hint": "Stored locally as Markdown + JSON. Open the folder to grep or back up.",
+      "open_sessions_folder": "Open sessions folder",
+      "setup_title": "setup",
+      "setup_hint": "Replay the first-run wizard to swap providers or re-add keys.",
+      "rerun_onboarding": "Re-run onboarding"
+    }
+  },
+  "onboarding": {
+    "title": "First-run setup",
+    "description": "Pick a language, an LLM provider, and add API keys.",
+    "steps": {
+      "language": "Language",
+      "provider": "Provider",
+      "keys": "Keys",
+      "hotkeys": "Hotkeys",
+      "done": "Done"
+    },
+    "language": {
+      "title": "Welcome to Zanban",
+      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes locally, and answers questions for you. Everything is on your machine — API calls only when you ask the LLM.",
+      "section_label": "interface language",
+      "english_label": "English",
+      "english_sublabel": "Full support today.",
+      "russian_label": "Русский",
+      "russian_sublabel": "Полная поддержка."
+    },
+    "provider": {
+      "title": "Pick an LLM provider",
+      "body": "You can switch later in Settings. Cloud providers stream answers faster; Ollama keeps everything on your machine.",
+      "recommended_badge": "recommended",
+      "no_key_badge": "no key"
+    },
+    "keys": {
+      "title": "Add your keys",
+      "body": "Stored encrypted with your OS keychain. Nothing leaves the machine until you start a session.",
+      "transcription_label": "transcription"
+    },
+    "hotkeys": {
+      "title": "Hotkeys",
+      "body": "The five keys that matter most. All of them are global — they fire even when another app has focus. Customize them later in Settings → Hotkeys."
+    },
+    "done": {
+      "title": "You're set",
+      "body": "Hit <0>Start session</0> in the dashboard header to begin recording. The overlay floats on top of your call and is invisible to screen-share by default. Stop by Settings any time to swap providers, edit hotkeys, or re-run this wizard."
+    }
+  },
+  "errors": {
+    "could_not_copy": "Could not copy"
+  }
+}

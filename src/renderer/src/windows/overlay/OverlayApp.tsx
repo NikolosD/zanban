@@ -50,12 +50,14 @@ import {
 } from '@renderer/components/ui/dropdown-menu'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { Kbd } from '@renderer/components/ui/kbd'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
 
 export function OverlayApp() {
+  const { t } = useTranslation()
   const [stealth, setStealth] = useState(true)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -370,15 +372,14 @@ export function OverlayApp() {
                         className="bg-amber-500/10 border-amber-500/30 text-amber-200"
                       >
                         <AlertTriangle className="size-4 text-amber-400" />
-                        <AlertTitle>API keys not configured</AlertTitle>
+                        <AlertTitle>{t('overlay.api_keys_missing_title')}</AlertTitle>
                         <AlertDescription>
-                          Open the dashboard → Settings. Need a Google Cloud project ID (STT — auth
-                          via gcloud or pasted JSON) and a Vercel AI Gateway key (LLM).{' '}
+                          {t('overlay.api_keys_missing_body')}{' '}
                           <button
                             className="underline underline-offset-2"
                             onClick={() => void refreshSettings()}
                           >
-                            re-check
+                            {t('overlay.recheck')}
                           </button>
                         </AlertDescription>
                       </Alert>
@@ -386,7 +387,7 @@ export function OverlayApp() {
                     {transcriptionError && (
                       <Alert variant="destructive">
                         <AlertTriangle className="size-4" />
-                        <AlertTitle>Transcription error</AlertTitle>
+                        <AlertTitle>{t('overlay.transcription_error')}</AlertTitle>
                         <AlertDescription>{transcriptionError}</AlertDescription>
                       </Alert>
                     )}
@@ -413,7 +414,7 @@ export function OverlayApp() {
                         <span className="size-1.5 shrink-0 rounded-full bg-primary" />
                         <span className="truncate">{q.text}</span>
                         <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
-                          answer ↵
+                          {t('overlay.answer_pill')}
                         </span>
                       </button>
                     ))}
@@ -934,6 +935,7 @@ interface AskMessage {
 }
 
 function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinue: () => void }) {
+  const { t } = useTranslation()
   const canCopy = m.status !== 'error' && m.answer.length > 0
   return (
     <div className="space-y-2">
@@ -944,8 +946,8 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
         {canCopy && (
           <button
             data-interactive
-            onClick={() => void copyToClipboard(m.answer, 'Answer copied')}
-            title="Copy answer"
+            onClick={() => void copyToClipboard(m.answer, t('ask_panel.copy_toast'))}
+            title={t('overlay.copy_answer')}
             className={cn(
               'inline-flex shrink-0 items-center justify-center rounded',
               'size-5 text-muted-foreground/70 hover:bg-white/10 hover:text-foreground'
@@ -963,12 +965,12 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
       {m.status === 'streaming' && (
         <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
           <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-          streaming…
+          {t('overlay.streaming')}
         </div>
       )}
       {m.status === 'done' && m.finishReason === 'length' && (
         <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
-          <span className="flex-1">answer truncated — hit max output tokens.</span>
+          <span className="flex-1">{t('overlay.answer_truncated')}</span>
           <button
             data-interactive
             onClick={onContinue}
@@ -976,7 +978,7 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
             className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
           >
             <ArrowDownToLine className="size-3" />
-            continue
+            {t('overlay.continue')}
           </button>
         </div>
       )}

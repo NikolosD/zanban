@@ -1,40 +1,40 @@
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import type { StepProps } from '../types'
 
 export function LanguageStep({ settings, update, goNext }: StepProps) {
+  const { t } = useTranslation()
   const current = settings.uiLocale
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">Welcome to Zanban</h2>
+        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.language.title')}</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          A stealth meeting copilot that listens to mic + system audio, transcribes locally, and
-          answers questions for you. Everything is on your machine — API calls only when you ask the
-          LLM.
+          {t('onboarding.language.body')}
         </p>
       </div>
       <div className="flex flex-col gap-2">
         <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          interface language
+          {t('onboarding.language.section_label')}
         </div>
         <div className="flex gap-2">
           <LangCard
-            label="English"
-            sublabel="Full support today."
+            label={t('onboarding.language.english_label')}
+            sublabel={t('onboarding.language.english_sublabel')}
             active={current === 'en'}
             onClick={() => void update('uiLocale', 'en')}
           />
           <LangCard
-            label="Русский"
-            sublabel="Скоро. Сейчас интерфейс на английском."
+            label={t('onboarding.language.russian_label')}
+            sublabel={t('onboarding.language.russian_sublabel')}
             active={current === 'ru'}
             onClick={() => void update('uiLocale', 'ru')}
           />
         </div>
       </div>
       <div className="mt-2 flex justify-end">
-        <Button onClick={goNext}>Next</Button>
+        <Button onClick={goNext}>{t('common.next')}</Button>
       </div>
     </div>
   )

@@ -39,6 +39,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
 // Settings IDs the rest of the app passes around. The legacy `providers`,
@@ -428,22 +429,40 @@ function GeneralTab({
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   onReRunOnboarding?: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <>
-      <Section title="appearance" hint="How the overlay sits on your screen during a call.">
+      <Section
+        title={t('settings.general.appearance_title')}
+        hint={t('settings.general.appearance_hint')}
+      >
         <OpacityField
           value={settings.overlayOpacity ?? 1}
           onChange={(v) => update('overlayOpacity', v)}
         />
       </Section>
       <Section
-        title="privacy"
-        hint="How the floating widget behaves around screen-sharing and Hide."
+        title={t('settings.general.language_title')}
+        hint={t('settings.general.language_hint')}
       >
-        <Row
-          label="Stealth mode"
-          hint="On (default): the overlay is invisible to screen-share and recording. Off: shows up like any normal window."
+        <Select
+          value={settings.uiLocale ?? 'en'}
+          onValueChange={(v) => update('uiLocale', v as 'en' | 'ru')}
         >
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en">English</SelectItem>
+            <SelectItem value="ru">Русский</SelectItem>
+          </SelectContent>
+        </Select>
+      </Section>
+      <Section
+        title={t('settings.general.privacy_title')}
+        hint={t('settings.general.privacy_hint')}
+      >
+        <Row label={t('settings.general.stealth_label')} hint={t('settings.general.stealth_hint')}>
           {/* Inverse of `detectable` to remove the double-negative ("off = invisible")
               that was confusing in the previous label. The setting key stays
               `detectable` for backwards compat — only the UI flips. */}
@@ -453,8 +472,8 @@ function GeneralTab({
           />
         </Row>
         <Row
-          label="Hide widget when hiding"
-          hint="When you toggle Hide, also collapse the chips/input so only the tiny status pill remains."
+          label={t('settings.general.hide_widget_label')}
+          hint={t('settings.general.hide_widget_hint')}
         >
           <Switch
             checked={settings.hideWidgetWhenHidden}
@@ -462,8 +481,8 @@ function GeneralTab({
           />
         </Row>
         <Row
-          label="Hide from app switcher"
-          hint="Drop Zanban from the dock + Cmd+Tab on macOS, and the taskbar + Alt+Tab on Windows. Restart on macOS for the dock change to take effect."
+          label={t('settings.general.hide_app_switcher_label')}
+          hint={t('settings.general.hide_app_switcher_hint')}
         >
           <Switch
             checked={settings.hideFromAppSwitcher}
@@ -471,10 +490,13 @@ function GeneralTab({
           />
         </Row>
       </Section>
-      <Section title="assistant" hint="How proactively Zanban surfaces helpers during the call.">
+      <Section
+        title={t('settings.general.assistant_title')}
+        hint={t('settings.general.assistant_hint')}
+      >
         <Row
-          label="Auto-detect questions from the other speaker"
-          hint="When the other side asks something, surface it as a chip you can answer in one click."
+          label={t('settings.general.auto_detect_label')}
+          hint={t('settings.general.auto_detect_hint')}
         >
           <Switch
             checked={settings.autoDetectQuestions}
@@ -482,8 +504,8 @@ function GeneralTab({
           />
         </Row>
         <Field
-          label="Transcript window"
-          hint="Seconds of recent audio sent as context for each Ask."
+          label={t('settings.general.transcript_window_label')}
+          hint={t('settings.general.transcript_window_hint')}
         >
           <Input
             type="number"
@@ -496,8 +518,8 @@ function GeneralTab({
         </Field>
       </Section>
       <Section
-        title="sessions"
-        hint="Stored locally as Markdown + JSON. Open the folder to grep or back up."
+        title={t('settings.general.sessions_title')}
+        hint={t('settings.general.sessions_hint')}
       >
         <div>
           <Button
@@ -507,15 +529,15 @@ function GeneralTab({
             onClick={() => void window.zanban.sessions.revealFolder()}
           >
             <FolderOpen className="size-3.5" />
-            Open sessions folder
+            {t('settings.general.open_sessions_folder')}
           </Button>
         </div>
       </Section>
       {onReRunOnboarding && (
-        <Section title="setup" hint="Replay the first-run wizard to swap providers or re-add keys.">
+        <Section title={t('settings.general.setup_title')} hint={t('settings.general.setup_hint')}>
           <div>
             <Button variant="outline" size="sm" className="gap-2" onClick={onReRunOnboarding}>
-              Re-run onboarding
+              {t('settings.general.rerun_onboarding')}
             </Button>
           </div>
         </Section>

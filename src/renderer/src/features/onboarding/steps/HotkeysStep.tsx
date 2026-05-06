@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { hotkeyLabel } from '@renderer/lib/hotkeys'
@@ -22,13 +23,13 @@ function platformLabel(combo: string): string[] {
 }
 
 export function HotkeysStep({ settings, goNext, goBack }: StepProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">Hotkeys</h2>
+        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.hotkeys.title')}</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          The five keys that matter most. All of them are global — they fire even when another app
-          has focus. Customize them later in Settings → Hotkeys.
+          {t('onboarding.hotkeys.body')}
         </p>
       </div>
       <div className="flex flex-col divide-y divide-border/50 rounded-md border border-border/60">
@@ -45,9 +46,9 @@ export function HotkeysStep({ settings, goNext, goBack }: StepProps) {
       </div>
       <div className="mt-2 flex justify-between">
         <Button variant="ghost" onClick={goBack}>
-          Back
+          {t('common.back')}
         </Button>
-        <Button onClick={goNext}>Next</Button>
+        <Button onClick={goNext}>{t('common.next')}</Button>
       </div>
     </div>
   )

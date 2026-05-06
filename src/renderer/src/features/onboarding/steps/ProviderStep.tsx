@@ -1,13 +1,16 @@
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import type { LlmProvider } from '@shared/types'
 import type { StepProps } from '../types'
 
+type BadgeKey = 'recommended' | 'no_key'
+
 interface ProviderOption {
   id: LlmProvider
   label: string
   blurb: string
-  badge?: string
+  badge?: BadgeKey
 }
 
 const OPTIONS: ProviderOption[] = [
@@ -31,7 +34,7 @@ const OPTIONS: ProviderOption[] = [
     id: 'ollama',
     label: 'Ollama (local)',
     blurb: 'Fully on-device. No API key needed — point at your local Ollama install.',
-    badge: 'no key'
+    badge: 'no_key'
   }
 ]
 
@@ -42,13 +45,13 @@ export function ProviderStep({
   goNext,
   goBack
 }: StepProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">Pick an LLM provider</h2>
+        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.provider.title')}</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          You can switch later in Settings. Cloud providers stream answers faster; Ollama keeps
-          everything on your machine.
+          {t('onboarding.provider.body')}
         </p>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -74,7 +77,7 @@ export function ProviderStep({
                 <span className="text-sm">{opt.label}</span>
                 {opt.badge && (
                   <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">
-                    {opt.badge}
+                    {t(`onboarding.provider.${opt.badge}_badge`)}
                   </span>
                 )}
               </div>
@@ -87,7 +90,7 @@ export function ProviderStep({
       </div>
       <div className="mt-2 flex justify-between">
         <Button variant="ghost" onClick={goBack}>
-          Back
+          {t('common.back')}
         </Button>
         <Button
           onClick={async () => {
@@ -95,7 +98,7 @@ export function ProviderStep({
             goNext()
           }}
         >
-          Next
+          {t('common.next')}
         </Button>
       </div>
     </div>

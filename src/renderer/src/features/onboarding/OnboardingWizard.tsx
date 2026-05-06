@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -13,14 +14,6 @@ import { ApiKeysStep } from './steps/ApiKeysStep'
 import { HotkeysStep } from './steps/HotkeysStep'
 import { DoneStep } from './steps/DoneStep'
 import { STEP_ORDER, type StepId, type StepProps } from './types'
-
-const STEP_LABELS: Record<StepId, string> = {
-  language: 'Language',
-  provider: 'Provider',
-  keys: 'Keys',
-  hotkeys: 'Hotkeys',
-  done: 'Done'
-}
 
 export function OnboardingWizard({
   open,
@@ -87,10 +80,7 @@ export function OnboardingWizard({
       }}
     >
       <DialogContent className="sm:max-w-xl gap-0 overflow-hidden p-0">
-        <DialogTitle className="sr-only">First-run setup</DialogTitle>
-        <DialogDescription className="sr-only">
-          Pick a language, an LLM provider, and add API keys.
-        </DialogDescription>
+        <WizardTitles />
         <Stepper current={step} />
         <div className="px-6 py-5">
           {step === 'language' && <LanguageStep {...stepProps} />}
@@ -104,7 +94,18 @@ export function OnboardingWizard({
   )
 }
 
+function WizardTitles() {
+  const { t } = useTranslation()
+  return (
+    <>
+      <DialogTitle className="sr-only">{t('onboarding.title')}</DialogTitle>
+      <DialogDescription className="sr-only">{t('onboarding.description')}</DialogDescription>
+    </>
+  )
+}
+
 function Stepper({ current }: { current: StepId }) {
+  const { t } = useTranslation()
   const currentIdx = STEP_ORDER.indexOf(current)
   return (
     <div className="flex items-center gap-2 border-b border-border/60 px-6 py-3">
@@ -129,7 +130,7 @@ function Stepper({ current }: { current: StepId }) {
                 active ? 'text-foreground' : 'text-muted-foreground'
               )}
             >
-              {STEP_LABELS[id]}
+              {t(`onboarding.steps.${id}`)}
             </div>
             {i < STEP_ORDER.length - 1 && <div className="h-px w-4 bg-border/60" />}
           </div>
