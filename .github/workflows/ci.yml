@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+
+# A second push to the same branch / PR cancels any prior run — keeps the
+# Actions queue moving and avoids paying for stale builds.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: lint · typecheck · test · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The postinstall hook runs electron-rebuild + a sqlite-vec sanity
+      # check that need native deps. Skipping the rebuild on CI keeps the
+      # install fast — we never run the binary, only typecheck/test/build.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm build

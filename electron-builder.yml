@@ -61,5 +61,5 @@ linux:
   category: Office
 publish:
   - provider: github
-    owner: REPLACE_WITH_GH_OWNER
+    owner: NikolosD
     repo: zanban
