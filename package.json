@@ -20,7 +20,8 @@
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
     "release": "electron-vite build && electron-builder --publish always",
-    "postinstall": "electron-rebuild -f -w better-sqlite3 && node scripts/ensure-sqlite-vec.cjs"
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && node scripts/ensure-sqlite-vec.cjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^2.0.0",
@@ -94,6 +95,8 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "happy-dom": "^20.9.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.0",
     "prettier": "^3.8.3",
     "rollup-plugin-visualizer": "^7.0.1",
     "sharp": "^0.34.5",
