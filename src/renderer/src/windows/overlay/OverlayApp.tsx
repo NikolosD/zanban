@@ -425,7 +425,7 @@ export function OverlayApp() {
                   <div
                     ref={historyRef}
                     data-interactive
-                    className="flex max-h-[360px] flex-col gap-3 overflow-y-auto px-1 py-1"
+                    className="flex h-[220px] flex-col gap-3 overflow-y-auto px-1 py-1"
                   >
                     {messages.map((m) => (
                       <AnswerPane
