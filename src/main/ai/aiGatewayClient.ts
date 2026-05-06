@@ -1,5 +1,5 @@
 import { createGateway } from '@ai-sdk/gateway'
-import { streamText, generateText } from 'ai'
+import { streamText } from 'ai'
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
@@ -104,9 +104,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         try {
           const hits = await webProvider.search(opts.prompt, { topK: 3 })
           if (hits.length > 0) {
-            const lines = hits
-              .map((h) => `[${h.title}](${h.url})\n${h.snippet}`)
-              .join('\n\n')
+            const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
             webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
           }
         } catch (err) {
@@ -117,9 +115,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // Active persona (if any) wins over the legacy free-form
       // settings.assistantPersona — the prompt builder still receives a
       // single string, so callers don't need to know which one came in.
-      const activePersona = settings.activePersonaId
-        ? getPersona(settings.activePersonaId)
-        : null
+      const activePersona = settings.activePersonaId ? getPersona(settings.activePersonaId) : null
       const personaText = activePersona?.systemPrompt ?? settings.assistantPersona
       const responseLanguage = activePersona?.responseLanguage ?? settings.responseLanguage
 
@@ -159,9 +155,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // 'vercel-gateway' the registry returns null, which routes us into the
       // gateway path below — same outcome as picking Vercel for text.
       const altProvider =
-        hasImage && settings.visionProvider
-          ? getActiveVisionProvider()
-          : getActiveLlmProvider()
+        hasImage && settings.visionProvider ? getActiveVisionProvider() : getActiveLlmProvider()
       // If the user explicitly picked a non-Vercel vision provider but its
       // key is missing, surface a clear error rather than silently falling
       // through to Vercel and confusing the user about why their override
@@ -310,4 +304,3 @@ export async function extractQuestion(text: string): Promise<string | null> {
     return null
   }
 }
-

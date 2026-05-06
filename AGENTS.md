@@ -168,3 +168,35 @@ top. Mock electron-bound modules with `vi.mock(...)` + `vi.hoisted(...)` (see
   flushes queued segments to disk + writes the session markdown.
 - **RAG cleanup.** Deleting a session also deletes its sqlite-vec rows
   (best-effort — RAG may be unavailable; non-fatal).
+
+## Security posture
+
+Posture is "trusted local app, hostile screen-recorders". The threat model
+is *other people seeing what's on the user's screen*, not *the user
+attacking themselves*.
+
+- **`contextIsolation: true`** on every `BrowserWindow`. Renderer code never
+  touches Node APIs directly — everything goes through the typed
+  `window.zanban` bridge in `src/preload/index.ts`.
+- **`sandbox: false`** on every window. We need the preload to use
+  `node:fs`, `electron.webUtils.getPathForFile`, and audio worklet plumbing
+  that sandboxed renderers can't reach. Acceptable because all renderer code
+  is first-party and the preload only exposes the IPC surface declared in
+  `src/shared/api.ts`.
+- **`nodeIntegration: false`** (Electron default; never overridden).
+- **CSP meta tag** on every renderer entry HTML (`src/renderer/*.html`).
+  Renderer never makes outbound network calls itself — every API request
+  goes through main — so `connect-src` stays tight to `'self'` plus the
+  vite HMR WebSocket. `'unsafe-eval'` is required for vite HMR in dev and
+  is harmless in production (vite doesn't emit eval'd code). `'unsafe-
+  inline'` for styles is required by Tailwind runtime + sonner inline
+  custom-properties.
+- **`setContentProtection(true)`** on overlay + dashboard so screen-share
+  capture sees a black rectangle. `applyStealth()` in `src/main/index.ts`
+  has a Windows-specific double-tap workaround for unreliable first calls.
+- **Secrets at rest** go through `safeStorage` (DPAPI on Windows, Keychain
+  on macOS, libsecret on Linux). See `ENCRYPTED_KEYS` in
+  `src/main/settings.ts`.
+- **Crash dumps** stay on-device (`crashReporter.start({ uploadToServer:
+  false })`). Users can attach them to a bug report manually from
+  `app.getPath('crashDumps')`.

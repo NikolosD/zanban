@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -111,9 +111,7 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === 'summary' && <SummaryTab session={data} />}
         {tab === 'transcript' && <TranscriptTab segments={data.segments} />}
-        {tab === 'usage' && (
-          <UsageTab session={data} ended={ended} startedAt={data.startedAt} />
-        )}
+        {tab === 'usage' && <UsageTab session={data} ended={ended} startedAt={data.startedAt} />}
       </div>
 
       {/* Bottom action bar */}
@@ -270,8 +268,8 @@ function SummaryTab({ session }: { session: SessionDetailPayload }) {
           no summary yet
         </div>
         <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
-          Generate a quick AI summary of what was discussed. Uses the saved
-          transcript only — no audio is sent.
+          Generate a quick AI summary of what was discussed. Uses the saved transcript only — no
+          audio is sent.
         </p>
         <Button
           onClick={() => void generate()}
@@ -371,20 +369,19 @@ function UsageTab({
           value={stats.avgAnswerChars ? `${stats.avgAnswerChars} chars` : '—'}
         />
         <Stat label="Models used" value={stats.models.join(', ') || '—'} className="col-span-2" />
-        <Stat
-          label="Last activity"
-          value={stats.lastActivity || '—'}
-          className="col-span-2"
-        />
+        <Stat label="Last activity" value={stats.lastActivity || '—'} className="col-span-2" />
       </div>
       {session.exchanges.length > 0 && (
         <div className="mt-6 flex flex-col gap-2">
           <div className="px-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             Recent AI exchanges
           </div>
-          {session.exchanges.slice(-5).reverse().map((ex, i) => (
-            <ExchangeRow key={`${ex.createdAt}-${i}`} exchange={ex} />
-          ))}
+          {session.exchanges
+            .slice(-5)
+            .reverse()
+            .map((ex, i) => (
+              <ExchangeRow key={`${ex.createdAt}-${i}`} exchange={ex} />
+            ))}
         </div>
       )}
     </ScrollArea>
@@ -422,21 +419,10 @@ function ExchangeRow({ exchange: ex }: { exchange: StoredExchange }) {
   )
 }
 
-function Stat({
-  label,
-  value,
-  className
-}: {
-  label: string
-  value: string
-  className?: string
-}) {
+function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div
-      className={cn(
-        'rounded-lg border border-white/[0.06] bg-white/[0.015] px-4 py-3',
-        className
-      )}
+      className={cn('rounded-lg border border-white/[0.06] bg-white/[0.015] px-4 py-3', className)}
     >
       <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
@@ -515,11 +501,7 @@ ${q}
         disabled={busy || !text.trim()}
         title="Send"
       >
-        {busy ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <ArrowRight className="size-3.5" />
-        )}
+        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />}
       </Button>
     </div>
   )
@@ -601,9 +583,7 @@ function computeStats(
   const themSegments = totalSegments - youSegments
   const exchangeCount = session.exchanges.length
   const avgAnswerChars = exchangeCount
-    ? Math.round(
-        session.exchanges.reduce((acc, e) => acc + e.answer.length, 0) / exchangeCount
-      )
+    ? Math.round(session.exchanges.reduce((acc, e) => acc + e.answer.length, 0) / exchangeCount)
     : null
   const models = Array.from(
     new Set(session.exchanges.map((e) => e.model).filter((m): m is string => !!m))

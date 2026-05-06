@@ -1,0 +1,13 @@
+# Normalize line endings — Prettier writes LF; this stops Windows checkouts
+# from silently rewriting working trees with CRLF.
+* text=auto eol=lf
+
+# Generated PNG/ICNS variants from resources/icon.svg — keep as binary so git
+# doesn't try to merge or diff them as text.
+*.png binary
+*.icns binary
+*.ico binary
+*.webp binary
+
+# Lockfile is generated; skip noisy diffs in PR review.
+pnpm-lock.yaml linguist-generated=true

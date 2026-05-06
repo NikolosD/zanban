@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Tbilisi
+    open-pull-requests-limit: 5
+    # Group routine bumps so the queue doesn't fill with one-line PRs. Major
+    # bumps stay separate — they break things and want individual review.
+    groups:
+      dev-tooling:
+        patterns:
+          - '@types/*'
+          - 'eslint*'
+          - 'prettier'
+          - 'typescript-eslint'
+          - '@typescript-eslint/*'
+          - 'vitest'
+          - 'happy-dom'
+          - '@testing-library/*'
+        update-types:
+          - minor
+          - patch
+      runtime-minor-patch:
+        patterns:
+          - '*'
+        exclude-patterns:
+          - 'electron'
+          - 'react'
+          - 'react-dom'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

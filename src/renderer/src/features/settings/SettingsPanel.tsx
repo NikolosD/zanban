@@ -26,16 +26,10 @@ import { hotkeyHint, hotkeyLabel } from '@renderer/lib/hotkeys'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
-import {
-  ProvidersTab,
-  SttProviderCards,
-  WebSearchCard,
-  LLM_PROVIDERS
-} from './ProvidersTab'
+import { ProvidersTab, SttProviderCards, WebSearchCard, LLM_PROVIDERS } from './ProvidersTab'
 import { OverlayMockup } from './OverlayMockup'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
-import { Textarea } from '@renderer/components/ui/textarea'
 import { Switch } from '@renderer/components/ui/switch'
 import {
   Select,
@@ -170,14 +164,15 @@ export const SETTINGS_TABS: Array<{
   { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
 ]
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'general', label: 'General', icon: SlidersHorizontal },
-  { id: 'ai', label: 'AI', icon: Cpu },
-  { id: 'audio', label: 'Audio', icon: Headphones },
-  { id: 'identity', label: 'Identity', icon: User },
-  { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
-  { id: 'about', label: 'About', icon: Info }
-]
+const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> =
+  [
+    { id: 'general', label: 'General', icon: SlidersHorizontal },
+    { id: 'ai', label: 'AI', icon: Cpu },
+    { id: 'audio', label: 'Audio', icon: Headphones },
+    { id: 'identity', label: 'Identity', icon: User },
+    { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
+    { id: 'about', label: 'About', icon: Info }
+  ]
 
 export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
@@ -199,7 +194,9 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
   useEffect(() => {
     void window.zanban.settings.get().then(setSettings)
     void window.zanban.getVersion().then(setVersion)
-    void enumerateMics().then(setMics).catch((e) => setMicsError(String(e)))
+    void enumerateMics()
+      .then(setMics)
+      .catch((e) => setMicsError(String(e)))
   }, [])
 
   // Auto-save: any change to `settings` is pushed to main with a short debounce.
@@ -263,12 +260,7 @@ export function SettingsPanel({ initialTab }: { initialTab?: SettingsTabId } = {
       <SettingsSidebar tab={tab} setTab={setTab} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-8 py-7">
-          {tab === 'general' && (
-            <GeneralTab
-              settings={settings}
-              update={update}
-            />
-          )}
+          {tab === 'general' && <GeneralTab settings={settings} update={update} />}
           {tab === 'ai' && (
             <>
               <ProvidersTab settings={settings} update={update} />
@@ -431,10 +423,7 @@ function GeneralTab({
 }) {
   return (
     <>
-      <Section
-        title="appearance"
-        hint="How the overlay sits on your screen during a call."
-      >
+      <Section title="appearance" hint="How the overlay sits on your screen during a call.">
         <OpacityField
           value={settings.overlayOpacity ?? 1}
           onChange={(v) => update('overlayOpacity', v)}
@@ -475,10 +464,7 @@ function GeneralTab({
           />
         </Row>
       </Section>
-      <Section
-        title="assistant"
-        hint="How proactively Zanban surfaces helpers during the call."
-      >
+      <Section title="assistant" hint="How proactively Zanban surfaces helpers during the call.">
         <Row
           label="Auto-detect questions from the other speaker"
           hint="When the other side asks something, surface it as a chip you can answer in one click."
@@ -530,8 +516,12 @@ function ModelsTab({
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
   const provider = settings.llmProvider
-  const providerOverrides: AiModelSettings =
-    settings.aiModels?.[provider] ?? { fast: '', filter: '', summary: '', vision: '' }
+  const providerOverrides: AiModelSettings = settings.aiModels?.[provider] ?? {
+    fast: '',
+    filter: '',
+    summary: '',
+    vision: ''
+  }
 
   function setModel(role: AiRole, value: string): void {
     const next: AppSettings['aiModels'] = {
@@ -548,16 +538,20 @@ function ModelsTab({
   }
 
   const providerDefaults = PROVIDER_MODEL_DEFAULTS[provider]
-  const hasAnyOverride = (Object.keys(providerOverrides) as AiRole[]).some(
-    (r) => providerOverrides[r]?.trim()
+  const hasAnyOverride = (Object.keys(providerOverrides) as AiRole[]).some((r) =>
+    providerOverrides[r]?.trim()
   )
 
   // Vision can ride a different provider via the visionProvider override.
   // The vision-row's model picker therefore needs to use the override
   // provider's catalogue when set, falling back to the LLM provider's.
   const visionProvider = settings.visionProvider ?? provider
-  const visionOverrides: AiModelSettings =
-    settings.aiModels?.[visionProvider] ?? { fast: '', filter: '', summary: '', vision: '' }
+  const visionOverrides: AiModelSettings = settings.aiModels?.[visionProvider] ?? {
+    fast: '',
+    filter: '',
+    summary: '',
+    vision: ''
+  }
   const visionDefaults = PROVIDER_MODEL_DEFAULTS[visionProvider]
 
   function setVisionModel(value: string): void {
@@ -573,10 +567,9 @@ function ModelsTab({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[12px] leading-relaxed text-muted-foreground">
-            Showing models for{' '}
-            <span className="font-mono text-foreground">{provider}</span>. Each
-            provider keeps its own per-role IDs — switching providers above
-            doesn't lose what you typed here.
+            Showing models for <span className="font-mono text-foreground">{provider}</span>. Each
+            provider keeps its own per-role IDs — switching providers above doesn't lose what you
+            typed here.
           </p>
         </div>
         {hasAnyOverride && (
@@ -630,8 +623,8 @@ function ModelsTab({
           <div className="min-w-0">
             <div className="text-[13px] font-medium">Vision (screenshots)</div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-              Used when you snap a screenshot and ask about it. Must be
-              multimodal — can ride a different provider than text.
+              Used when you snap a screenshot and ask about it. Must be multimodal — can ride a
+              different provider than text.
             </p>
           </div>
         </div>
@@ -645,9 +638,7 @@ function ModelsTab({
               onValueChange={(v) =>
                 update(
                   'visionProvider',
-                  v === '__same__'
-                    ? null
-                    : (v as AppSettings['visionProvider'])
+                  v === '__same__' ? null : (v as AppSettings['visionProvider'])
                 )
               }
             >
@@ -655,9 +646,7 @@ function ModelsTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__same__">
-                  same as text · {provider}
-                </SelectItem>
+                <SelectItem value="__same__">same as text · {provider}</SelectItem>
                 {LLM_PROVIDERS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>
                     {p.name}
@@ -707,12 +696,7 @@ function ModelRoleField({
         <div className="text-[12.5px] font-medium text-foreground/90">{label}</div>
         <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{hint}</div>
       </div>
-      <ModelOptionSelect
-        value={value}
-        fallback={fallback}
-        options={options}
-        onChange={onChange}
-      />
+      <ModelOptionSelect value={value} fallback={fallback} options={options} onChange={onChange} />
     </div>
   )
 }
@@ -825,10 +809,7 @@ function AudioTab({
           </div>
           {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
         </Field>
-        <Row
-          label="Capture system audio"
-          hint="Loopback the other side of the call automatically."
-        >
+        <Row label="Capture system audio" hint="Loopback the other side of the call automatically.">
           <Switch
             checked={settings.audio.systemEnabled}
             onCheckedChange={(v) => update('audio', { ...settings.audio, systemEnabled: v })}
@@ -894,7 +875,9 @@ function TranscriptionLanguageSection({
   const provider = settings.sttProvider
   const supportsMulti = provider === 'deepgram' || provider === 'openai-whisper'
   const showFlag = (v: string) =>
-    [...TRANSCRIPTION_LANGUAGES_POPULAR, ...TRANSCRIPTION_LANGUAGES_OTHER].find((l) => l.value === v)
+    [...TRANSCRIPTION_LANGUAGES_POPULAR, ...TRANSCRIPTION_LANGUAGES_OTHER].find(
+      (l) => l.value === v
+    )
 
   const current = showFlag(settings.transcriptionLanguage)
   return (
@@ -956,9 +939,9 @@ function HotkeysTab({
   updateHotkey(key: keyof AppSettings['hotkeys'], value: string): void
   resetAll(): void
 }) {
-  const allDefault = (
-    Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>
-  ).every((k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k])
+  const allDefault = (Object.keys(settings.hotkeys) as Array<keyof AppSettings['hotkeys']>).every(
+    (k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k]
+  )
 
   return (
     <Section
@@ -1024,20 +1007,14 @@ function Row({
   )
 }
 
-function OpacityField({
-  value,
-  onChange
-}: {
-  value: number
-  onChange(v: number): void
-}) {
+function OpacityField({ value, onChange }: { value: number; onChange(v: number): void }) {
   return (
     <div className="grid grid-cols-[180px_1fr] items-start gap-4">
       <div className="pt-1.5">
         <div className="text-[13px] text-foreground/85">Interface opacity</div>
         <div className="mt-0.5 text-[11px] text-muted-foreground">
-          Blend the floating overlay into the screen background. Useful when a
-          meeting tile is bright. 100% = solid.
+          Blend the floating overlay into the screen background. Useful when a meeting tile is
+          bright. 100% = solid.
         </div>
       </div>
       <div className="flex min-w-0 flex-col gap-3">
@@ -1105,13 +1082,7 @@ function OverlayPreview({ opacity }: { opacity: number }) {
   )
 }
 
-function OpacitySlider({
-  value,
-  onChange
-}: {
-  value: number
-  onChange(v: number): void
-}) {
+function OpacitySlider({ value, onChange }: { value: number; onChange(v: number): void }) {
   // Floor mirrors the clamp in main/index.ts → applyOverlayOpacity. Letting the
   // user drag below this would risk dragging the overlay below visibility on
   // glance-and-recover.
@@ -1146,4 +1117,3 @@ function OpacitySlider({
     </div>
   )
 }
-
