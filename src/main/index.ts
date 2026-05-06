@@ -257,7 +257,7 @@ app.whenReady().then(async () => {
     const min = 120
     const max = Math.max(min, workH - bounds.y - margin)
     const next = Math.max(min, Math.min(max, Math.ceil(requested)))
-    const [curW, curH] = overlayWindow.getContentSize()
+    const [curW = 0, curH = 0] = overlayWindow.getContentSize()
     if (Math.abs(curH - next) < 2) return
     overlayWindow.setContentSize(curW, next, false)
   })
