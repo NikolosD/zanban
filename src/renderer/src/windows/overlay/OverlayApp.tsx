@@ -19,6 +19,10 @@ import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import {
+  llmProviderConfigured,
+  sttProviderConfigured
+} from '@renderer/features/settings/providerStatus'
+import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
@@ -97,7 +101,8 @@ export function OverlayApp() {
         ? status.system.message
         : null
 
-  const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
+  const apiKeysMissing =
+    !!settings && (!sttProviderConfigured(settings) || !llmProviderConfigured(settings))
 
   // Auto-grow the OS window to fit the visible panel. Mirrors the approach
   // used in natively-cluely-ai-assistant: useLayoutEffect runs before paint,

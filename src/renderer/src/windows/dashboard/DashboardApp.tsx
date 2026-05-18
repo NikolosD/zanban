@@ -32,6 +32,10 @@ import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/
 import { wireAiIpc } from '@renderer/features/ai/store'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import {
+  llmProviderConfigured,
+  sttProviderConfigured
+} from '@renderer/features/settings/providerStatus'
+import {
   startCapturesFromSettings,
   stopCaptures,
   wireCaptureAutostop
@@ -856,7 +860,8 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // brand-new user doesn't only learn about the requirement at session start.
   const { t } = useTranslation()
   const settings = useSettingsStore((s) => s.settings)
-  const apiKeysMissing = !!settings && (!settings.googleProjectId || !settings.vercelApiKey)
+  const apiKeysMissing =
+    !!settings && (!sttProviderConfigured(settings) || !llmProviderConfigured(settings))
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />

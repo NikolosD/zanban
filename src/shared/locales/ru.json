@@ -16,7 +16,7 @@
     "continue": "продолжить",
     "copy_answer": "Скопировать ответ",
     "api_keys_missing_title": "API-ключи не настроены",
-    "api_keys_missing_body": "Откройте дашборд → Настройки. Нужен Google Cloud project ID (STT — авторизация через gcloud или вставленный JSON) и ключ Vercel AI Gateway (LLM).",
+    "api_keys_missing_body": "Откройте дашборд → Настройки и добавьте учётные данные для выбранных провайдеров STT и LLM.",
     "recheck": "проверить ещё раз",
     "transcription_error": "Ошибка транскрибации",
     "answer_pill": "ответить ↵",
@@ -86,7 +86,7 @@
     "session_running_elsewhere": "Сессия уже идёт. Остановите её сначала.",
     "could_not_resume": "Не удалось продолжить сессию",
     "setup_first": "сначала настройте",
-    "setup_first_body": "Чтобы запустить сессию, нужен Google Cloud project ID (STT) и ключ Vercel AI Gateway (LLM).",
+    "setup_first_body": "Чтобы запустить сессию, нужны учётные данные для выбранных провайдеров STT и LLM.",
     "search": {
       "placeholder": "Найти или спросить…",
       "section_settings": "Настройки",
