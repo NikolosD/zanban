@@ -31,10 +31,7 @@ import { OnboardingWizard } from '@renderer/features/onboarding/OnboardingWizard
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc } from '@renderer/features/ai/store'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
-import {
-  llmProviderConfigured,
-  sttProviderConfigured
-} from '@renderer/features/settings/providerStatus'
+import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import {
   startCapturesFromSettings,
   stopCaptures,
@@ -860,8 +857,8 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // brand-new user doesn't only learn about the requirement at session start.
   const { t } = useTranslation()
   const settings = useSettingsStore((s) => s.settings)
-  const apiKeysMissing =
-    !!settings && (!sttProviderConfigured(settings) || !llmProviderConfigured(settings))
+  const missingProviders = settings ? missingProviderNames(settings) : []
+  const apiKeysMissing = missingProviders.length > 0
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />
@@ -880,7 +877,7 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
             {t('dashboard.setup_first')}
           </div>
           <p className="text-[12px] leading-relaxed text-amber-100/90">
-            {t('dashboard.setup_first_body')}
+            {t('dashboard.setup_first_body', { providers: missingProviders.join(', ') })}
           </p>
           <Button
             size="sm"
