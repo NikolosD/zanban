@@ -39,3 +39,46 @@ export function llmProviderStatus(
       return ollama.running ? 'ok' : 'error'
   }
 }
+
+/**
+ * Does the *active* LLM provider have the credentials it needs? Each provider
+ * keys off a different settings field — Ollama is local and needs none. This
+ * is the key-presence question only; daemon reachability is handled by
+ * `llmProviderStatus`.
+ */
+export function llmProviderConfigured(settings: AppSettings): boolean {
+  switch (settings.llmProvider) {
+    case 'vercel-gateway':
+      return !!settings.vercelApiKey
+    case 'anthropic':
+      return !!settings.anthropicApiKey
+    case 'openai':
+      return !!settings.openaiApiKey
+    case 'google-gemini':
+      return !!settings.googleAiApiKey
+    case 'groq':
+      return !!settings.groqApiKey
+    case 'ollama':
+      return true
+  }
+}
+
+/**
+ * Does the *active* STT provider have the credentials it needs? Mirrors
+ * `llmProviderConfigured` for the speech-to-text side — local Whisper runs
+ * on-device and needs no key.
+ */
+export function sttProviderConfigured(settings: AppSettings): boolean {
+  switch (settings.sttProvider) {
+    case 'google':
+      return !!settings.googleProjectId
+    case 'deepgram':
+      return !!settings.deepgramApiKey
+    case 'elevenlabs':
+      return !!settings.elevenlabsApiKey
+    case 'openai-whisper':
+      return !!settings.openaiApiKey
+    case 'local-whisper':
+      return true
+  }
+}
