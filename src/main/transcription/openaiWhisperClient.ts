@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type {
-  AudioChannel,
-  TranscriptSegment,
-  TranscriptionStatus
-} from '../../shared/types.js'
-import { trackJob } from '../services/jobsManager.js'
-import { pcm16ToWav } from './wavUtils.js'
+import WebSocket from 'ws'
+import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
+import { pcm16ToBase64, resamplePcm16 } from './pcmUtils.js'
 
 export interface OpenAiWhisperOptions {
   apiKey: string
@@ -15,21 +11,41 @@ export interface OpenAiWhisperOptions {
   onStatus: (status: TranscriptionStatus) => void
 }
 
-const SAMPLE_RATE = 16_000
-const CHUNK_SECONDS = 8
-const SAMPLES_PER_CHUNK = SAMPLE_RATE * CHUNK_SECONDS
-const ENDPOINT = 'https://api.openai.com/v1/audio/transcriptions'
+const CAPTURE_RATE = 16_000
+// OpenAI's realtime `pcm16` format requires 24 kHz mono input.
+const TARGET_RATE = 24_000
+const MODEL = 'gpt-4o-transcribe'
+const ENDPOINT = 'wss://api.openai.com/v1/realtime?intent=transcription'
+const MAX_RETRIES = 10
+
+interface OpenAiEvent {
+  type: string
+  item_id?: string
+  delta?: string
+  transcript?: string
+  error?: { message?: string }
+}
 
 /**
- * OpenAI Whisper STT — batch mode (8-sec chunks via /v1/audio/transcriptions
- * with `whisper-1` or `gpt-4o-transcribe`). Not a true streaming socket; for
- * lowest latency use Deepgram. This trades ~2-3 s of latency for setup
- * simplicity (one API key, no socket bookkeeping).
+ * OpenAI realtime transcription STT — streams audio over a WebSocket to the
+ * Realtime API (`gpt-4o-transcribe`) with server-side VAD. Interim text comes
+ * from `...transcription.delta` events; finals from `...transcription.completed`.
+ * Connect/reconnect lifecycle mirrors the Deepgram client.
  */
 export class OpenAiWhisperSttChannel {
-  private buf = new Int16Array(0)
-  private offsetMs = 0
+  private ws: WebSocket | null = null
   private closed = false
+  private ready = false
+  private retries = 0
+  private retryTimer: NodeJS.Timeout | null = null
+  private reconnectScheduled = false
+  // Audio that arrived before the socket opened — replayed on open.
+  private pending: Int16Array[] = []
+  // Monotonic count of audio milliseconds streamed, used to stamp segments.
+  private offsetMs = 0
+  private committedMs = 0
+  // Partial transcript text accumulated per in-flight transcription item.
+  private partials = new Map<string, string>()
 
   constructor(private readonly opts: OpenAiWhisperOptions) {
     if (!opts.apiKey) {
@@ -41,74 +57,175 @@ export class OpenAiWhisperSttChannel {
       this.closed = true
       return
     }
-    opts.onStatus({ kind: 'open', channel: opts.channel })
+    this.connect()
   }
 
   send(buffer: ArrayBuffer): void {
     if (this.closed) return
-    const incoming = new Int16Array(buffer)
-    const merged = new Int16Array(this.buf.length + incoming.length)
-    merged.set(this.buf, 0)
-    merged.set(incoming, this.buf.length)
-    this.buf = merged
-
-    if (this.buf.length >= SAMPLES_PER_CHUNK) {
-      const chunk = this.buf.slice(0, SAMPLES_PER_CHUNK)
-      this.buf = this.buf.slice(SAMPLES_PER_CHUNK)
-      void this.transcribe(chunk)
+    const samples = new Int16Array(buffer)
+    this.offsetMs += Math.round((samples.length / CAPTURE_RATE) * 1000)
+    if (this.ws && this.ready) {
+      this.pushAudio(samples)
+    } else if (this.pending.length < 25) {
+      this.pending.push(samples)
     }
   }
 
   close(): void {
     this.closed = true
-    if (this.buf.length > SAMPLE_RATE / 2) void this.transcribe(this.buf)
-    this.buf = new Int16Array(0)
+    this.ready = false
+    if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    try {
+      this.ws?.close()
+    } catch {
+      /* ignore */
+    }
+    this.ws = null
+    this.pending = []
     this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
   }
 
-  private async transcribe(samples: Int16Array): Promise<void> {
-    const startMs = this.offsetMs
-    this.offsetMs += Math.round((samples.length / SAMPLE_RATE) * 1000)
-    await trackJob(
-      `openai-whisper-${randomUUID()}`,
-      `OpenAI Whisper · ${this.opts.channel}`,
-      'other',
-      async () => {
-        try {
-          const wav = pcm16ToWav(samples, SAMPLE_RATE, 1)
-          const blob = new Blob([wav], { type: 'audio/wav' })
-          const form = new FormData()
-          form.append('file', blob, 'chunk.wav')
-          form.append('model', 'whisper-1')
-          if (this.opts.language && this.opts.language !== 'multi') {
-            form.append('language', this.opts.language)
-          }
-          const res = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: { authorization: `Bearer ${this.opts.apiKey}` },
-            body: form
-          })
-          if (!res.ok) {
-            console.warn('[openai-whisper] HTTP', res.status, await res.text())
-            return
-          }
-          const data = (await res.json()) as { text?: string }
-          const text = (data.text ?? '').trim()
-          if (!text) return
-          this.opts.onSegment({
-            id: randomUUID(),
-            channel: this.opts.channel,
-            speaker: this.opts.channel === 'mic' ? 0 : 1,
-            startMs,
-            endMs: this.offsetMs,
-            text,
-            isFinal: true,
-            createdAt: Date.now()
-          })
-        } catch (err) {
-          console.error('[openai-whisper] failed', err)
-        }
+  private pushAudio(samples: Int16Array): void {
+    const upsampled = resamplePcm16(samples, CAPTURE_RATE, TARGET_RATE)
+    try {
+      this.ws?.send(
+        JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio: pcm16ToBase64(upsampled)
+        })
+      )
+    } catch (err) {
+      console.warn(`[openai-whisper:${this.opts.channel}] send failed`, err)
+    }
+  }
+
+  private connect(): void {
+    if (this.closed) return
+    this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
+
+    const ws = new WebSocket(ENDPOINT, {
+      headers: {
+        authorization: `Bearer ${this.opts.apiKey}`,
+        'OpenAI-Beta': 'realtime=v1'
       }
-    )
+    })
+    this.ws = ws
+
+    ws.on('open', () => {
+      if (this.closed) {
+        ws.close()
+        return
+      }
+      this.ready = true
+      this.retries = 0
+      console.log(`[openai-whisper:${this.opts.channel}] open (model=${MODEL})`)
+      const language = this.opts.language
+      ws.send(
+        JSON.stringify({
+          type: 'transcription_session.update',
+          session: {
+            input_audio_format: 'pcm16',
+            input_audio_transcription: {
+              model: MODEL,
+              ...(language && language !== 'multi' ? { language } : {})
+            },
+            turn_detection: { type: 'server_vad' }
+          }
+        })
+      )
+      this.opts.onStatus({ kind: 'open', channel: this.opts.channel })
+      for (const samples of this.pending) this.pushAudio(samples)
+      this.pending = []
+    })
+
+    ws.on('message', (raw: WebSocket.RawData) => {
+      let event: OpenAiEvent
+      try {
+        event = JSON.parse(raw.toString()) as OpenAiEvent
+      } catch {
+        return
+      }
+      this.handleEvent(event)
+    })
+
+    ws.on('error', (err: Error) => {
+      console.error(`[openai-whisper:${this.opts.channel}] error`, err.message)
+      this.opts.onStatus({
+        kind: 'error',
+        channel: this.opts.channel,
+        message: err.message
+      })
+      this.ready = false
+      if (!this.closed) this.scheduleReconnect()
+    })
+
+    ws.on('close', () => {
+      console.log(`[openai-whisper:${this.opts.channel}] closed`)
+      this.ready = false
+      if (!this.closed) this.scheduleReconnect()
+    })
+  }
+
+  private handleEvent(event: OpenAiEvent): void {
+    switch (event.type) {
+      case 'conversation.item.input_audio_transcription.delta': {
+        const itemId = event.item_id ?? 'default'
+        const acc = (this.partials.get(itemId) ?? '') + (event.delta ?? '')
+        this.partials.set(itemId, acc)
+        this.emit(acc, false)
+        break
+      }
+      case 'conversation.item.input_audio_transcription.completed': {
+        const itemId = event.item_id ?? 'default'
+        this.partials.delete(itemId)
+        this.emit(event.transcript ?? '', true)
+        this.committedMs = this.offsetMs
+        break
+      }
+      case 'conversation.item.input_audio_transcription.failed':
+      case 'error': {
+        const message = event.error?.message ?? 'transcription error'
+        console.warn(`[openai-whisper:${this.opts.channel}] ${event.type}`, message)
+        this.opts.onStatus({ kind: 'error', channel: this.opts.channel, message })
+        break
+      }
+      default:
+        break
+    }
+  }
+
+  private emit(rawText: string, isFinal: boolean): void {
+    const text = rawText.trim()
+    if (!text) return
+    this.opts.onSegment({
+      id: randomUUID(),
+      channel: this.opts.channel,
+      speaker: this.opts.channel === 'mic' ? 0 : 1,
+      startMs: this.committedMs,
+      endMs: this.offsetMs,
+      text,
+      isFinal,
+      createdAt: Date.now()
+    })
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closed || this.reconnectScheduled) return
+    this.reconnectScheduled = true
+    this.retries += 1
+    if (this.retries > MAX_RETRIES) {
+      this.opts.onStatus({
+        kind: 'error',
+        channel: this.opts.channel,
+        message: 'reconnect attempts exhausted'
+      })
+      return
+    }
+    const delay = Math.min(30_000, 1_000 * 2 ** (this.retries - 1))
+    this.retryTimer = setTimeout(() => {
+      this.reconnectScheduled = false
+      this.connect()
+    }, delay)
   }
 }

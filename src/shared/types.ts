@@ -111,12 +111,12 @@ export const STT_PROVIDERS: Array<{
   {
     value: 'elevenlabs',
     label: 'ElevenLabs',
-    hint: 'Streaming STT via @elevenlabs/elevenlabs-js. Wire-up pending.'
+    hint: 'Scribe v2 Realtime — streaming WebSocket, ~150ms latency.'
   },
   {
     value: 'openai-whisper',
     label: 'OpenAI Whisper (cloud)',
-    hint: 'Whisper-large via OpenAI Realtime / batch API. Wire-up pending.'
+    hint: 'gpt-4o-transcribe via the OpenAI Realtime API, streaming.'
   },
   {
     value: 'local-whisper',

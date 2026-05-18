@@ -1,8 +1,4 @@
-import type {
-  AudioChannel,
-  TranscriptSegment,
-  TranscriptionStatus
-} from '../../shared/types.js'
+import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 
 export interface StubSttOptions {
   channel: AudioChannel
@@ -12,10 +8,10 @@ export interface StubSttOptions {
 }
 
 /**
- * Placeholder STT channel for providers whose streaming wire-up is still
- * pending (ElevenLabs, OpenAI Realtime). It announces an explicit error
- * status the moment a session starts so the user immediately sees that the
- * provider isn't usable yet, instead of staring at an empty transcript.
+ * Fallback STT channel for an unrecognized provider id. It announces an
+ * explicit error status the moment a session starts so the user immediately
+ * sees that the provider isn't usable, instead of staring at an empty
+ * transcript.
  */
 export class StubSttChannel {
   constructor(private readonly opts: StubSttOptions) {
