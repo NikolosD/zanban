@@ -95,15 +95,15 @@ const STT_CARDS: SttProviderEntry[] = [
   {
     value: 'openai-whisper',
     name: 'OpenAI Whisper',
-    description: 'Whisper-large via OpenAI Realtime / batch API. Wire-up pending.',
-    badge: 'experimental',
+    description: 'gpt-4o-transcribe via the OpenAI Realtime API. Streaming, low latency.',
+    badge: null,
     keyUrl: 'https://platform.openai.com/api-keys'
   },
   {
     value: 'elevenlabs',
     name: 'ElevenLabs Scribe',
-    description: 'Scribe v2 Realtime API. Wire-up pending.',
-    badge: 'experimental',
+    description: 'Scribe v2 Realtime — streaming WebSocket, ~150ms latency.',
+    badge: null,
     keyUrl: 'https://elevenlabs.io/app/settings/api-keys'
   },
   {
