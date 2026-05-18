@@ -16,7 +16,7 @@
     "continue": "continue",
     "copy_answer": "Copy answer",
     "api_keys_missing_title": "API keys not configured",
-    "api_keys_missing_body": "Open the dashboard → Settings and add the credentials for your selected STT and LLM providers.",
+    "api_keys_missing_body": "Open the dashboard → Settings and add credentials for: {{providers}}.",
     "recheck": "re-check",
     "transcription_error": "Transcription error",
     "answer_pill": "answer ↵",
@@ -86,7 +86,7 @@
     "session_running_elsewhere": "A session is already running. Stop it first.",
     "could_not_resume": "Could not resume session",
     "setup_first": "set up first",
-    "setup_first_body": "Sessions need credentials for your selected STT and LLM providers before they can run.",
+    "setup_first_body": "Sessions need credentials for: {{providers}}.",
     "search": {
       "placeholder": "Search or ask anything…",
       "section_settings": "Settings",

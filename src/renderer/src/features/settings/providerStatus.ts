@@ -1,5 +1,23 @@
-import type { AppSettings, LlmProvider } from '@shared/types'
+import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import type { ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
+
+/** Short display names for the "credentials missing" warnings. */
+const LLM_PROVIDER_NAMES: Record<LlmProvider, string> = {
+  'vercel-gateway': 'Vercel AI Gateway',
+  anthropic: 'Anthropic Claude',
+  openai: 'OpenAI',
+  'google-gemini': 'Google Gemini',
+  groq: 'Groq',
+  ollama: 'Ollama'
+}
+
+const STT_PROVIDER_NAMES: Record<SttProvider, string> = {
+  google: 'Google Cloud Speech-to-Text',
+  deepgram: 'Deepgram',
+  elevenlabs: 'ElevenLabs',
+  'openai-whisper': 'OpenAI Whisper',
+  'local-whisper': 'Local Whisper'
+}
 
 interface OllamaHealthLike {
   running: boolean
@@ -81,4 +99,17 @@ export function sttProviderConfigured(settings: AppSettings): boolean {
     case 'local-whisper':
       return true
   }
+}
+
+/**
+ * Display names of the *selected* providers whose credentials are missing —
+ * one for STT, one for LLM. Empty array means everything needed is set. Used
+ * to build a warning that names the provider the user actually picked rather
+ * than a hardcoded default.
+ */
+export function missingProviderNames(settings: AppSettings): string[] {
+  const out: string[] = []
+  if (!sttProviderConfigured(settings)) out.push(STT_PROVIDER_NAMES[settings.sttProvider])
+  if (!llmProviderConfigured(settings)) out.push(LLM_PROVIDER_NAMES[settings.llmProvider])
+  return out
 }

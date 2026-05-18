@@ -18,10 +18,7 @@ import { wireJobsIpc } from '@renderer/features/jobs/jobsStore'
 import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
-import {
-  llmProviderConfigured,
-  sttProviderConfigured
-} from '@renderer/features/settings/providerStatus'
+import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
@@ -101,8 +98,8 @@ export function OverlayApp() {
         ? status.system.message
         : null
 
-  const apiKeysMissing =
-    !!settings && (!sttProviderConfigured(settings) || !llmProviderConfigured(settings))
+  const missingProviders = settings ? missingProviderNames(settings) : []
+  const apiKeysMissing = missingProviders.length > 0
 
   // Auto-grow the OS window to fit the visible panel. Mirrors the approach
   // used in natively-cluely-ai-assistant: useLayoutEffect runs before paint,
@@ -416,7 +413,9 @@ export function OverlayApp() {
                         <AlertTriangle className="size-4 text-amber-400" />
                         <AlertTitle>{t('overlay.api_keys_missing_title')}</AlertTitle>
                         <AlertDescription>
-                          {t('overlay.api_keys_missing_body')}{' '}
+                          {t('overlay.api_keys_missing_body', {
+                            providers: missingProviders.join(', ')
+                          })}{' '}
                           <button
                             className="underline underline-offset-2"
                             onClick={() => void refreshSettings()}
