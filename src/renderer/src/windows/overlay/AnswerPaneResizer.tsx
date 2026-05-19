@@ -57,6 +57,7 @@ export function AnswerPaneResizer({ value, hardCap, onChange, onCommit }: Props)
   }, [onMove, onCommit])
 
   const onMouseDown = (e: React.MouseEvent) => {
+    if (startY.current !== null) return // already dragging — ignore re-entrant mousedown
     e.preventDefault()
     startY.current = e.clientY
     startValue.current = value

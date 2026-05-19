@@ -75,4 +75,20 @@ describe('AnswerPaneResizer', () => {
     fireEvent.mouseMove(document, { clientY: 500 })
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('ignores a re-entrant mousedown while a drag is already active', () => {
+    const { handle, onChange } = renderResizer({ value: 320 })
+    fireEvent.mouseDown(handle, { clientY: 100 })
+    fireEvent.mouseMove(document, { clientY: 150 })
+    expect(onChange).toHaveBeenLastCalledWith(370)
+    onChange.mockClear()
+    // Second mousedown should be ignored — no new listeners attached.
+    fireEvent.mouseDown(handle, { clientY: 999 })
+    fireEvent.mouseMove(document, { clientY: 200 })
+    // The original drag is still active; mousemove delta is from startY=100,
+    // so 200-100=+100 from startValue 320 → 420. If a duplicate listener had
+    // been attached, onChange would have been called twice with the same value.
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenLastCalledWith(420)
+  })
 })
