@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   X,
   Send,
@@ -57,6 +57,8 @@ import { copyToClipboard } from '@renderer/lib/clipboard'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { ZanbanMark } from '@renderer/components/brand'
+import { AnswerPaneResizer } from './AnswerPaneResizer'
+import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -88,6 +90,45 @@ export function OverlayApp() {
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
   const allQuestions = useQuestions((s) => s.questions)
+
+  const persistedAnswerMax = settings?.overlayAnswerMaxHeight ?? DEFAULT_ANSWER_MAX_HEIGHT
+  const [userMaxHeight, setUserMaxHeight] = useState<number>(persistedAnswerMax)
+  const [hardCap, setHardCap] = useState<number>(() =>
+    typeof window !== 'undefined' ? computeHardCap(window.screen.availHeight) : 720
+  )
+
+  // Re-derive hardCap on screen change. Listening to `resize` is enough for
+  // monitor swaps under Electron because the overlay window itself resizes
+  // when moved between displays.
+  useEffect(() => {
+    function recompute() {
+      setHardCap(computeHardCap(window.screen.availHeight))
+    }
+    window.addEventListener('resize', recompute)
+    return () => window.removeEventListener('resize', recompute)
+  }, [])
+
+  // Adopt the persisted value when settings load / change, clamped to the
+  // current hardCap. We don't write the clamp back to settings — returning to a
+  // bigger monitor should restore the user's original preference.
+  useEffect(() => {
+    setUserMaxHeight(clampAnswerHeight(persistedAnswerMax, hardCap))
+  }, [persistedAnswerMax, hardCap])
+
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const commitAnswerMaxHeight = useCallback((next: number) => {
+    if (persistTimer.current) clearTimeout(persistTimer.current)
+    persistTimer.current = setTimeout(() => {
+      void window.zanban.settings.set({ overlayAnswerMaxHeight: next })
+    }, 300)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (persistTimer.current) clearTimeout(persistTimer.current)
+    },
+    []
+  )
 
   // Keep the history pane pinned to the latest answer as it streams. The pin
   // releases when the user scrolls up to read older Q&A, so we don't yank
@@ -482,15 +523,8 @@ export function OverlayApp() {
                   <div
                     ref={historyRef}
                     data-interactive
-                    // Cap with a clamp instead of raw `100vh - 180px`. The old
-                    // formula deadlocked: when the window had just opened
-                    // small (no messages → ~150px tall), 100vh-180px went
-                    // negative, the inner scroll snapped on, and the panel
-                    // could no longer push the window taller. clamp's 320px
-                    // floor forces the panel to claim enough room to grow.
-                    // overflow-x-hidden + min-w-0 forces inline code / long
-                    // tokens to wrap instead of pushing the panel wide.
-                    className="flex min-w-0 max-h-[clamp(320px,calc(100vh-180px),640px)] flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
+                    style={{ maxHeight: `${userMaxHeight}px` }}
+                    className="flex min-w-0 flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
                   >
                     {messages.map((m) => (
                       <AnswerPane
@@ -500,6 +534,14 @@ export function OverlayApp() {
                       />
                     ))}
                   </div>
+                )}
+                {hasHistory && (
+                  <AnswerPaneResizer
+                    value={userMaxHeight}
+                    hardCap={hardCap}
+                    onChange={setUserMaxHeight}
+                    onCommit={commitAnswerMaxHeight}
+                  />
                 )}
               </div>
             )}
