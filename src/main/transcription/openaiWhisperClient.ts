@@ -76,6 +76,7 @@ export class OpenAiWhisperSttChannel {
     this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
+    this.reconnectScheduled = false
     try {
       this.ws?.close()
     } catch {

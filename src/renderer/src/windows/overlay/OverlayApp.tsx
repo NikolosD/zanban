@@ -69,6 +69,16 @@ export function OverlayApp() {
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const runPromptRef = useRef<
+    (
+      prompt: string,
+      label?: string,
+      imageDataUrl?: string,
+      waitForTranscript?: boolean,
+      ocr?: string | null
+    ) => Promise<void>
+  >(() => Promise.resolve())
+  const ignoreMouseRef = useRef<boolean | null>(null)
   const session = useTranscript((s) => s.session)
   const t0 = session.kind === 'running' ? session.startedAt : null
   const elapsed = useElapsed(session.kind === 'running', t0)
@@ -166,7 +176,10 @@ export function OverlayApp() {
           '[data-interactive],[data-radix-popper-content-wrapper],[role="menu"],[role="menuitem"],[role="dialog"]'
         )
       )
-      window.zanban.overlay.setIgnoreMouse(!overInteractive)
+      const next = !overInteractive
+      if (ignoreMouseRef.current === next) return
+      ignoreMouseRef.current = next
+      window.zanban.overlay.setIgnoreMouse(next)
     }
     window.addEventListener('mousemove', onMove)
 
@@ -176,7 +189,7 @@ export function OverlayApp() {
     })
 
     const offAnswerLast = window.zanban.overlay.onAnswerLast(() => {
-      void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
+      void runPromptRef.current(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
     })
 
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
@@ -201,7 +214,6 @@ export function OverlayApp() {
       offSettings()
       window.removeEventListener('mousemove', onMove)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function toggleStealth(): Promise<void> {
@@ -278,6 +290,10 @@ export function OverlayApp() {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    runPromptRef.current = runPrompt
+  })
 
   async function send(): Promise<void> {
     const value = text.trim()

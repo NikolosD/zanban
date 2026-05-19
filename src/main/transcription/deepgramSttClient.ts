@@ -1,10 +1,6 @@
 import { DeepgramClient } from '@deepgram/sdk'
 import { randomUUID } from 'node:crypto'
-import type {
-  AudioChannel,
-  TranscriptSegment,
-  TranscriptionStatus
-} from '../../shared/types.js'
+import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 
 export interface DeepgramSttChannelOptions {
   apiKey: string
@@ -106,8 +102,10 @@ export class DeepgramSttChannel {
     this.closed = true
     this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
     if (this.keepAliveTimer) clearInterval(this.keepAliveTimer)
     this.keepAliveTimer = null
+    this.reconnectScheduled = false
     try {
       this.connection?.close()
     } catch {
@@ -159,9 +157,7 @@ export class DeepgramSttChannel {
       conn.on('open', () => {
         this.ready = true
         this.retries = 0
-        console.log(
-          `[deepgram:${this.opts.channel}] open (model=nova-3, language=${language})`
-        )
+        console.log(`[deepgram:${this.opts.channel}] open (model=nova-3, language=${language})`)
         this.opts.onStatus({ kind: 'open', channel: this.opts.channel })
         // Replay buffered audio that arrived while the socket was opening.
         for (const buf of this.pending) {
@@ -197,9 +193,7 @@ export class DeepgramSttChannel {
         const durSec = Number(data.duration ?? 0)
         const startMs = Math.round(startSec * 1000)
         const endMs = Math.round((startSec + durSec) * 1000)
-        console.log(
-          `[deepgram:${this.opts.channel}] final=${isFinal} text="${text}"`
-        )
+        console.log(`[deepgram:${this.opts.channel}] final=${isFinal} text="${text}"`)
         this.opts.onSegment({
           id: randomUUID(),
           channel: this.opts.channel,
@@ -214,7 +208,7 @@ export class DeepgramSttChannel {
 
       conn.on('error', (raw) => {
         const err = raw as { message?: string } | Error
-        const message = err instanceof Error ? err.message : err?.message ?? 'unknown'
+        const message = err instanceof Error ? err.message : (err?.message ?? 'unknown')
         console.error(`[deepgram:${this.opts.channel}] error`, message)
         this.opts.onStatus({
           kind: 'error',

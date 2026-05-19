@@ -37,11 +37,23 @@ async function ensureDir(): Promise<void> {
   await mkdir(sessionsDir(), { recursive: true })
 }
 
+const SESSION_ID_RE = /^[A-Za-z0-9_-]{1,128}$/
+
+export function isValidSessionId(id: unknown): id is string {
+  return typeof id === 'string' && SESSION_ID_RE.test(id)
+}
+
+function assertSessionId(id: string): void {
+  if (!isValidSessionId(id)) throw new Error('invalid session id')
+}
+
 function mdPath(id: string): string {
+  assertSessionId(id)
   return join(sessionsDir(), `${id}.md`)
 }
 
 function jsonPath(id: string): string {
+  assertSessionId(id)
   return join(sessionsDir(), `${id}.json`)
 }
 
@@ -233,6 +245,7 @@ export async function listSessionsFromDisk(): Promise<SessionListItem[]> {
 }
 
 export async function readSessionFromDisk(id: string): Promise<SessionDetailPayload | null> {
+  if (!isValidSessionId(id)) return null
   await ensureDir()
   try {
     const raw = await readFile(jsonPath(id), 'utf8')
@@ -260,6 +273,7 @@ export function getSessionMdPath(id: string): string {
 }
 
 export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }> {
+  if (!isValidSessionId(id)) return { ok: false }
   await ensureDir()
   // Refuse if this is the live session — caller must stop it first.
   if (activeSessionId === id) {
@@ -279,6 +293,7 @@ export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }
 }
 
 export async function copySessionMarkdown(id: string, dest: string): Promise<void> {
+  if (!isValidSessionId(id)) throw new Error('invalid session id')
   await copyFile(mdPath(id), dest)
 }
 

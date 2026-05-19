@@ -5,9 +5,13 @@ import {
   deleteSession as ragDeleteSession,
   search as ragSearch
 } from '../rag/index.js'
+import { isValidSessionId } from '../sync/sessionSync.js'
 
 export function registerRagHandlers(): void {
   ipcMain.handle(IPC.rag.search, (_e, query: string, k?: number) => ragSearch(query, k ?? 6))
-  ipcMain.handle(IPC.rag.deleteSession, (_e, sessionId: string) => ragDeleteSession(sessionId))
+  ipcMain.handle(IPC.rag.deleteSession, (_e, sessionId: string) => {
+    if (!isValidSessionId(sessionId)) return
+    return ragDeleteSession(sessionId)
+  })
   ipcMain.handle(IPC.rag.count, () => ragCountChunks())
 }

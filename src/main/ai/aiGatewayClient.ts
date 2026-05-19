@@ -28,6 +28,26 @@ import { modelFor, FAST_MAX_OUTPUT_TOKENS } from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
+const STREAM_IDLE_TIMEOUT_MS = 30_000
+
+function armStreamTimeout(abort: AbortController): { reset: () => void; clear: () => void } {
+  let timer: NodeJS.Timeout | null = null
+  const arm = (): void => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      if (!abort.signal.aborted) abort.abort()
+    }, STREAM_IDLE_TIMEOUT_MS)
+  }
+  arm()
+  return {
+    reset: arm,
+    clear: () => {
+      if (timer) clearTimeout(timer)
+      timer = null
+    }
+  }
+}
+
 class TranscriptBuffer {
   private segments: TranscriptSegment[] = []
   private currentSessionId: string | null = null
@@ -203,6 +223,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           providers.push(p)
         }
 
+        const timeout = armStreamTimeout(abort)
         try {
           let fullAnswer = ''
           let chosenProviderId: string = altProvider.id
@@ -219,6 +240,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           })
           for await (const ev of stream) {
             if (abort.signal.aborted) return
+            timeout.reset()
             if (ev.kind === 'fallback') {
               chosenProviderId = ev.toProviderId
               console.warn(
@@ -229,6 +251,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             fullAnswer += ev.text
             broadcast(IPC.ai.chunk, { requestId, text: ev.text })
           }
+          timeout.clear()
           recordExchange(opts.prompt, fullAnswer)
           void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
           broadcast(IPC.ai.done, { requestId })
@@ -246,10 +269,17 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           //   2. Vercel routing parsed a non-namespaced model ID
           //      (e.g. "claude-haiku-4-5" without "anthropic/") and rejected.
           // If the user picked a non-default provider, we honor that pick.
-          const message = err instanceof Error ? err.message : 'unknown provider error'
+          const aborted = abort.signal.aborted
+          const message = aborted
+            ? 'LLM stream timed out (no response for 30s)'
+            : err instanceof Error
+              ? err.message
+              : 'unknown provider error'
           console.error('[ai] alt provider failed', err)
           broadcast(IPC.ai.error, { requestId, message })
           return
+        } finally {
+          timeout.clear()
         }
       }
 
@@ -296,14 +326,20 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           }
 
       const result = streamText(streamArgs)
+      const gwTimeout = armStreamTimeout(abort)
 
       let fullAnswer = ''
-      for await (const text of result.textStream) {
-        if (abort.signal.aborted) return
-        if (text) {
-          fullAnswer += text
-          broadcast(IPC.ai.chunk, { requestId, text })
+      try {
+        for await (const text of result.textStream) {
+          if (abort.signal.aborted) return
+          gwTimeout.reset()
+          if (text) {
+            fullAnswer += text
+            broadcast(IPC.ai.chunk, { requestId, text })
+          }
         }
+      } finally {
+        gwTimeout.clear()
       }
       // `finishReason` is resolved once the stream completes. We surface it
       // so the UI can flag length-truncations (the model hit maxOutputTokens
