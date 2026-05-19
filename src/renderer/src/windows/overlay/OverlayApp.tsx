@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   X,
   Send,
@@ -59,6 +59,7 @@ import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 import { decideAnswerAction } from './handleAnswer'
+import { RollingTranscript } from './RollingTranscript'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -89,7 +90,6 @@ export function OverlayApp() {
   const status = useTranscript((s) => s.status)
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
-  const allQuestions = useQuestions((s) => s.questions)
 
   const persistedAnswerMax = settings?.overlayAnswerMaxHeight ?? DEFAULT_ANSWER_MAX_HEIGHT
   const [userMaxHeight, setUserMaxHeight] = useState<number>(persistedAnswerMax)
@@ -137,11 +137,6 @@ export function OverlayApp() {
     latest?.id,
     latest?.answer.length
   )
-  const pendingQuestions = useMemo(
-    () => allQuestions.filter((q) => q.status === 'pending').slice(-2),
-    [allQuestions]
-  )
-
   const transcriptionError =
     status.mic?.kind === 'error'
       ? status.mic.message
@@ -395,11 +390,7 @@ export function OverlayApp() {
   const running = session.kind === 'running'
   const hasAnswer = !!latest
   const hasHistory = messages.length > 0
-  const hasContent =
-    hasHistory ||
-    apiKeysMissing ||
-    transcriptionError ||
-    (pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false)
+  const hasContent = hasHistory || apiKeysMissing || transcriptionError
   // Hide is now strictly "make me invisible to screen-share". It no longer
   // collapses the overlay's own UI: action chips, input, and answer pane
   // all stay rendered. The hideWidgetWhenHidden setting still affects the
@@ -430,6 +421,8 @@ export function OverlayApp() {
             onClose={() => void backToDashboard()}
             onOpenDashboard={() => void openDashboardKeepSession()}
           />
+
+          <RollingTranscript />
 
           {/* Merged panel: chips → input → answer in ONE container. Per UX
               review the previous 4-surface stack was the highest-cost
@@ -510,33 +503,6 @@ export function OverlayApp() {
                         <AlertDescription>{transcriptionError}</AlertDescription>
                       </Alert>
                     )}
-                  </div>
-                )}
-
-                {pendingQuestions.length > 0 && settings?.autoDetectQuestions !== false && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {pendingQuestions.map((q) => (
-                      <button
-                        key={q.id}
-                        data-interactive
-                        onClick={() => {
-                          useQuestions.getState().markAnswered(q.id)
-                          void runPrompt(q.text)
-                        }}
-                        className={cn(
-                          'group inline-flex max-w-[420px] items-center gap-1.5 rounded-md',
-                          'border border-primary/40 bg-primary/10 px-2 py-1',
-                          'text-[11px] text-foreground transition-colors',
-                          'hover:bg-primary/20 hover:border-primary/60'
-                        )}
-                      >
-                        <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-                        <span className="truncate">{q.text}</span>
-                        <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
-                          {t('overlay.answer_pill')}
-                        </span>
-                      </button>
-                    ))}
                   </div>
                 )}
 
