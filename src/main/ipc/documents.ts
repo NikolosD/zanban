@@ -12,8 +12,13 @@ import type { SessionExportPayload } from '../../shared/types.js'
 export function registerDocumentsHandlers(): void {
   ipcMain.handle(IPC.documents.list, () => listReferenceDocs())
   ipcMain.handle(IPC.documents.upload, async (_e, filePaths: string[]) => {
+    if (!Array.isArray(filePaths)) return []
     const added = []
     for (const p of filePaths) {
+      if (typeof p !== 'string' || p.length === 0 || p.length > 4096) {
+        added.push({ error: 'invalid path', path: String(p) })
+        continue
+      }
       try {
         added.push(await addReferenceDoc(p))
       } catch (err) {

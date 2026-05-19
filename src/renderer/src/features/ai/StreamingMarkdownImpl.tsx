@@ -4,6 +4,16 @@ import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/atom-one-dark.css'
 import './streamingMarkdown.css'
 
+function isSafeUrl(href: string | undefined): href is string {
+  if (!href) return false
+  try {
+    const url = new URL(href, 'http://placeholder/')
+    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:'
+  } catch {
+    return false
+  }
+}
+
 const components = {
   // react-markdown v9 dropped the `inline` prop, so we detect block code by:
   // 1) presence of a `language-*` className from a fenced block, or
@@ -55,12 +65,13 @@ const components = {
     return <p className="my-1 leading-snug">{props.children}</p>
   },
   a(props: { href?: string; children?: React.ReactNode }) {
+    const safeHref = isSafeUrl(props.href) ? props.href : undefined
     return (
       <a
-        href={props.href}
+        href={safeHref}
         onClick={(e) => {
           e.preventDefault()
-          if (props.href) window.open(props.href, '_blank')
+          if (safeHref) window.open(safeHref, '_blank', 'noopener,noreferrer')
         }}
         className="text-primary underline-offset-2 hover:underline"
       >

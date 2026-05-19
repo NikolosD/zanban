@@ -109,6 +109,8 @@ export class GoogleSttChannel {
     this.closed = true
     this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+    this.reconnectScheduled = false
     try {
       this.stream?.end()
     } catch {

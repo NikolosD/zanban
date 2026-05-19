@@ -8,6 +8,22 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // Useful for chasing down chunks like the 932 kB sonner one.
 const analyze = !!process.env.ANALYZE
 
+// 'unsafe-eval' is only needed by Vite HMR in dev. Strip it from CSP at build
+// time so production renderers ship with a tighter script-src.
+function tightenProdCsp(): {
+  name: string
+  apply: 'build'
+  transformIndexHtml: (html: string) => string
+} {
+  return {
+    name: 'tighten-prod-csp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      return html.replace(/script-src 'self' 'unsafe-eval'/g, "script-src 'self'")
+    }
+  }
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -42,6 +58,7 @@ export default defineConfig({
     plugins: [
       react(),
       tailwindcss(),
+      tightenProdCsp(),
       ...(analyze
         ? [
             visualizer({
