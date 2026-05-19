@@ -19,7 +19,6 @@
     "api_keys_missing_body": "Open the dashboard → Settings and add credentials for: {{providers}}.",
     "recheck": "re-check",
     "transcription_error": "Transcription error",
-    "answer_pill": "answer ↵",
     "open_dashboard_keep_session": "Open dashboard · session keeps running",
     "ask_placeholder": "Ask anything on screen or conversation, or",
     "ask_about_screenshot": "Ask about the screenshot…",
