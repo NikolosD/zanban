@@ -26,7 +26,6 @@ import {
   type LlmProvider
 } from '@shared/types'
 import {
-  ANSWER_LAST_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -59,6 +58,7 @@ import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureContro
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
+import { decideAnswerAction } from './handleAnswer'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -230,7 +230,7 @@ export function OverlayApp() {
     })
 
     const offAnswerLast = window.zanban.overlay.onAnswerLast(() => {
-      void runPromptRef.current(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
+      handleAnswerRef.current()
     })
 
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
@@ -336,6 +336,29 @@ export function OverlayApp() {
     runPromptRef.current = runPrompt
   })
 
+  const handleAnswer = useCallback((): void => {
+    const action = decideAnswerAction({
+      questions: useQuestions.getState().questions,
+      autoDetectQuestions: settings?.autoDetectQuestions
+    })
+    if (action.kind === 'answerDetected') {
+      useQuestions.getState().markAnswered(action.questionId)
+      void runPromptRef.current(action.questionText, 'Answer last question')
+    } else {
+      void runPromptRef.current(
+        action.prompt,
+        'Answer last question',
+        undefined,
+        action.waitForTranscript
+      )
+    }
+  }, [settings?.autoDetectQuestions])
+
+  const handleAnswerRef = useRef(handleAnswer)
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer
+  })
+
   async function send(): Promise<void> {
     const value = text.trim()
     const attached = image
@@ -430,9 +453,7 @@ export function OverlayApp() {
               onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
               onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
               onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
-              onAnswer={() =>
-                void runPrompt(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
-              }
+              onAnswer={handleAnswer}
             />
 
             <InputPill
