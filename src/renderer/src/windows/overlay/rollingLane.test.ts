@@ -62,7 +62,7 @@ describe('buildLane', () => {
       questions: [q('a', 'tell me about react?', 'pending')],
       autoDetectQuestions: true
     })
-    expect(out[0].highlight).toBe('pending')
+    expect(out[0]!.highlight).toBe('pending')
   })
 
   it('marks a final as resolved when the matching question is answered', () => {
@@ -72,7 +72,7 @@ describe('buildLane', () => {
       questions: [q('a', 'q?', 'answered')],
       autoDetectQuestions: true
     })
-    expect(out[0].highlight).toBe('resolved')
+    expect(out[0]!.highlight).toBe('resolved')
   })
 
   it('marks a final as resolved when the matching question is dismissed', () => {
@@ -82,7 +82,7 @@ describe('buildLane', () => {
       questions: [q('a', 'q?', 'dismissed')],
       autoDetectQuestions: true
     })
-    expect(out[0].highlight).toBe('resolved')
+    expect(out[0]!.highlight).toBe('resolved')
   })
 
   it('ignores question store entirely when autoDetectQuestions is false', () => {
@@ -92,7 +92,7 @@ describe('buildLane', () => {
       questions: [q('a', 'q?', 'pending')],
       autoDetectQuestions: false
     })
-    expect(out[0].highlight).toBe('none')
+    expect(out[0]!.highlight).toBe('none')
   })
 
   it('appends a non-final tail item for a non-empty partial', () => {
@@ -140,7 +140,7 @@ describe('buildLane', () => {
       questions: [q('b', 'has match', 'pending')],
       autoDetectQuestions: true
     })
-    expect(out[0].highlight).toBe('none')
-    expect(out[1].highlight).toBe('pending')
+    expect(out[0]!.highlight).toBe('none')
+    expect(out[1]!.highlight).toBe('pending')
   })
 })
