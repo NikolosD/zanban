@@ -12,7 +12,7 @@ function fSeg(
   text: string,
   channel: TranscriptSegment['channel'] = 'system'
 ): TranscriptSegment {
-  return { id, text, channel, isFinal: true, createdAt: 0 }
+  return { id, text, channel, speaker: 0, startMs: 0, endMs: 0, isFinal: true, createdAt: 0 }
 }
 
 function settingsWith(autoDetectQuestions: boolean): AppSettings {
@@ -110,6 +110,9 @@ describe('RollingTranscript', () => {
           id: 'p1',
           text: 'still talking',
           channel: 'system',
+          speaker: 0,
+          startMs: 0,
+          endMs: 0,
           isFinal: false,
           createdAt: 0
         }

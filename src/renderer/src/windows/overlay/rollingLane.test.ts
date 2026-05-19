@@ -11,6 +11,9 @@ const seg = (
 ): TranscriptSegment => ({
   id,
   channel,
+  speaker: 0,
+  startMs: 0,
+  endMs: 0,
   text,
   isFinal,
   createdAt: 0
