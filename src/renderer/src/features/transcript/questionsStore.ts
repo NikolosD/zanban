@@ -32,7 +32,7 @@ export const useQuestions = create<QuestionsState>((set) => ({
           return s
         }
       }
-      console.debug('[q] PUSHED — chip should appear:', q.text.slice(0, 80))
+      console.debug('[q] PUSHED — highlight should appear:', q.text.slice(0, 80))
       return { questions: [...s.questions.slice(-9), q] }
     })
   },
@@ -70,7 +70,10 @@ export function maybeExtractQuestion(seg: TranscriptSegment): DetectedQuestion |
     return null
   }
   if (seg.channel !== 'system') {
-    console.debug('[q] skip: not system channel', { channel: seg.channel, text: seg.text.slice(0, 60) })
+    console.debug('[q] skip: not system channel', {
+      channel: seg.channel,
+      text: seg.text.slice(0, 60)
+    })
     return null
   }
   const text = seg.text.trim()
