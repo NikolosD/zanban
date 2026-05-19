@@ -258,6 +258,12 @@ export interface AppSettings {
    */
   overlayOpacity: number
   autoDetectQuestions: boolean
+  /**
+   * Max height in CSS pixels of the overlay's answer-history scroll area.
+   * The user sets this by dragging the resize handle below the answer list.
+   * Persisted so each new session opens at the user's preferred ceiling.
+   */
+  overlayAnswerMaxHeight: number
   hotkeys: {
     toggleOverlay: string
     askAi: string
@@ -502,6 +508,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideFromAppSwitcher: false,
   overlayOpacity: 1,
   autoDetectQuestions: true,
+  overlayAnswerMaxHeight: 320,
   hotkeys: {
     toggleOverlay: 'Control+\\',
     askAi: 'Control+Shift+Space',
