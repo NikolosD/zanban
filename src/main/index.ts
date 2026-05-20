@@ -26,7 +26,7 @@ import { createCropperWindow } from './windows/cropperWindow.js'
 import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
 import { registerShortcuts, unregisterShortcuts } from './shortcuts.js'
-import { registerJobsWindow } from './services/jobsManager.js'
+import { registerJobsWindow, trackJob } from './services/jobsManager.js'
 import { installLogger } from './services/logger.js'
 import { registerAiHandlers } from './ipc/ai.js'
 import { registerAppHandlers } from './ipc/app.js'
@@ -36,7 +36,8 @@ import { registerPersonasHandlers } from './ipc/personas.js'
 import { registerRagHandlers } from './ipc/rag.js'
 import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
-import { registerRecapHandlers } from './ipc/recap.js'
+import { registerRecapHandlers, getRecapService } from './ipc/recap.js'
+import { createAutoTrigger } from './services/recap/recapAutoTrigger.js'
 
 installLogger()
 
@@ -143,6 +144,18 @@ app.whenReady().then(async () => {
   registerPersonasHandlers()
   registerSessionsHandlers()
   registerRecapHandlers()
+
+  // Auto-generate recap when the user stops a session (opt-in via settings).
+  // Uses the sessionManager end-listener so all stop paths (IPC, hotkey, etc.)
+  // are covered. Best-effort — errors are swallowed inside the trigger.
+  const autoTrigger = createAutoTrigger({
+    getSettings,
+    generate: (id) => getRecapService().generate(id, {}),
+    trackJob
+  })
+  sessionManager.onSessionEnd((sessionId) => {
+    void autoTrigger.onSessionStopped(sessionId)
+  })
 
   // Apply the current stealth posture to both windows. setContentProtection
   // is the only mechanism that hides a Chromium window from screen-share —
