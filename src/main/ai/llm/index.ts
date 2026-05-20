@@ -1,5 +1,5 @@
 export { generateOneShot } from './baseLlm.js'
 export { clarify } from './clarifyLlm.js'
 export { suggestFollowUps } from './followUpLlm.js'
-export { recap } from './recapLlm.js'
+export { generateRecap } from './recapLlm.js'
 export { classifyIntent, type Intent } from './intentClassifier.js'
