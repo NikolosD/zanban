@@ -34,4 +34,38 @@ describe('recapAutoTrigger', () => {
     })
     await expect(trigger.onSessionStopped('sess1')).resolves.toBeUndefined()
   })
+
+  it('awaits awaitFinalized before calling trackJob when provided', async () => {
+    const order: string[] = []
+    let resolveFinalized!: () => void
+    const finalizedPromise = new Promise<void>((resolve) => {
+      resolveFinalized = resolve
+    })
+    const awaitFinalized = vi.fn((_id: string) => {
+      order.push('awaitFinalized')
+      return finalizedPromise
+    })
+    const trackJob = vi.fn(
+      async (_id: string, _t: string, _k: string, fn: () => Promise<unknown>) => {
+        order.push('trackJob')
+        return fn()
+      }
+    )
+    const generate = vi.fn().mockResolvedValue({ ok: true })
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate,
+      trackJob,
+      awaitFinalized
+    })
+    const stopped = trigger.onSessionStopped('sess2')
+    // trackJob must not have been called yet — still waiting on finalized
+    expect(order).toEqual(['awaitFinalized'])
+    expect(trackJob).not.toHaveBeenCalled()
+    // Now resolve finalize and let the trigger proceed
+    resolveFinalized()
+    await stopped
+    expect(order).toEqual(['awaitFinalized', 'trackJob'])
+    expect(trackJob).toHaveBeenCalledTimes(1)
+  })
 })

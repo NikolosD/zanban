@@ -10,7 +10,7 @@ import { cn } from '@renderer/lib/utils'
 import { PROMPT_VERSION } from '@shared/recap-types'
 import type { SessionDetailPayload } from '@shared/api'
 import type { RecapPayload, RecapResult } from '@shared/recap-types'
-import { formatRecapAsMarkdown, formatFollowUpAsPlainText } from './recapActions'
+import { formatRecapAsMarkdown, formatFollowUpAsPlainText, recapErrorMessage } from './recapActions'
 
 export function RecapTab({ session }: { session: SessionDetailPayload }) {
   const { t } = useTranslation()
@@ -33,7 +33,7 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
     mutationFn: () => window.zanban.recap.generate(session.id),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey })
-      if (!result.ok) setErrorMessage(result.message)
+      if (!result.ok) setErrorMessage(recapErrorMessage(result.code, result.message, t))
       else setErrorMessage(null)
     },
     onError: (e) => setErrorMessage(e.message)

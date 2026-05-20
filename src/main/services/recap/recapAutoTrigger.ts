@@ -10,6 +10,7 @@ export interface AutoTriggerDeps {
     kind: 'other',
     fn: () => Promise<unknown>
   ) => Promise<unknown>
+  awaitFinalized?: (sessionId: string) => Promise<void>
 }
 
 export interface AutoTrigger {
@@ -21,6 +22,9 @@ export function createAutoTrigger(deps: AutoTriggerDeps): AutoTrigger {
     async onSessionStopped(sessionId: string): Promise<void> {
       const { autoGenerate } = deps.getSettings().recap
       if (!autoGenerate) return
+      if (deps.awaitFinalized) {
+        await deps.awaitFinalized(sessionId).catch(() => undefined)
+      }
       try {
         await deps.trackJob(`recap-${sessionId}`, 'Generating meeting recap', 'other', () =>
           deps.generate(sessionId, {})

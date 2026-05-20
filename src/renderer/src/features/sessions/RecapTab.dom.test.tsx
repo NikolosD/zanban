@@ -39,7 +39,16 @@ if (!i18n.isInitialized) {
               open_questions: 'Open questions',
               follow_up: 'Follow-up',
               copy_followup_md: 'Copy markdown',
-              copy_followup_plain: 'Copy plain'
+              copy_followup_plain: 'Copy plain',
+              error: {
+                rate_limit: 'Provider rate-limited. Try again in a moment.',
+                timeout: 'Recap took too long. Try a smaller model or a shorter transcript.',
+                no_provider: 'No AI provider configured. Open Settings → Providers.',
+                invalid_output: "Model output couldn't be parsed. Try regenerating.",
+                no_transcript: 'No transcript to summarise.',
+                already_generating: 'A recap is already being generated for this session.',
+                unknown: 'Recap generation failed.'
+              }
             }
           },
           common: { copied: 'Copied' }
@@ -151,6 +160,6 @@ describe('RecapTab', () => {
     const { findByRole, findByText } = render(wrap(<RecapTab session={session} />))
     const btn = await findByRole('button', { name: /generate recap/i })
     btn.click()
-    await findByText(/too many requests/i)
+    await findByText(/provider rate-limited/i)
   })
 })

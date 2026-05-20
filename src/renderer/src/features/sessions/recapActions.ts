@@ -1,4 +1,11 @@
-import type { RecapPayload } from '@shared/recap-types'
+import type { RecapPayload, RecapErrorCode } from '@shared/recap-types'
+import type { TFunction } from 'i18next'
+
+export function recapErrorMessage(code: RecapErrorCode, fallback: string, t: TFunction): string {
+  const key = `session_detail.recap.error.${code}` as const
+  const translated = t(key, { defaultValue: fallback })
+  return translated
+}
 
 export function formatRecapAsMarkdown(recap: RecapPayload): string {
   const parts: string[] = []

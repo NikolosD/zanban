@@ -19,7 +19,7 @@ import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
 import type { AppSettings, AudioChannel } from '../shared/types.js'
-import { registerSyncWindow } from './sync/sessionSync.js'
+import { registerSyncWindow, awaitSessionFinalized } from './sync/sessionSync.js'
 import { captureWithOcr } from './screenshot/index.js'
 import { runOcr } from './screenshot/ocrPipeline.js'
 import { createCropperWindow } from './windows/cropperWindow.js'
@@ -151,7 +151,8 @@ app.whenReady().then(async () => {
   const autoTrigger = createAutoTrigger({
     getSettings,
     generate: (id) => getRecapService().generate(id, {}),
-    trackJob
+    trackJob,
+    awaitFinalized: awaitSessionFinalized
   })
   sessionManager.onSessionEnd((sessionId) => {
     void autoTrigger.onSessionStopped(sessionId)

@@ -630,7 +630,16 @@
       "copy_followup_plain": "Copy as plain text",
       "partial_badge": "partial",
       "partial_warning": "Some sections couldn't be parsed and are missing. Regenerate to retry.",
-      "older_prompt": "older prompt — regenerate to refresh"
+      "older_prompt": "older prompt — regenerate to refresh",
+      "error": {
+        "rate_limit": "Provider rate-limited. Try again in a moment.",
+        "timeout": "Recap took too long. Try a smaller model or a shorter transcript.",
+        "no_provider": "No AI provider configured. Open Settings → Providers.",
+        "invalid_output": "Model output couldn't be parsed. Try regenerating.",
+        "no_transcript": "No transcript to summarise.",
+        "already_generating": "A recap is already being generated for this session.",
+        "unknown": "Recap generation failed."
+      }
     },
     "export_pdf": "Export PDF",
     "exported_toast": "Exported",

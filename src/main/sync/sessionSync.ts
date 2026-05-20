@@ -24,10 +24,15 @@ interface SessionRecord {
 }
 
 const sessions = new Map<string, SessionRecord>()
+const finalizedWaiters = new Map<string, Promise<void>>()
 let buffer: TranscriptSegment[] = []
 let timer: NodeJS.Timeout | null = null
 let activeSessionId: string | null = null
 let initialized = false
+
+export function awaitSessionFinalized(sessionId: string): Promise<void> {
+  return finalizedWaiters.get(sessionId) ?? Promise.resolve()
+}
 
 function sessionsDir(): string {
   return join(app.getPath('userData'), 'sessions')
@@ -116,7 +121,16 @@ export function registerSyncWindow(_win: BrowserWindow): void {
   sessionManager.onSessionEnd((sessionId) => {
     const rec = sessions.get(sessionId)
     if (!rec) return
-    void flush().then(() => void finalize(rec))
+    const work = (async () => {
+      try {
+        await flush()
+        await finalize(rec)
+      } finally {
+        finalizedWaiters.delete(sessionId)
+      }
+    })()
+    finalizedWaiters.set(sessionId, work)
+    void work
   })
 
   timer = setInterval(() => void flush(), FLUSH_INTERVAL_MS)
