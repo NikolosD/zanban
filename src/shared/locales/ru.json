@@ -119,6 +119,10 @@
   },
   "settings": {
     "title": "Настройки",
+    "sidebar_title": "настройки",
+    "footer_note": "Изменения применяются автоматически. Секреты хранятся в системном keychain.",
+    "saving": "Сохраняем…",
+    "saved": "Сохранено",
     "tabs": {
       "general": "Общие",
       "ai": "AI",
@@ -126,6 +130,158 @@
       "identity": "Профиль",
       "hotkeys": "Горячие клавиши",
       "about": "О программе"
+    },
+    "about": {
+      "title": "о программе",
+      "description": "Десктопный AI-ассистент для встреч. Реальное-время распознавание через Deepgram, Google, OpenAI Whisper, ElevenLabs или локальный Whisper; ответы через Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq или локальную Ollama. Сессии хранятся локально."
+    },
+    "identity": {
+      "reference_documents_divider": "справочные документы"
+    },
+    "providers": {
+      "ai_section_title": "ai-провайдеры · текст и vision",
+      "ai_section_hint": "Выберите, какой провайдер отвечает на вопросы. Кликните карточку, чтобы сделать её активной — учётные данные хранятся в keychain.",
+      "privacy_mode_label": "Режим приватности",
+      "privacy_mode_on": "Активен — LLM это Ollama, STT это локальный Whisper. Наружу ничего не уходит.",
+      "privacy_mode_off": "Выкл — одним движением переводит LLM + STT в локальный режим. Медленнее, ниже качество, полностью приватно.",
+      "get_key": "получить ключ",
+      "active_badge": "активен",
+      "key_placeholder": "вставьте ключ сюда…",
+      "key_hide": "Скрыть ключ",
+      "key_reveal": "Показать ключ",
+      "google_project_id_label": "Google Cloud project ID",
+      "google_project_id_placeholder": "my-gcp-project-12345",
+      "google_service_account_label": "Service account JSON",
+      "google_service_account_optional": "(опционально — оставьте пустым для ADC)",
+      "local_whisper_note": "На устройстве — ключ не нужен. Whisper-tiny через @xenova/transformers (~70 MB при первом запуске).",
+      "ollama_host_placeholder": "http://127.0.0.1:11434 (по умолчанию)",
+      "ollama_refresh_aria": "Обновить",
+      "ollama_connected_one": "подключено · {{count}} модель",
+      "ollama_connected_other": "подключено · {{count}} моделей",
+      "ollama_not_reachable": "недоступен · {{error}}",
+      "ollama_unknown_error": "неизвестная ошибка",
+      "ollama_more_models": " +{{count}} ещё",
+      "fallback_title": "Порядок fallback",
+      "fallback_hint": "Когда активный провайдер падает до старта стрима, Zanban пробует эти по порядку. Без ключа — пропускается молча. Как только ответ пошёл в стрим, мы не переключаемся.",
+      "fallback_empty": "нет fallback · ошибки будут видны как есть",
+      "fallback_move_up": "Поднять",
+      "fallback_move_down": "Опустить",
+      "fallback_remove": "Убрать из цепочки",
+      "fallback_add_label": "добавить:",
+      "badges": {
+        "recommended": "рекомендуется",
+        "experimental": "экспериментальное",
+        "local": "локально"
+      },
+      "tavily_title": "Tavily Search API",
+      "tavily_hint": "Питает живой веб-поиск для ресерча компаний. Без ключа используются общие знания LLM — могут быть устаревшими.",
+      "tavily_placeholder": "tvly-…",
+      "tavily_auto_label": "Авто веб-поиск",
+      "tavily_auto_hint": "Подмешивать результаты Tavily в промпты от 4 слов.",
+      "llm": {
+        "vercel-gateway": {
+          "name": "Vercel AI Gateway",
+          "description": "Один ключ — все модели: DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.",
+          "key_label": "Ключ Vercel AI Gateway"
+        },
+        "anthropic": {
+          "name": "Anthropic Claude",
+          "description": "Прямой API Anthropic. Лучшее рассуждение на длинном контексте.",
+          "key_label": "API-ключ Anthropic"
+        },
+        "openai": {
+          "name": "OpenAI",
+          "description": "GPT-5, GPT-OSS, o-серии. Vision через те же ID моделей.",
+          "key_label": "API-ключ OpenAI"
+        },
+        "google-gemini": {
+          "name": "Google Gemini",
+          "description": "Gemini 2.5 / 3.x. Сильная мультимодальность. Щедрый бесплатный тариф.",
+          "key_label": "API-ключ Google AI"
+        },
+        "groq": {
+          "name": "Groq",
+          "description": "Самый быстрый TTFT (меньше 100ms). Отличен для детектора вопросов.",
+          "key_label": "API-ключ Groq"
+        },
+        "ollama": {
+          "name": "Ollama (локально)",
+          "description": "Полностью локально — транскрипты никогда не покидают машину."
+        }
+      },
+      "stt": {
+        "deepgram": {
+          "name": "Deepgram Nova-3",
+          "description": "Высокоточный стриминг. Один API-ключ, низкая задержка.",
+          "key_label": "API-ключ Deepgram"
+        },
+        "google": {
+          "name": "Google Cloud Speech-to-Text",
+          "description": "Многоязычный стриминг Chirp 3. Нужен GCP-проект + ADC или сервис-аккаунт."
+        },
+        "openai-whisper": {
+          "name": "OpenAI Whisper",
+          "description": "gpt-4o-transcribe через OpenAI Realtime API. Стриминг, низкая задержка.",
+          "key_label": "API-ключ OpenAI"
+        },
+        "elevenlabs": {
+          "name": "ElevenLabs Scribe",
+          "description": "Scribe v2 Realtime — стриминговый WebSocket, ~150ms задержка.",
+          "key_label": "API-ключ ElevenLabs"
+        },
+        "local-whisper": {
+          "name": "Локальный Whisper",
+          "description": "На устройстве — ключ не нужен. Whisper-tiny через @xenova/transformers."
+        }
+      }
+    },
+    "personas": {
+      "title": "Персоны",
+      "hint": "Выберите активную персону — её system prompt управляет всеми AI-запросами. Встроенные можно править и удалять; свои создавайте кнопкой +.",
+      "import": "Импорт",
+      "export": "Экспорт",
+      "new": "Новая",
+      "new_default_name": "Новая персона",
+      "builtin_badge": "встроенная",
+      "empty_prompt_placeholder": "(пустой промпт)",
+      "empty_list": "Пока нет персон. Нажмите «Новая», чтобы создать.",
+      "delete_confirm": "Удалить эту персону?",
+      "toast_export_success": "JSON персон скопирован в буфер обмена",
+      "toast_export_failed": "Экспорт не удался",
+      "toast_import_clipboard_empty": "Буфер обмена пуст",
+      "toast_import_success": "Импортировано {{added}}, пропущено {{skipped}}",
+      "toast_import_failed": "Импорт не удался",
+      "editor": {
+        "name_placeholder": "Имя персоны",
+        "prompt_placeholder": "System prompt, определяющий поведение этой персоны…",
+        "default_model_label": "Быстрая модель по умолчанию (опционально)",
+        "response_language_label": "Язык ответов (опционально)",
+        "inherit_option": "Наследовать из настроек",
+        "rag_title": "RAG (поиск в истории)",
+        "rag_hint": "Подтягивать релевантные фрагменты из прошлых сессий в промпт.",
+        "rag_topk_aria": "RAG top-K",
+        "stop_using": "Перестать использовать эту персону",
+        "activate": "Активировать",
+        "delete": "Удалить"
+      }
+    },
+    "documents": {
+      "title": "Справочные документы",
+      "hint": "PDF, DOCX, TXT, MD. Активные документы подмешиваются в каждый AI-запрос как контекст — удобно для резюме, описаний вакансий, спек, брифов.",
+      "drop_label": "Перетащите файлы сюда или кликните для загрузки",
+      "extracting": "Извлекаем…",
+      "accepted": "Допустимо: PDF, DOCX, TXT, MD",
+      "loading": "Загрузка…",
+      "empty": "Справочных документов пока нет.",
+      "remove_aria": "Удалить",
+      "inject_aria": "Подмешивать в промпты",
+      "stats_chars": "{{count}} симв.",
+      "delete_confirm": "Удалить документ «{{name}}»?",
+      "drop_error": "Не удалось получить пути из drop",
+      "pick_error": "Не удалось получить пути файлов",
+      "upload_added_one": "Добавлен {{count}} документ",
+      "upload_added_other": "Добавлено {{count}} документов",
+      "upload_failed": "Ошибка: {{path}}"
     },
     "general": {
       "appearance_title": "внешний вид",

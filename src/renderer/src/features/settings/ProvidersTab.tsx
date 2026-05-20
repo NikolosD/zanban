@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Lock, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { Textarea } from '@renderer/components/ui/textarea'
 import type { OllamaHealth as OllamaHealthType } from '@shared/api'
@@ -16,10 +17,12 @@ interface Props {
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }
 
+// Display strings (name + description + per-key labels) live in i18n —
+// `settings.providers.llm.<id>` / `settings.providers.stt.<id>`. The entries
+// below only carry the stable, language-agnostic data: id, badge, link to the
+// provider's API console.
 interface LlmProviderEntry {
   value: LlmProvider
-  name: string
-  description: string
   badge: 'recommended' | 'experimental' | 'local' | null
   keyUrl?: string
 }
@@ -27,91 +30,32 @@ interface LlmProviderEntry {
 export const LLM_PROVIDERS: LlmProviderEntry[] = [
   {
     value: 'vercel-gateway',
-    name: 'Vercel AI Gateway',
-    description: 'One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.',
     badge: 'recommended',
     keyUrl: 'https://vercel.com/dashboard/ai/gateway'
   },
-  {
-    value: 'anthropic',
-    name: 'Anthropic Claude',
-    description: 'Direct Anthropic API. Best long-context reasoning.',
-    badge: null,
-    keyUrl: 'https://console.anthropic.com/settings/keys'
-  },
-  {
-    value: 'openai',
-    name: 'OpenAI',
-    description: 'GPT-5, GPT-OSS, o-series. Vision via the same model IDs.',
-    badge: null,
-    keyUrl: 'https://platform.openai.com/api-keys'
-  },
-  {
-    value: 'google-gemini',
-    name: 'Google Gemini',
-    description: 'Gemini 2.5 / 3.x. Strong multimodal. Generous free tier.',
-    badge: null,
-    keyUrl: 'https://aistudio.google.com/app/apikey'
-  },
-  {
-    value: 'groq',
-    name: 'Groq',
-    description: 'Fastest TTFT (sub-100ms). Great for question detector.',
-    badge: null,
-    keyUrl: 'https://console.groq.com/keys'
-  },
-  {
-    value: 'ollama',
-    name: 'Ollama (local)',
-    description: 'Fully local — your transcripts never leave the machine.',
-    badge: 'local',
-    keyUrl: 'https://ollama.com/download'
-  }
+  { value: 'anthropic', badge: null, keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { value: 'openai', badge: null, keyUrl: 'https://platform.openai.com/api-keys' },
+  { value: 'google-gemini', badge: null, keyUrl: 'https://aistudio.google.com/app/apikey' },
+  { value: 'groq', badge: null, keyUrl: 'https://console.groq.com/keys' },
+  { value: 'ollama', badge: 'local', keyUrl: 'https://ollama.com/download' }
 ]
 
 interface SttProviderEntry {
   value: SttProvider
-  name: string
-  description: string
   badge: 'recommended' | 'experimental' | 'local' | null
   keyUrl?: string
 }
 
 const STT_CARDS: SttProviderEntry[] = [
-  {
-    value: 'deepgram',
-    name: 'Deepgram Nova-3',
-    description: 'High-accuracy streaming. Single API key, low latency.',
-    badge: 'recommended',
-    keyUrl: 'https://console.deepgram.com/'
-  },
+  { value: 'deepgram', badge: 'recommended', keyUrl: 'https://console.deepgram.com/' },
   {
     value: 'google',
-    name: 'Google Cloud Speech-to-Text',
-    description: 'Chirp 3 multilingual streaming. Needs a GCP project + ADC or service account.',
     badge: 'recommended',
     keyUrl: 'https://console.cloud.google.com/apis/credentials'
   },
-  {
-    value: 'openai-whisper',
-    name: 'OpenAI Whisper',
-    description: 'gpt-4o-transcribe via the OpenAI Realtime API. Streaming, low latency.',
-    badge: null,
-    keyUrl: 'https://platform.openai.com/api-keys'
-  },
-  {
-    value: 'elevenlabs',
-    name: 'ElevenLabs Scribe',
-    description: 'Scribe v2 Realtime — streaming WebSocket, ~150ms latency.',
-    badge: null,
-    keyUrl: 'https://elevenlabs.io/app/settings/api-keys'
-  },
-  {
-    value: 'local-whisper',
-    name: 'Local Whisper',
-    description: 'On-device — no key needed. Whisper-tiny via @xenova/transformers.',
-    badge: 'local'
-  }
+  { value: 'openai-whisper', badge: null, keyUrl: 'https://platform.openai.com/api-keys' },
+  { value: 'elevenlabs', badge: null, keyUrl: 'https://elevenlabs.io/app/settings/api-keys' },
+  { value: 'local-whisper', badge: 'local' }
 ]
 
 /**
@@ -119,6 +63,7 @@ const STT_CARDS: SttProviderEntry[] = [
  * Tavily lives in its own section below the model overrides.
  */
 export function ProvidersTab({ settings, update }: Props) {
+  const { t } = useTranslation()
   const [ollama, setOllama] = useState<OllamaHealthType | null>(null)
 
   async function refreshOllama() {
@@ -126,8 +71,13 @@ export function ProvidersTab({ settings, update }: Props) {
     setOllama(h)
   }
 
+  // Debounce the health-check so a user typing the host URL doesn't hammer
+  // localhost on every keystroke.
   useEffect(() => {
-    void refreshOllama()
+    const handle = setTimeout(() => {
+      void refreshOllama()
+    }, 400)
+    return () => clearTimeout(handle)
   }, [settings.ollamaHost])
 
   const togglePrivacy = (v: boolean) => {
@@ -151,8 +101,8 @@ export function ProvidersTab({ settings, update }: Props) {
       {/* LLM provider cards */}
       <div className="flex flex-col gap-3">
         <SectionHead
-          title="ai providers · text & vision"
-          hint="Pick which provider answers your questions. Click a card to make it active — credentials stay in the OS keychain."
+          title={t('settings.providers.ai_section_title')}
+          hint={t('settings.providers.ai_section_hint')}
         />
 
         <div className="flex flex-col gap-2.5">
@@ -163,8 +113,8 @@ export function ProvidersTab({ settings, update }: Props) {
               <ProviderCard
                 key={p.value}
                 id={p.value}
-                name={p.name}
-                description={p.description}
+                name={t(`settings.providers.llm.${p.value}.name`)}
+                description={t(`settings.providers.llm.${p.value}.description`)}
                 badge={p.badge}
                 status={status}
                 keyUrl={p.keyUrl}
@@ -196,6 +146,7 @@ export function ProvidersTab({ settings, update }: Props) {
  * mic / VAD / language settings (their natural sibling group).
  */
 export function SttProviderCards({ settings, update }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2.5">
       {STT_CARDS.map((p) => {
@@ -204,8 +155,8 @@ export function SttProviderCards({ settings, update }: Props) {
           <ProviderCard
             key={p.value}
             id={p.value}
-            name={p.name}
-            description={p.description}
+            name={t(`settings.providers.stt.${p.value}.name`)}
+            description={t(`settings.providers.stt.${p.value}.description`)}
             badge={p.badge}
             keyUrl={p.keyUrl}
             active={active}
@@ -224,14 +175,14 @@ export function SttProviderCards({ settings, update }: Props) {
  * of the AI tab, after model overrides.
  */
 export function WebSearchCard({ settings, update }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="min-w-0">
-          <div className="text-[14px] font-medium">Tavily Search API</div>
+          <div className="text-[14px] font-medium">{t('settings.providers.tavily_title')}</div>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            Powers live web search for company research. If empty, LLM general knowledge is used and
-            may be outdated.
+            {t('settings.providers.tavily_hint')}
           </p>
         </div>
         <a
@@ -240,19 +191,19 @@ export function WebSearchCard({ settings, update }: Props) {
           rel="noreferrer"
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
         >
-          get key
+          {t('settings.providers.get_key')}
         </a>
       </div>
       <SecretKeyField
-        placeholder="tvly-…"
+        placeholder={t('settings.providers.tavily_placeholder')}
         value={settings.tavilyApiKey ?? ''}
         onChange={(v) => update('tavilyApiKey', v || null)}
       />
       <div className="mt-3 flex items-center justify-between rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
         <div className="text-[12px]">
-          Auto web search
+          {t('settings.providers.tavily_auto_label')}
           <div className="text-[11px] text-muted-foreground">
-            Inject Tavily results into prompts ≥4 words.
+            {t('settings.providers.tavily_auto_hint')}
           </div>
         </div>
         <Switch
@@ -278,6 +229,7 @@ function SectionHead({ title, hint }: { title: string; hint?: string }) {
 }
 
 function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boolean): void }) {
+  const { t } = useTranslation()
   return (
     <div
       className={cn(
@@ -288,11 +240,13 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
       <div className="flex items-center gap-3">
         <Lock className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted-foreground')} />
         <div>
-          <div className="text-[13px] font-medium">Privacy mode</div>
+          <div className="text-[13px] font-medium">
+            {t('settings.providers.privacy_mode_label')}
+          </div>
           <div className="text-[11px] text-muted-foreground">
             {active
-              ? 'Active — LLM is Ollama, STT is local Whisper. Nothing leaves your machine.'
-              : 'Off — flips LLM + STT to local at once. Slower, lower quality, fully private.'}
+              ? t('settings.providers.privacy_mode_on')
+              : t('settings.providers.privacy_mode_off')}
           </div>
         </div>
       </div>
@@ -309,11 +263,13 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
  * differ by which AppSettings field stores the key, the label, and the
  * placeholder hint.
  */
+// Map LLM provider → which AppSettings field stores the key and the placeholder
+// hint shown in the input. Display label comes from i18n
+// (`settings.providers.llm.<id>.key_label`).
 const LLM_KEY_FIELDS: Partial<
   Record<
     LlmProvider,
     {
-      label: string
       placeholder?: string
       settingsKey: keyof Pick<
         AppSettings,
@@ -322,23 +278,11 @@ const LLM_KEY_FIELDS: Partial<
     }
   >
 > = {
-  'vercel-gateway': {
-    label: 'Vercel AI Gateway key',
-    placeholder: 'vck_…',
-    settingsKey: 'vercelApiKey'
-  },
-  anthropic: {
-    label: 'Anthropic API key',
-    placeholder: 'sk-ant-…',
-    settingsKey: 'anthropicApiKey'
-  },
-  openai: { label: 'OpenAI API key', placeholder: 'sk-…', settingsKey: 'openaiApiKey' },
-  'google-gemini': {
-    label: 'Google AI API key',
-    placeholder: 'AIza…',
-    settingsKey: 'googleAiApiKey'
-  },
-  groq: { label: 'Groq API key', placeholder: 'gsk_…', settingsKey: 'groqApiKey' }
+  'vercel-gateway': { placeholder: 'vck_…', settingsKey: 'vercelApiKey' },
+  anthropic: { placeholder: 'sk-ant-…', settingsKey: 'anthropicApiKey' },
+  openai: { placeholder: 'sk-…', settingsKey: 'openaiApiKey' },
+  'google-gemini': { placeholder: 'AIza…', settingsKey: 'googleAiApiKey' },
+  groq: { placeholder: 'gsk_…', settingsKey: 'groqApiKey' }
 }
 
 function LlmCredentials({
@@ -354,11 +298,12 @@ function LlmCredentials({
   ollama: OllamaHealthType | null
   onRefreshOllama(): void
 }) {
+  const { t } = useTranslation()
   const field = LLM_KEY_FIELDS[provider]
   if (field) {
     return (
       <SecretKeyField
-        label={field.label}
+        label={t(`settings.providers.llm.${provider}.key_label`)}
         placeholder={field.placeholder}
         value={settings[field.settingsKey] ?? ''}
         onChange={(v) => update(field.settingsKey, v || null)}
@@ -367,30 +312,44 @@ function LlmCredentials({
   }
   if (provider === 'ollama') {
     const ok = ollama?.running
+    const modelCount = ollama?.models.length ?? 0
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-1">
           <Input
             value={settings.ollamaHost}
             onChange={(e) => update('ollamaHost', e.target.value)}
-            placeholder="http://127.0.0.1:11434 (default)"
+            placeholder={t('settings.providers.ollama_host_placeholder')}
             className="flex-1 font-mono text-xs"
           />
-          <Button variant="ghost" size="icon" onClick={onRefreshOllama} aria-label="Refresh">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefreshOllama}
+            aria-label={t('settings.providers.ollama_refresh_aria')}
+          >
             <RefreshCw className="size-3.5" />
           </Button>
         </div>
         {ollama && (
           <div className={ok ? 'text-[11px] text-accent' : 'text-[11px] text-amber-400'}>
             {ok
-              ? `connected · ${ollama.models.length} model${ollama.models.length === 1 ? '' : 's'}`
-              : `not reachable · ${ollama.error ?? 'unknown error'}`}
+              ? t(
+                  modelCount === 1
+                    ? 'settings.providers.ollama_connected_one'
+                    : 'settings.providers.ollama_connected_other',
+                  { count: modelCount }
+                )
+              : t('settings.providers.ollama_not_reachable', {
+                  error: ollama.error ?? t('settings.providers.ollama_unknown_error')
+                })}
           </div>
         )}
         {ok && ollama.models.length > 0 && (
           <div className="font-mono text-[11px] text-muted-foreground">
             {ollama.models.slice(0, 5).join(' · ')}
-            {ollama.models.length > 5 && ` +${ollama.models.length - 5} more`}
+            {ollama.models.length > 5 &&
+              t('settings.providers.ollama_more_models', { count: ollama.models.length - 5 })}
           </div>
         )}
       </div>
@@ -399,18 +358,19 @@ function LlmCredentials({
   return null
 }
 
+// Map STT provider → which AppSettings field stores the key. Display label
+// comes from i18n (`settings.providers.stt.<id>.key_label`).
 const STT_KEY_FIELDS: Partial<
   Record<
     SttProvider,
     {
-      label: string
       settingsKey: keyof Pick<AppSettings, 'deepgramApiKey' | 'openaiApiKey' | 'elevenlabsApiKey'>
     }
   >
 > = {
-  deepgram: { label: 'Deepgram API key', settingsKey: 'deepgramApiKey' },
-  'openai-whisper': { label: 'OpenAI API key', settingsKey: 'openaiApiKey' },
-  elevenlabs: { label: 'ElevenLabs API key', settingsKey: 'elevenlabsApiKey' }
+  deepgram: { settingsKey: 'deepgramApiKey' },
+  'openai-whisper': { settingsKey: 'openaiApiKey' },
+  elevenlabs: { settingsKey: 'elevenlabsApiKey' }
 }
 
 function SttCredentials({
@@ -422,11 +382,12 @@ function SttCredentials({
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
+  const { t } = useTranslation()
   const field = STT_KEY_FIELDS[provider]
   if (field) {
     return (
       <SecretKeyField
-        label={field.label}
+        label={t(`settings.providers.stt.${provider}.key_label`)}
         value={settings[field.settingsKey] ?? ''}
         onChange={(v) => update(field.settingsKey, v || null)}
       />
@@ -437,20 +398,20 @@ function SttCredentials({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Google Cloud project ID
+            {t('settings.providers.google_project_id_label')}
           </label>
           <Input
             value={settings.googleProjectId ?? ''}
             onChange={(e) => update('googleProjectId', e.target.value || null)}
-            placeholder="my-gcp-project-12345"
+            placeholder={t('settings.providers.google_project_id_placeholder')}
             className="font-mono text-xs"
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Service account JSON{' '}
+            {t('settings.providers.google_service_account_label')}{' '}
             <span className="normal-case tracking-normal text-muted-foreground/60">
-              (optional — leave empty for ADC)
+              {t('settings.providers.google_service_account_optional')}
             </span>
           </label>
           <Textarea
@@ -467,7 +428,7 @@ function SttCredentials({
   if (provider === 'local-whisper') {
     return (
       <p className="text-[11px] text-muted-foreground">
-        On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB on first use).
+        {t('settings.providers.local_whisper_note')}
       </p>
     )
   }

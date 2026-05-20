@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Trash2, UploadCloud, Loader2, FileType2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import type { ReferenceDoc } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
@@ -15,6 +16,7 @@ function formatBytes(n: number): string {
 }
 
 export function ReferenceDocsTab() {
+  const { t } = useTranslation()
   const [docs, setDocs] = useState<ReferenceDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -38,14 +40,27 @@ export function ReferenceDocsTab() {
         const results = await window.zanban.documents.upload(paths)
         const ok = results.filter((r): r is ReferenceDoc => 'id' in r).length
         const errs = results.filter((r): r is { error: string; path: string } => 'error' in r)
-        if (ok > 0) toast.success(`Added ${ok} document${ok === 1 ? '' : 's'}`)
-        for (const e of errs) toast.error(`Failed: ${e.path}`, { description: e.error })
+        if (ok > 0) {
+          toast.success(
+            t(
+              ok === 1
+                ? 'settings.documents.upload_added_one'
+                : 'settings.documents.upload_added_other',
+              { count: ok }
+            )
+          )
+        }
+        for (const e of errs) {
+          toast.error(t('settings.documents.upload_failed', { path: e.path }), {
+            description: e.error
+          })
+        }
         await refresh()
       } finally {
         setBusy(false)
       }
     },
-    [refresh]
+    [refresh, t]
   )
 
   // Electron 32 removed `File.path`; we now route the File through the
@@ -68,12 +83,12 @@ export function ReferenceDocsTab() {
       setDragActive(false)
       const paths = filesToPaths(Array.from(e.dataTransfer?.files ?? []))
       if (paths.length === 0) {
-        toast.error('Could not read file paths from drop')
+        toast.error(t('settings.documents.drop_error'))
         return
       }
       void upload(paths)
     },
-    [upload, filesToPaths]
+    [upload, filesToPaths, t]
   )
 
   const onPickFile = useCallback(
@@ -81,17 +96,21 @@ export function ReferenceDocsTab() {
       const paths = filesToPaths(Array.from(e.target.files ?? []))
       e.target.value = ''
       if (paths.length === 0) {
-        toast.error('Could not read file paths')
+        toast.error(t('settings.documents.pick_error'))
         return
       }
       void upload(paths)
     },
-    [upload, filesToPaths]
+    [upload, filesToPaths, t]
   )
 
-  const remove = useCallback(async (id: string) => {
-    setDocs(await window.zanban.documents.remove(id))
-  }, [])
+  const remove = useCallback(
+    async (id: string, name: string) => {
+      if (!confirm(t('settings.documents.delete_confirm', { name }))) return
+      setDocs(await window.zanban.documents.remove(id))
+    },
+    [t]
+  )
 
   const toggleActive = useCallback(async (id: string, active: boolean) => {
     setDocs(await window.zanban.documents.setActive(id, active))
@@ -101,12 +120,9 @@ export function ReferenceDocsTab() {
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Reference documents
+          {t('settings.documents.title')}
         </h3>
-        <p className="mt-1 text-[12px] text-muted-foreground">
-          PDF, DOCX, TXT, MD. Active docs are injected into every AI request as
-          context — useful for resumes, job descriptions, specs, briefs.
-        </p>
+        <p className="mt-1 text-[12px] text-muted-foreground">{t('settings.documents.hint')}</p>
       </div>
 
       <label
@@ -128,11 +144,9 @@ export function ReferenceDocsTab() {
           <UploadCloud className="size-5 text-muted-foreground" />
         )}
         <div className="text-[13px]">
-          {busy ? 'Extracting…' : 'Drop files here or click to upload'}
+          {busy ? t('settings.documents.extracting') : t('settings.documents.drop_label')}
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          Accepted: PDF, DOCX, TXT, MD
-        </div>
+        <div className="text-[11px] text-muted-foreground">{t('settings.documents.accepted')}</div>
         <input
           id="ref-doc-input"
           type="file"
@@ -145,11 +159,11 @@ export function ReferenceDocsTab() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <Loader2 className="size-3 animate-spin" /> Loading…
+          <Loader2 className="size-3 animate-spin" /> {t('settings.documents.loading')}
         </div>
       ) : docs.length === 0 ? (
         <div className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-6 text-center text-[12px] text-muted-foreground">
-          No reference documents yet.
+          {t('settings.documents.empty')}
         </div>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -162,20 +176,21 @@ export function ReferenceDocsTab() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px]">{d.name}</div>
                 <div className="text-[11px] text-muted-foreground">
-                  {d.kind.toUpperCase()} · {formatBytes(d.bytes)} · {d.text.length.toLocaleString()} chars
+                  {d.kind.toUpperCase()} · {formatBytes(d.bytes)} ·{' '}
+                  {t('settings.documents.stats_chars', { count: d.text.length })}
                 </div>
               </div>
               <Switch
                 checked={d.active}
                 onCheckedChange={(v) => void toggleActive(d.id, v)}
-                aria-label="Inject into prompts"
+                aria-label={t('settings.documents.inject_aria')}
               />
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7 text-muted-foreground hover:text-red-400"
-                onClick={() => void remove(d.id)}
-                aria-label="Remove"
+                onClick={() => void remove(d.id, d.name)}
+                aria-label={t('settings.documents.remove_aria')}
               >
                 <Trash2 className="size-3.5" />
               </Button>

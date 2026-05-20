@@ -310,7 +310,8 @@ function SearchPill({
       .map((tab) => ({
         kind: 'settings' as const,
         tab: tab.id,
-        label: tab.label,
+        // Falls back to the English keyword if no translation exists.
+        label: t(`settings.tabs.${tab.id}`, { defaultValue: tab.label }),
         subtitle: t('dashboard.search.section_settings')
       }))
   }, [text, t])

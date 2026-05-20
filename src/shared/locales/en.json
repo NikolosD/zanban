@@ -119,6 +119,10 @@
   },
   "settings": {
     "title": "Settings",
+    "sidebar_title": "settings",
+    "footer_note": "Changes apply automatically. Secrets stored in your OS keychain.",
+    "saving": "Saving…",
+    "saved": "Saved",
     "tabs": {
       "general": "General",
       "ai": "AI",
@@ -126,6 +130,158 @@
       "identity": "Identity",
       "hotkeys": "Hotkeys",
       "about": "About"
+    },
+    "about": {
+      "title": "about",
+      "description": "Desktop AI meeting assistant. Real-time transcription via Deepgram, Google, OpenAI Whisper, ElevenLabs or local Whisper; answers via Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq or local Ollama. Sessions stored locally."
+    },
+    "identity": {
+      "reference_documents_divider": "reference documents"
+    },
+    "providers": {
+      "ai_section_title": "ai providers · text & vision",
+      "ai_section_hint": "Pick which provider answers your questions. Click a card to make it active — credentials stay in the OS keychain.",
+      "privacy_mode_label": "Privacy mode",
+      "privacy_mode_on": "Active — LLM is Ollama, STT is local Whisper. Nothing leaves your machine.",
+      "privacy_mode_off": "Off — flips LLM + STT to local at once. Slower, lower quality, fully private.",
+      "get_key": "get key",
+      "active_badge": "active",
+      "key_placeholder": "paste key here…",
+      "key_hide": "Hide key",
+      "key_reveal": "Reveal key",
+      "google_project_id_label": "Google Cloud project ID",
+      "google_project_id_placeholder": "my-gcp-project-12345",
+      "google_service_account_label": "Service account JSON",
+      "google_service_account_optional": "(optional — leave empty for ADC)",
+      "local_whisper_note": "On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB on first use).",
+      "ollama_host_placeholder": "http://127.0.0.1:11434 (default)",
+      "ollama_refresh_aria": "Refresh",
+      "ollama_connected_one": "connected · {{count}} model",
+      "ollama_connected_other": "connected · {{count}} models",
+      "ollama_not_reachable": "not reachable · {{error}}",
+      "ollama_unknown_error": "unknown error",
+      "ollama_more_models": " +{{count}} more",
+      "fallback_title": "Fallback order",
+      "fallback_hint": "When the active provider fails before streaming any text, Zanban tries these in order. Skipped silently if the credential is missing. Once an answer starts streaming we don't switch.",
+      "fallback_empty": "no fallbacks · errors will surface as-is",
+      "fallback_move_up": "Move up",
+      "fallback_move_down": "Move down",
+      "fallback_remove": "Remove from chain",
+      "fallback_add_label": "add:",
+      "badges": {
+        "recommended": "recommended",
+        "experimental": "experimental",
+        "local": "local"
+      },
+      "tavily_title": "Tavily Search API",
+      "tavily_hint": "Powers live web search for company research. If empty, LLM general knowledge is used and may be outdated.",
+      "tavily_placeholder": "tvly-…",
+      "tavily_auto_label": "Auto web search",
+      "tavily_auto_hint": "Inject Tavily results into prompts ≥4 words.",
+      "llm": {
+        "vercel-gateway": {
+          "name": "Vercel AI Gateway",
+          "description": "One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.",
+          "key_label": "Vercel AI Gateway key"
+        },
+        "anthropic": {
+          "name": "Anthropic Claude",
+          "description": "Direct Anthropic API. Best long-context reasoning.",
+          "key_label": "Anthropic API key"
+        },
+        "openai": {
+          "name": "OpenAI",
+          "description": "GPT-5, GPT-OSS, o-series. Vision via the same model IDs.",
+          "key_label": "OpenAI API key"
+        },
+        "google-gemini": {
+          "name": "Google Gemini",
+          "description": "Gemini 2.5 / 3.x. Strong multimodal. Generous free tier.",
+          "key_label": "Google AI API key"
+        },
+        "groq": {
+          "name": "Groq",
+          "description": "Fastest TTFT (sub-100ms). Great for question detector.",
+          "key_label": "Groq API key"
+        },
+        "ollama": {
+          "name": "Ollama (local)",
+          "description": "Fully local — your transcripts never leave the machine."
+        }
+      },
+      "stt": {
+        "deepgram": {
+          "name": "Deepgram Nova-3",
+          "description": "High-accuracy streaming. Single API key, low latency.",
+          "key_label": "Deepgram API key"
+        },
+        "google": {
+          "name": "Google Cloud Speech-to-Text",
+          "description": "Chirp 3 multilingual streaming. Needs a GCP project + ADC or service account."
+        },
+        "openai-whisper": {
+          "name": "OpenAI Whisper",
+          "description": "gpt-4o-transcribe via the OpenAI Realtime API. Streaming, low latency.",
+          "key_label": "OpenAI API key"
+        },
+        "elevenlabs": {
+          "name": "ElevenLabs Scribe",
+          "description": "Scribe v2 Realtime — streaming WebSocket, ~150ms latency.",
+          "key_label": "ElevenLabs API key"
+        },
+        "local-whisper": {
+          "name": "Local Whisper",
+          "description": "On-device — no key needed. Whisper-tiny via @xenova/transformers."
+        }
+      }
+    },
+    "personas": {
+      "title": "Personas",
+      "hint": "Pick the active persona — its system prompt drives every AI request. Built-ins can be edited or deleted; create your own with the + button.",
+      "import": "Import",
+      "export": "Export",
+      "new": "New",
+      "new_default_name": "New persona",
+      "builtin_badge": "builtin",
+      "empty_prompt_placeholder": "(empty prompt)",
+      "empty_list": "No personas yet. Click \"New\" to create one.",
+      "delete_confirm": "Delete this persona?",
+      "toast_export_success": "Personas JSON copied to clipboard",
+      "toast_export_failed": "Export failed",
+      "toast_import_clipboard_empty": "Clipboard is empty",
+      "toast_import_success": "Imported {{added}}, skipped {{skipped}}",
+      "toast_import_failed": "Import failed",
+      "editor": {
+        "name_placeholder": "Persona name",
+        "prompt_placeholder": "System prompt that defines this persona's behavior…",
+        "default_model_label": "Default fast model (optional)",
+        "response_language_label": "Response language (optional)",
+        "inherit_option": "Inherit from settings",
+        "rag_title": "RAG (history retrieval)",
+        "rag_hint": "Pull relevant snippets from past sessions into the prompt.",
+        "rag_topk_aria": "RAG top-K",
+        "stop_using": "Stop using this persona",
+        "activate": "Activate",
+        "delete": "Delete"
+      }
+    },
+    "documents": {
+      "title": "Reference documents",
+      "hint": "PDF, DOCX, TXT, MD. Active docs are injected into every AI request as context — useful for resumes, job descriptions, specs, briefs.",
+      "drop_label": "Drop files here or click to upload",
+      "extracting": "Extracting…",
+      "accepted": "Accepted: PDF, DOCX, TXT, MD",
+      "loading": "Loading…",
+      "empty": "No reference documents yet.",
+      "remove_aria": "Remove",
+      "inject_aria": "Inject into prompts",
+      "stats_chars": "{{count}} chars",
+      "delete_confirm": "Delete reference document \"{{name}}\"?",
+      "drop_error": "Could not read file paths from drop",
+      "pick_error": "Could not read file paths",
+      "upload_added_one": "Added {{count}} document",
+      "upload_added_other": "Added {{count}} documents",
+      "upload_failed": "Failed: {{path}}"
     },
     "general": {
       "appearance_title": "appearance",

@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { LLM_PROVIDERS } from './ProvidersTab'
@@ -17,6 +18,7 @@ interface Props {
  * in the list.
  */
 export function LlmFallbackOrderField({ settings, update }: Props) {
+  const { t } = useTranslation()
   const order = settings.llmFallbackOrder ?? []
   const active = settings.llmProvider
 
@@ -43,76 +45,81 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
     set(next)
   }
 
-  const labelOf = (id: LlmProvider) => LLM_PROVIDERS.find((p) => p.value === id)?.name ?? id
+  const labelOf = (id: LlmProvider) =>
+    LLM_PROVIDERS.find((p) => p.value === id) ? t(`settings.providers.llm.${id}.name`) : id
 
   const candidates = LLM_PROVIDERS.filter((p) => p.value !== active && !order.includes(p.value))
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
       <div className="mb-3">
-        <div className="text-[14px] font-medium">Fallback order</div>
+        <div className="text-[14px] font-medium">{t('settings.providers.fallback_title')}</div>
         <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-          When the active provider fails before streaming any text, Zanban tries these in order.
-          Skipped silently if the credential is missing. Once an answer starts streaming we
-          don&apos;t switch.
+          {t('settings.providers.fallback_hint')}
         </p>
       </div>
 
       {order.length === 0 ? (
         <div className="rounded-md border border-dashed border-white/[0.08] bg-white/[0.01] px-3 py-4 text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          no fallbacks · errors will surface as-is
+          {t('settings.providers.fallback_empty')}
         </div>
       ) : (
         <ol className="flex flex-col gap-1.5">
-          {order.map((id, i) => (
-            <li
-              key={id}
-              className={cn(
-                'flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5'
-              )}
-            >
-              <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-                {i + 1}
-              </span>
-              <span className="flex-1 text-[12px]">{labelOf(id)}</span>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                onClick={() => move(id, -1)}
-                disabled={i === 0}
-                title="Move up"
+          {order.map((id, i) => {
+            // The runtime skips the active provider when iterating the chain
+            // (it has just failed). Gray it out here so the UI mirrors that.
+            const isActiveInChain = id === active
+            return (
+              <li
+                key={id}
+                className={cn(
+                  'flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5',
+                  isActiveInChain && 'opacity-50'
+                )}
               >
-                <ChevronUp className="size-3" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                onClick={() => move(id, 1)}
-                disabled={i === order.length - 1}
-                title="Move down"
-              >
-                <ChevronDown className="size-3" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6 text-muted-foreground hover:text-destructive"
-                onClick={() => remove(id)}
-                title="Remove from chain"
-              >
-                <X className="size-3" />
-              </Button>
-            </li>
-          ))}
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {i + 1}
+                </span>
+                <span className="flex-1 text-[12px]">{labelOf(id)}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  onClick={() => move(id, -1)}
+                  disabled={i === 0}
+                  title={t('settings.providers.fallback_move_up')}
+                >
+                  <ChevronUp className="size-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  onClick={() => move(id, 1)}
+                  disabled={i === order.length - 1}
+                  title={t('settings.providers.fallback_move_down')}
+                >
+                  <ChevronDown className="size-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => remove(id)}
+                  title={t('settings.providers.fallback_remove')}
+                >
+                  <X className="size-3" />
+                </Button>
+              </li>
+            )
+          })}
         </ol>
       )}
 
       {candidates.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            add:
+            {t('settings.providers.fallback_add_label')}
           </span>
           {candidates.map((p) => (
             <Button
@@ -123,7 +130,7 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
               onClick={() => add(p.value)}
             >
               <Plus className="size-3" />
-              {p.name}
+              {t(`settings.providers.llm.${p.value}.name`)}
             </Button>
           ))}
         </div>
