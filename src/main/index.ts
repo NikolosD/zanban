@@ -36,6 +36,7 @@ import { registerPersonasHandlers } from './ipc/personas.js'
 import { registerRagHandlers } from './ipc/rag.js'
 import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
+import { registerRecapHandlers } from './ipc/recap.js'
 
 installLogger()
 
@@ -141,6 +142,7 @@ app.whenReady().then(async () => {
   registerOllamaHandlers()
   registerPersonasHandlers()
   registerSessionsHandlers()
+  registerRecapHandlers()
 
   // Apply the current stealth posture to both windows. setContentProtection
   // is the only mechanism that hides a Chromium window from screen-share —
