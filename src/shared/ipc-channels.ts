@@ -86,5 +86,11 @@ export const IPC = {
   },
   jobs: {
     state: 'jobs:state'
+  },
+  recap: {
+    generate: 'recap:generate',
+    get: 'recap:get',
+    delete: 'recap:delete',
+    updated: 'recap:updated'
   }
 } as const

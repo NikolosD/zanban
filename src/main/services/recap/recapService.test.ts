@@ -28,7 +28,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-function okResult(): RecapResult {
+function okResult(): Extract<RecapResult, { ok: true }> {
   return {
     ok: true,
     recap: {

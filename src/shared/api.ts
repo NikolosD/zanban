@@ -13,6 +13,7 @@ import type {
   TranscriptSegment,
   TranscriptionStatus
 } from './types.js'
+import type { RecapOptions, RecapPayload, RecapResult } from './recap-types.js'
 
 export interface SessionListItem {
   id: string
@@ -139,6 +140,12 @@ export interface ZanbanApi {
   }
   jobs: {
     onState(cb: (jobs: BackgroundJob[]) => void): () => void
+  }
+  recap: {
+    generate(sessionId: string, options?: RecapOptions): Promise<RecapResult>
+    get(sessionId: string): Promise<RecapPayload | null>
+    delete(sessionId: string): Promise<void>
+    onUpdated(cb: (sessionId: string) => void): () => void
   }
 }
 

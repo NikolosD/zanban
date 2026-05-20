@@ -99,6 +99,12 @@ const api: ZanbanApi = {
   },
   jobs: {
     onState: (cb) => on(IPC.jobs.state, cb)
+  },
+  recap: {
+    generate: (sessionId, options) => ipcRenderer.invoke(IPC.recap.generate, sessionId, options),
+    get: (sessionId) => ipcRenderer.invoke(IPC.recap.get, sessionId),
+    delete: (sessionId) => ipcRenderer.invoke(IPC.recap.delete, sessionId),
+    onUpdated: (cb) => on<string>(IPC.recap.updated, cb)
   }
 }
 
