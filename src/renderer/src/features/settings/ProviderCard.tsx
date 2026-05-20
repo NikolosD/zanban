@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@renderer/components/ui/input'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderStatusDot, type ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
@@ -52,6 +53,7 @@ export function ProviderCard({
   keyUrl,
   children
 }: ProviderCardProps) {
+  const { t } = useTranslation()
   return (
     <div
       className={cn(
@@ -78,13 +80,13 @@ export function ProviderCard({
                   BADGE_STYLES[badge]
                 )}
               >
-                {badge}
+                {t(`settings.providers.badges.${badge}`)}
               </span>
             )}
             {active && (
               <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] leading-none text-accent">
                 <Check className="size-2.5" />
-                active
+                {t('settings.providers.active_badge')}
               </span>
             )}
           </div>
@@ -99,7 +101,7 @@ export function ProviderCard({
             className="inline-flex shrink-0 items-center gap-1 self-start rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
             title="Open the provider's API console to get a key"
           >
-            get key
+            {t('settings.providers.get_key')}
             <ExternalLink className="size-3" />
           </a>
         )}
@@ -126,6 +128,7 @@ export function SecretKeyField({
   value: string
   onChange(v: string): void
 }) {
+  const { t } = useTranslation()
   const [reveal, setReveal] = useState(false)
   return (
     <div className="flex flex-col gap-1">
@@ -139,7 +142,7 @@ export function SecretKeyField({
           value={value}
           type={reveal ? 'text' : 'password'}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? 'paste key here…'}
+          placeholder={placeholder ?? t('settings.providers.key_placeholder')}
           className="flex-1 font-mono text-xs"
         />
         <Button
@@ -147,7 +150,9 @@ export function SecretKeyField({
           variant="ghost"
           size="icon"
           onClick={() => setReveal((v) => !v)}
-          aria-label={reveal ? 'Hide key' : 'Reveal key'}
+          aria-label={
+            reveal ? t('settings.providers.key_hide') : t('settings.providers.key_reveal')
+          }
         >
           {reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
         </Button>

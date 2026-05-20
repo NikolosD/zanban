@@ -1,4 +1,4 @@
-import { Square, EyeOff, X, Send, ChevronDown } from 'lucide-react'
+import { Square, EyeOff, X, Send, ChevronDown, Ear } from 'lucide-react'
 import { ZanbanMark } from '@renderer/components/brand'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
@@ -10,19 +10,17 @@ import { cn } from '@renderer/lib/utils'
  * not a stylized approximation.
  *
  * Maintenance note: when OverlayApp's render structure changes (status pill,
- * merged panel layout, action chips, input row), update this file too. There
- * is no automated drift check.
+ * rolling transcript, merged panel layout, action chips, input row), update
+ * this file too. There is no automated drift check.
  */
 export function OverlayMockup(): React.JSX.Element {
   return (
     <div className="pointer-events-none p-3" style={{ width: 680 }}>
       <div
-        className={cn(
-          'pointer-events-auto mx-auto flex w-full flex-col gap-1.5',
-          'max-w-[680px]'
-        )}
+        className={cn('pointer-events-auto mx-auto flex w-full flex-col gap-1.5', 'max-w-[680px]')}
       >
         <MockStatusBar />
+        <MockRollingTranscript />
         <div
           className={cn(
             'flex flex-col rounded-2xl border border-white/10',
@@ -34,6 +32,41 @@ export function OverlayMockup(): React.JSX.Element {
           <MockInputRow />
           <MockAnswerSection />
         </div>
+      </div>
+    </div>
+  )
+}
+
+function MockRollingTranscript() {
+  // Mirrors RollingTranscript.tsx — single-line pill above the merged panel
+  // with an ear icon, a fading-edge italic strip of system-channel text, and
+  // an inline highlight for the most-recent detected question.
+  return (
+    <div
+      className={cn(
+        'mx-auto flex w-full max-w-[680px] items-center gap-2',
+        'rounded-full border border-white/10',
+        'bg-black/55 px-3 py-1 backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
+      )}
+    >
+      <Ear className="size-3 shrink-0 text-muted-foreground/70" aria-hidden />
+      <div
+        className="flex-1 min-w-0 overflow-hidden whitespace-nowrap text-[12px] leading-6 italic"
+        style={{
+          maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
+          WebkitMaskImage:
+            'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
+        }}
+      >
+        <span className="text-muted-foreground/80">
+          So the dashboard is updating live, right? Looks great.
+        </span>
+        <span className="px-1 text-muted-foreground/30" aria-hidden>
+          ·
+        </span>
+        <span className="rounded-sm bg-primary/15 px-1 text-primary">
+          How do you handle reconciliation when streams disagree?
+        </span>
       </div>
     </div>
   )
@@ -169,35 +202,20 @@ function MockInputRow() {
   )
 }
 
-
 function MockAnswerSection() {
+  // The detected-question chip was removed from the real overlay — it's now
+  // surfaced inline inside RollingTranscript (see MockRollingTranscript above).
+  // Only the answer body remains in the merged panel.
   return (
     <div className="flex flex-col gap-2 border-t border-white/10 px-3 py-2.5">
-      {/* detected-question chip */}
-      <div className="flex flex-wrap gap-1.5">
-        <span
-          className={cn(
-            'inline-flex max-w-[420px] items-center gap-1.5 rounded-md',
-            'border border-primary/40 bg-primary/10 px-2 py-1 text-[11px]'
-          )}
-        >
-          <span className="size-1.5 shrink-0 rounded-full bg-primary" />
-          <span className="truncate">How do you handle reconciliation when streams disagree?</span>
-          <span className="ml-1 shrink-0 rounded border border-primary/40 bg-primary/10 px-1 font-mono text-[9px] text-primary">
-            answer ↵
-          </span>
-        </span>
-      </div>
-
-      {/* answer body */}
       <div className="px-1 py-1">
         <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
           Answer last question
         </div>
         <div className="mt-2 text-[13px] leading-relaxed text-foreground">
-          We resolve disagreement by treating system-audio as authoritative for
-          what the room said, and the mic channel for what <em>you</em> said.
-          The reconciler diffs both streams every 800 ms.
+          We resolve disagreement by treating system-audio as authoritative for what the room said,
+          and the mic channel for what <em>you</em> said. The reconciler diffs both streams every
+          800 ms.
         </div>
         <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
           <span className="size-1.5 rounded-full bg-accent" />

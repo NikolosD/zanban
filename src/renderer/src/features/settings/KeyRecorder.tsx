@@ -46,9 +46,13 @@ export function KeyRecorder({
       if (e.shiftKey) parts.push('Shift')
       parts.push(main)
 
-      // Require at least one modifier for letter/digit keys to avoid a bare 'A' shortcut
-      const isAlnum = /^[A-Z0-9]$/.test(main)
-      if (isAlnum && parts.length === 1) return // wait for modifier
+      // Require at least one modifier for any key that could appear in ordinary
+      // typing — letters, digits, punctuation, whitespace, Backspace/Delete.
+      // Bare F-keys and bare arrows stay legal (common UX for "next slide" etc).
+      const isFunctionKey = /^F\d{1,2}$/.test(main)
+      const isArrow = main === 'Up' || main === 'Down' || main === 'Left' || main === 'Right'
+      const allowsBare = isFunctionKey || isArrow
+      if (!allowsBare && parts.length === 1) return // wait for modifier
 
       onChange(parts.join('+'))
       setRecording(false)

@@ -164,15 +164,14 @@ export const SETTINGS_TABS: Array<{
   { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
 ]
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> =
-  [
-    { id: 'general', label: 'General', icon: SlidersHorizontal },
-    { id: 'ai', label: 'AI', icon: Cpu },
-    { id: 'audio', label: 'Audio', icon: Headphones },
-    { id: 'identity', label: 'Identity', icon: User },
-    { id: 'hotkeys', label: 'Hotkeys', icon: Keyboard },
-    { id: 'about', label: 'About', icon: Info }
-  ]
+const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'general', icon: SlidersHorizontal },
+  { id: 'ai', icon: Cpu },
+  { id: 'audio', icon: Headphones },
+  { id: 'identity', icon: User },
+  { id: 'hotkeys', icon: Keyboard },
+  { id: 'about', icon: Info }
+]
 
 export function SettingsPanel({
   initialTab,
@@ -299,7 +298,7 @@ export function SettingsPanel({
               <div className="mt-10 mb-4 flex items-center gap-3">
                 <div className="h-px flex-1 bg-white/[0.06]" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  reference documents
+                  {t('settings.identity.reference_documents_divider')}
                 </span>
                 <div className="h-px flex-1 bg-white/[0.06]" />
               </div>
@@ -318,20 +317,18 @@ export function SettingsPanel({
           {tab === 'about' && <AboutTab version={version} />}
         </div>
         <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-8 py-3">
-          <div className="text-[11px] text-muted-foreground">
-            Changes apply automatically. Secrets stored in your OS keychain.
-          </div>
+          <div className="text-[11px] text-muted-foreground">{t('settings.footer_note')}</div>
           <div className="flex h-7 items-center gap-1.5 text-[11px] text-muted-foreground">
             {savingState === 'saving' && (
               <>
                 <Loader2 className="size-3 animate-spin" />
-                Saving…
+                {t('settings.saving')}
               </>
             )}
             {savingState === 'saved' && (
               <>
                 <Check className="size-3 text-emerald-400/80" />
-                Saved
+                {t('settings.saved')}
               </>
             )}
           </div>
@@ -342,10 +339,11 @@ export function SettingsPanel({
 }
 
 function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
+  const { t: tr } = useTranslation()
   return (
     <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
       <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        settings
+        {tr('settings.sidebar_title')}
       </h2>
       <nav className="flex flex-col">
         {TABS.map((t) => {
@@ -366,7 +364,7 @@ function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }
               )}
             >
               <t.icon className="size-3.5 opacity-80" />
-              {t.label}
+              {tr(`settings.tabs.${t.id}`)}
             </button>
           )
         })}
@@ -437,7 +435,9 @@ function GeneralTab({
         hint={t('settings.general.appearance_hint')}
       >
         <OpacityField
-          value={settings.overlayOpacity ?? 1}
+          // Clamp stored value into the slider's range so legacy/manual sub-min
+          // values display correctly and don't desync the thumb position.
+          value={Math.max(0.4, Math.min(1, settings.overlayOpacity ?? 1))}
           onChange={(v) => update('overlayOpacity', v)}
         />
       </Section>
@@ -507,13 +507,9 @@ function GeneralTab({
           label={t('settings.general.transcript_window_label')}
           hint={t('settings.general.transcript_window_hint')}
         >
-          <Input
-            type="number"
-            className="w-28 font-mono"
+          <TranscriptWindowInput
             value={settings.contextSeconds}
-            onChange={(e) =>
-              update('contextSeconds', Math.max(10, Math.min(600, Number(e.target.value))))
-            }
+            onCommit={(n) => update('contextSeconds', n)}
           />
         </Field>
       </Section>
@@ -691,7 +687,7 @@ function ModelsTab({
                 </SelectItem>
                 {LLM_PROVIDERS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>
-                    {p.name}
+                    {t(`settings.providers.llm.${p.value}.name`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1019,17 +1015,15 @@ function HotkeysTab({
 }
 
 function AboutTab({ version }: { version: string }) {
+  const { t } = useTranslation()
   return (
-    <Section title="about">
+    <Section title={t('settings.about.title')}>
       <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
         <div className="flex items-baseline gap-2">
           <div className="text-base font-semibold">Zanban</div>
           <div className="font-mono text-[11px] text-muted-foreground">v{version || '…'}</div>
         </div>
-        <p className="mt-2 text-[12px] text-muted-foreground">
-          Desktop AI meeting assistant. Real-time transcription via Google STT, answers via Vercel
-          AI Gateway. Sessions stored locally.
-        </p>
+        <p className="mt-2 text-[12px] text-muted-foreground">{t('settings.about.description')}</p>
       </div>
     </Section>
   )
@@ -1052,6 +1046,34 @@ function Row({
       </div>
       <div className="shrink-0">{children}</div>
     </label>
+  )
+}
+
+function TranscriptWindowInput({ value, onCommit }: { value: number; onCommit(v: number): void }) {
+  // Uncontrolled-ish: user can type freely (including clearing the field).
+  // Persistence + clamping happens on blur/Enter so we don't fight the user's
+  // keystrokes. Re-syncs to props if external value changes.
+  const [draft, setDraft] = useState<string>(String(value))
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+  const commit = (): void => {
+    const n = Number(draft)
+    const clamped = Number.isFinite(n) ? Math.max(10, Math.min(600, n)) : value
+    setDraft(String(clamped))
+    if (clamped !== value) onCommit(clamped)
+  }
+  return (
+    <Input
+      type="number"
+      className="w-28 font-mono"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+    />
   )
 }
 
