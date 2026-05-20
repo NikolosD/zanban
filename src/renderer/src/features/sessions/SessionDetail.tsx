@@ -2,29 +2,20 @@ import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
 import { useQuery } from '@tanstack/react-query'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Loader2,
-  Play,
-  RotateCcw,
-  Copy,
-  Check,
-  Download
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Play, Download } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
-import { copyToClipboard } from '@renderer/lib/clipboard'
 import { startCapturesFromSettings } from '@renderer/audio/captureController'
 import { useTranscript } from '@renderer/features/transcript/store'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import type { SessionDetailPayload, StoredSegment, StoredExchange } from '@shared/api'
+import { RecapTab } from './RecapTab'
 import type { SessionExportPayload } from '@shared/types'
 import { toast } from 'sonner'
 
-type TabId = 'summary' | 'transcript' | 'usage'
+type TabId = 'recap' | 'transcript' | 'usage'
 
 async function resume(id: string): Promise<void> {
   if (useTranscript.getState().session.kind === 'running') {
@@ -44,7 +35,7 @@ async function resume(id: string): Promise<void> {
 
 export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack(): void }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<TabId>('summary')
+  const [tab, setTab] = useState<TabId>('recap')
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['session-detail-local', sessionId],
@@ -108,12 +99,11 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
       {/* Tabs row */}
       <div className="flex items-center justify-between gap-3">
         <TabSwitcher tab={tab} setTab={setTab} />
-        {tab === 'summary' && <SummaryActions session={data} />}
       </div>
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === 'summary' && <SummaryTab session={data} />}
+        {tab === 'recap' && <RecapTab session={data} />}
         {tab === 'transcript' && <TranscriptTab segments={data.segments} />}
         {tab === 'usage' && <UsageTab session={data} ended={ended} startedAt={data.startedAt} />}
       </div>
@@ -126,7 +116,7 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
 
 function TabSwitcher({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
   const { t } = useTranslation()
-  const TABS: Array<{ id: TabId }> = [{ id: 'summary' }, { id: 'transcript' }, { id: 'usage' }]
+  const TABS: Array<{ id: TabId }> = [{ id: 'recap' }, { id: 'transcript' }, { id: 'usage' }]
   return (
     <div className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
       {TABS.map((tabDef) => (
@@ -146,8 +136,6 @@ function TabSwitcher({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
     </div>
   )
 }
-
-const SUMMARY_LABEL = '__zanban_session_summary__'
 
 function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
   const { t } = useTranslation()
@@ -208,126 +196,6 @@ function buildExportPayload(session: SessionDetailPayload): SessionExportPayload
     title: session.title || `Session ${new Date(session.startedAt).toLocaleString()}`,
     startedAt: session.startedAt,
     blocks
-  }
-}
-
-function SummaryActions({ session }: { session: SessionDetailPayload }) {
-  const messages = useAi((s) => s.messages)
-  const summary = [...messages].reverse().find((m) => m.prompt === SUMMARY_LABEL) ?? null
-  const [copied, setCopied] = useState(false)
-
-  async function copySummary() {
-    if (!summary) return
-    const ok = await copyToClipboard(summary.answer, 'Summary copied')
-    if (ok) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
-    }
-  }
-
-  if (!summary) return null
-
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1.5 text-[12px] text-muted-foreground hover:text-foreground"
-        onClick={() => void generateSummary(session)}
-      >
-        <RotateCcw className="size-3.5" /> Regenerate
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1.5 text-[12px] text-muted-foreground hover:text-foreground"
-        onClick={() => void copySummary()}
-      >
-        {copied ? <Check className="size-3.5 text-green-400" /> : <Copy className="size-3.5" />}
-        Copy summary
-      </Button>
-    </div>
-  )
-}
-
-function SummaryTab({ session }: { session: SessionDetailPayload }) {
-  const messages = useAi((s) => s.messages)
-  const summary = [...messages].reverse().find((m) => m.prompt === SUMMARY_LABEL) ?? null
-  const [generating, setGenerating] = useState(false)
-
-  async function generate() {
-    if (generating) return
-    setGenerating(true)
-    try {
-      await generateSummary(session)
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  if (!summary) {
-    return (
-      <div className="flex h-full flex-col items-start justify-center gap-4 px-1">
-        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          no summary yet
-        </div>
-        <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
-          Generate a quick AI summary of what was discussed. Uses the saved transcript only — no
-          audio is sent.
-        </p>
-        <Button
-          onClick={() => void generate()}
-          disabled={generating || session.segments.length === 0}
-          className="gap-2"
-        >
-          {generating && <Loader2 className="size-4 animate-spin" />}
-          Generate summary
-        </Button>
-        {session.segments.length === 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            No transcript saved — nothing to summarize.
-          </p>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <ScrollArea className="h-full pr-3">
-      <div className="prose-sm max-w-none">
-        {summary.status === 'error' ? (
-          <p className="text-sm text-destructive">{summary.error}</p>
-        ) : (
-          <div className="text-[14px] leading-relaxed text-foreground/95">
-            <StreamingMarkdown text={summary.answer} />
-          </div>
-        )}
-      </div>
-    </ScrollArea>
-  )
-}
-
-async function generateSummary(session: SessionDetailPayload): Promise<void> {
-  if (session.segments.length === 0) {
-    toast.error('No transcript to summarize.')
-    return
-  }
-  const transcript = session.segments
-    .map((s) => `[${s.channel === 'mic' ? 'You' : 'Them'}] ${s.text}`)
-    .join('\n')
-  const prompt = `Summarize this meeting transcript. Focus on the actual topics discussed and any decisions or open questions. Use 4-7 short bullets in clean Markdown. Keep it tight; no preamble.
-
-<transcript>
-${transcript}
-</transcript>`
-
-  try {
-    const { requestId } = await window.zanban.ai.ask({ prompt })
-    useAi.getState().newRequest(SUMMARY_LABEL, requestId)
-  } catch (err) {
-    const id = `err-${Date.now()}`
-    useAi.getState().newRequest(SUMMARY_LABEL, id)
-    useAi.getState().failRequest(id, err instanceof Error ? err.message : 'failed')
   }
 }
 
