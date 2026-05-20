@@ -264,6 +264,21 @@ export interface AppSettings {
    * Persisted so each new session opens at the user's preferred ceiling.
    */
   overlayAnswerMaxHeight: number
+  /**
+   * Post-meeting recap (RecapTab in SessionDetail). Separate from the
+   * overlay's mid-meeting "Recap last 90s" chip — that one uses RECAP_PROMPT
+   * via ai.ask, this one is the structured, persisted document.
+   */
+  recap: {
+    /** When true, recap generation kicks off automatically on session stop. */
+    autoGenerate: boolean
+    /** Tone applied to the follow-up draft. */
+    tone: 'concise' | 'friendly' | 'formal'
+    /** Recap output language; 'auto' = detect from transcript. */
+    language: 'auto' | 'en' | 'ru'
+    /** When non-null, overrides the default `summary` role model. */
+    modelOverride: string | null
+  }
   hotkeys: {
     toggleOverlay: string
     askAi: string
@@ -509,6 +524,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   overlayOpacity: 1,
   autoDetectQuestions: true,
   overlayAnswerMaxHeight: 320,
+  recap: {
+    autoGenerate: false,
+    tone: 'concise',
+    language: 'auto',
+    modelOverride: null
+  },
   hotkeys: {
     toggleOverlay: 'Control+\\',
     askAi: 'Control+Shift+Space',

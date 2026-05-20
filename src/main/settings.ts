@@ -99,19 +99,17 @@ export function getSettings(): AppSettings {
     hideFromAppSwitcher,
     hotkeys: { ...DEFAULT_SETTINGS.hotkeys, ...(raw.hotkeys ?? {}) },
     audio: { ...DEFAULT_SETTINGS.audio, ...(raw.audio ?? {}) },
+    recap: { ...DEFAULT_SETTINGS.recap, ...(raw.recap ?? {}) },
     aiModels: migrateAiModels(raw.aiModels),
-    googleProjectId:
-      raw.googleProjectId ?? process.env.GOOGLE_CLOUD_PROJECT ?? null,
+    googleProjectId: raw.googleProjectId ?? process.env.GOOGLE_CLOUD_PROJECT ?? null,
     // Encrypted keys are restored individually so we can each pull a separate
     // env-var fallback (useful in dev / CI where secrets come from .env).
     googleServiceAccountJson:
       decrypt(raw.googleServiceAccountJsonEnc) ??
       process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ??
       null,
-    deepgramApiKey:
-      decrypt(raw.deepgramApiKeyEnc) ?? process.env.DEEPGRAM_API_KEY ?? null,
-    vercelApiKey:
-      decrypt(raw.vercelApiKeyEnc) ?? process.env.AI_GATEWAY_API_KEY ?? null,
+    deepgramApiKey: decrypt(raw.deepgramApiKeyEnc) ?? process.env.DEEPGRAM_API_KEY ?? null,
+    vercelApiKey: decrypt(raw.vercelApiKeyEnc) ?? process.env.AI_GATEWAY_API_KEY ?? null,
     anthropicApiKey: decrypt(raw.anthropicApiKeyEnc) ?? process.env.ANTHROPIC_API_KEY ?? null,
     openaiApiKey: decrypt(raw.openaiApiKeyEnc) ?? process.env.OPENAI_API_KEY ?? null,
     googleAiApiKey: decrypt(raw.googleAiApiKeyEnc) ?? process.env.GOOGLE_AI_API_KEY ?? null,
