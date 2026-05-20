@@ -128,6 +128,7 @@
       "ai": "AI",
       "audio": "Audio",
       "identity": "Identity",
+      "recap": "Recap",
       "hotkeys": "Hotkeys",
       "about": "About"
     },
@@ -374,6 +375,30 @@
         "hi": "Hindi · हिन्दी",
         "ar": "Arabic · العربية"
       }
+    },
+    "recap": {
+      "title": "Post-Meeting Recap",
+      "subtitle": "Controls how the structured recap document is generated at the end of each session.",
+      "auto_label": "Auto-generate",
+      "auto_hint": "Start recap generation automatically when you stop a session.",
+      "auto_toggle": "Generate recap when session ends",
+      "tone_label": "Tone",
+      "tone_hint": "Tone applied to the follow-up draft and action items.",
+      "tones": {
+        "concise": "Concise",
+        "friendly": "Friendly",
+        "formal": "Formal"
+      },
+      "language_label": "Output language",
+      "language_hint": "Language the recap is written in. \"Auto\" detects from the transcript.",
+      "languages": {
+        "auto": "Auto (detect from transcript)",
+        "en": "English",
+        "ru": "Russian · Русский"
+      },
+      "model_label": "Model override",
+      "model_hint": "Leave blank to use the default summary model. Enter a model ID to override for recap only.",
+      "model_placeholder": "e.g. gpt-4o or claude-3-5-sonnet-20241022"
     },
     "hotkeys_section": {
       "title": "hotkeys",

@@ -10,7 +10,8 @@ import {
   FolderOpen,
   Headphones,
   Zap,
-  Check
+  Check,
+  FileText
 } from 'lucide-react'
 import {
   DEFAULT_SETTINGS,
@@ -26,6 +27,7 @@ import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
 import { ProvidersTab, SttProviderCards, WebSearchCard, LLM_PROVIDERS } from './ProvidersTab'
+import { RecapSettingsTab } from './RecapSettingsTab'
 import { OverlayMockup } from './OverlayMockup'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -50,6 +52,7 @@ export type SettingsTabId =
   | 'audio'
   | 'ai'
   | 'identity'
+  | 'recap'
   | 'hotkeys'
   | 'about'
   // legacy aliases — accepted as input, mapped to merged tabs internally:
@@ -58,7 +61,7 @@ export type SettingsTabId =
   | 'persona'
   | 'documents'
 
-type TabId = 'general' | 'audio' | 'ai' | 'identity' | 'hotkeys' | 'about'
+type TabId = 'general' | 'audio' | 'ai' | 'identity' | 'recap' | 'hotkeys' | 'about'
 
 function resolveTab(id: SettingsTabId): TabId {
   if (id === 'providers' || id === 'models') return 'ai'
@@ -157,6 +160,22 @@ export const SETTINGS_TABS: Array<{
     ]
   },
   {
+    id: 'recap',
+    label: 'Recap',
+    keywords: [
+      'recap',
+      'post-meeting',
+      'summary',
+      'auto generate',
+      'tone',
+      'concise',
+      'friendly',
+      'formal',
+      'language',
+      'model override'
+    ]
+  },
+  {
     id: 'hotkeys',
     label: 'Hotkeys',
     keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind']
@@ -169,6 +188,7 @@ const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }>
   { id: 'ai', icon: Cpu },
   { id: 'audio', icon: Headphones },
   { id: 'identity', icon: User },
+  { id: 'recap', icon: FileText },
   { id: 'hotkeys', icon: Keyboard },
   { id: 'about', icon: Info }
 ]
@@ -305,6 +325,7 @@ export function SettingsPanel({
               <ReferenceDocsTab />
             </>
           )}
+          {tab === 'recap' && <RecapSettingsTab settings={settings} update={update} />}
           {tab === 'hotkeys' && (
             <HotkeysTab
               settings={settings}
