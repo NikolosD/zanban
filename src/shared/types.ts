@@ -419,6 +419,8 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'openai/gpt-oss-20b',
     'openai/gpt-5.4-mini',
     'anthropic/claude-haiku-4-5',
+    'google/gemini-3.5-flash',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'deepseek/deepseek-v4',
@@ -434,13 +436,22 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'o4-mini',
     'o3'
   ],
-  'google-gemini': ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+  'google-gemini': [
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
+  ],
   groq: ['llama-3.3-70b-versatile', 'llama-4-scout', 'mixtral-8x7b-instruct', 'gemma2-9b-it'],
   ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:9b']
 }
 
 export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
+    'google/gemini-3.5-flash',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
@@ -448,7 +459,14 @@ export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
   ],
   anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6'],
   openai: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-oss-120b'],
-  'google-gemini': ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+  'google-gemini': [
+    'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
+  ],
   groq: ['llama-3.2-90b-vision-preview'],
   ollama: ['llava:7b', 'llava:13b', 'llama3.2-vision:11b']
 }
@@ -463,6 +481,8 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'openai/gpt-oss-120b',
     'openai/gpt-5.4-mini',
     'anthropic/claude-haiku-4-5',
+    'google/gemini-3.5-flash',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'deepseek/deepseek-v4',
@@ -471,6 +491,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
   filter: [
     'openai/gpt-oss-20b',
     'arcee-ai/trinity-mini',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'mistral/ministral-3b',
     'amazon/nova-lite',
@@ -482,10 +503,14 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
   summary: [
     'xiaomi/mimo-v2.5',
     'openai/gpt-5.4-mini',
+    'google/gemini-3.5-flash',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'anthropic/claude-haiku-4-5'
   ],
   vision: [
+    'google/gemini-3.5-flash',
+    'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
