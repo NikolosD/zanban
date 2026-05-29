@@ -353,7 +353,7 @@ app.whenReady().then(async () => {
     }
     // Broadcast the new settings to every window — the overlay holds its own
     // copy in zustand, so without this it would not pick up changes like
-    // `hideWidgetWhenHidden` or `autoDetectQuestions` until app restart.
+    // `hideWidgetWhenHidden` until app restart.
     for (const win of [mainWindow, overlayWindow]) {
       win?.webContents.send(IPC.settings.changed, next)
     }

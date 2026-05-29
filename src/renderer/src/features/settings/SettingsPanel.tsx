@@ -515,15 +515,6 @@ function GeneralTab({
         title={t('settings.general.assistant_title')}
         hint={t('settings.general.assistant_hint')}
       >
-        <Row
-          label={t('settings.general.auto_detect_label')}
-          hint={t('settings.general.auto_detect_hint')}
-        >
-          <Switch
-            checked={settings.autoDetectQuestions}
-            onCheckedChange={(v) => update('autoDetectQuestions', v)}
-          />
-        </Row>
         <Field
           label={t('settings.general.transcript_window_label')}
           hint={t('settings.general.transcript_window_hint')}

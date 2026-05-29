@@ -193,8 +193,7 @@ export function OverlayApp() {
     const offCap = wireCaptureAutostop()
     const offJobs = wireJobsIpc()
     // Live-sync settings from main — needed so toggles changed in the
-    // dashboard (e.g. hideWidgetWhenHidden, autoDetectQuestions) take effect
-    // here without an app restart.
+    // dashboard (e.g. hideWidgetWhenHidden) take effect here without an app restart.
     const offSettings = wireSettingsIpc()
 
     function onMove(e: MouseEvent): void {

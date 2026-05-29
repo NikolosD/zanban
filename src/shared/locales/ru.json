@@ -299,8 +299,6 @@
       "hide_app_switcher_hint": "Убрать Zanban из дока + Cmd+Tab на macOS и из таскбара + Alt+Tab на Windows. На macOS перезапустите для эффекта.",
       "assistant_title": "ассистент",
       "assistant_hint": "Насколько активно Zanban подсказывает во время звонка.",
-      "auto_detect_label": "Авто-детект вопросов от собеседника",
-      "auto_detect_hint": "Когда другая сторона задаёт вопрос — он появляется чипом, на который можно ответить одним кликом.",
       "transcript_window_label": "Окно транскрипта",
       "transcript_window_hint": "Сколько секунд недавнего аудио идёт в контекст каждого Ask.",
       "sessions_title": "сессии",
