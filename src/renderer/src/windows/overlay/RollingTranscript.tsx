@@ -2,25 +2,24 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Ear } from 'lucide-react'
 import { useTranscript } from '@renderer/features/transcript/store'
 import { cn } from '@renderer/lib/utils'
-import { buildLane, type LaneItem } from './rollingLane'
+import { buildLane } from './rollingLane'
 
 const SYSTEM_LIMIT = 40
 
 export function RollingTranscript() {
   const session = useTranscript((s) => s.session)
   const finals = useTranscript((s) => s.finals)
-  const partial = useTranscript((s) => s.partials.system)
   const systemFinals = useMemo(() => finals.filter((f) => f.channel === 'system'), [finals])
 
   const lane = useMemo(
-    () => buildLane({ finals: systemFinals, partial, limit: SYSTEM_LIMIT }),
-    [systemFinals, partial]
+    () => buildLane({ finals: systemFinals, limit: SYSTEM_LIMIT }),
+    [systemFinals]
   )
 
   // Single-line strip with no "stick to bottom" mode — every content change pins
   // the scroll position to the right edge so the freshest text stays in view.
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const signature = lane.map((l) => `${l.id}:${l.text.length}`).join('|')
+  const signature = lane.map((l) => l.id).join('|')
   useEffect(() => {
     const el = scrollerRef.current
     if (!el) return
@@ -44,9 +43,8 @@ export function RollingTranscript() {
         ref={scrollerRef}
         className="flex-1 min-w-0 overflow-x-hidden whitespace-nowrap text-[12px] leading-6 italic"
         style={{
-          maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-          WebkitMaskImage:
-            'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
+          maskImage: 'linear-gradient(to right, transparent, black 12%, black 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, transparent, black 12%, black 100%)'
         }}
       >
         {lane.length === 0 ? (
@@ -59,7 +57,7 @@ export function RollingTranscript() {
                   ·
                 </span>
               )}
-              <SegmentSpan item={item} />
+              <span className="text-foreground/85">{item.text}</span>
             </span>
           ))
         )}
@@ -70,16 +68,4 @@ export function RollingTranscript() {
       />
     </div>
   )
-}
-
-function SegmentSpan({ item }: { item: LaneItem }) {
-  if (!item.isFinal) {
-    return (
-      <span className="text-muted-foreground/70">
-        {item.text}
-        <span className="text-muted-foreground/60">▍</span>
-      </span>
-    )
-  }
-  return <span className="text-foreground/85">{item.text}</span>
 }

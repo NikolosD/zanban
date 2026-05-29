@@ -55,14 +55,15 @@ describe('RollingTranscript', () => {
     expect(el.textContent).not.toContain('mic-line')
   })
 
-  it('shows partial system text in the tail with the cursor glyph', () => {
+  it('does not render the live (interim) partial — only finalized text', () => {
     makeRunning()
     useTranscript.setState({
+      finals: [fSeg('s1', 'final-text', 'system')],
       partials: {
         mic: null,
         system: {
           id: 'p1',
-          text: 'still talking',
+          text: 'draft-text',
           channel: 'system',
           speaker: 0,
           startMs: 0,
@@ -74,7 +75,8 @@ describe('RollingTranscript', () => {
     })
     const { getByTestId } = render(<RollingTranscript />)
     const el = getByTestId('overlay-rolling-transcript')
-    expect(el.textContent).toContain('still talking')
-    expect(el.textContent).toContain('▍')
+    expect(el.textContent).toContain('final-text')
+    expect(el.textContent).not.toContain('draft-text')
+    expect(el.textContent).not.toContain('▍')
   })
 })
