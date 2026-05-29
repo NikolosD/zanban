@@ -52,8 +52,8 @@ export const useTranscript = create<TranscriptState>((set) => ({
   setSession(state) {
     set((prev) => {
       // When a fresh session starts (new sessionId, or coming out of idle),
-      // wipe the live transcript / Q&A / detected questions so the UI doesn't
-      // show stale content from the previous call.
+      // wipe the live transcript and Q&A (useAi) so the UI doesn't show
+      // stale content from the previous call.
       const prevId = prev.session.kind === 'running' ? prev.session.sessionId : null
       const nextId = state.kind === 'running' ? state.sessionId : null
       if (nextId && nextId !== prevId) {
