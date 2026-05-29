@@ -1,4 +1,4 @@
-﻿import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
+import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
 import { getActiveContext } from '../documents/referenceStore.js'
 
 const BASE_SYSTEM_PROMPT = `You are Zanban, a real-time meeting assistant. The user is in a live meeting RIGHT NOW; they will read your answer in seconds, not minutes.
