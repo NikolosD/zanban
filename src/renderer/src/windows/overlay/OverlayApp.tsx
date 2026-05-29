@@ -12,7 +12,6 @@ import {
   ArrowDownToLine
 } from 'lucide-react'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
-import { useQuestions } from '@renderer/features/transcript/questionsStore'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
 import { wireJobsIpc } from '@renderer/features/jobs/jobsStore'
 import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
@@ -26,6 +25,7 @@ import {
   type LlmProvider
 } from '@shared/types'
 import {
+  ANSWER_LAST_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -58,7 +58,6 @@ import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureContro
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
-import { decideAnswerAction } from './handleAnswer'
 import { RollingTranscript } from './RollingTranscript'
 
 export function OverlayApp() {
@@ -289,7 +288,7 @@ export function OverlayApp() {
    * `quietMs`, OR the cap (`maxWaitMs`) elapses. Returns immediately if the
    * transcript is already settled.
    */
-  async function awaitTranscriptSettle(maxWaitMs = 2500, quietMs = 600): Promise<void> {
+  async function awaitTranscriptSettle(maxWaitMs = 600, quietMs = 250): Promise<void> {
     const start = Date.now()
     if (useTranscript.getState().session.kind !== 'running') return
     while (Date.now() - start < maxWaitMs) {
@@ -332,22 +331,8 @@ export function OverlayApp() {
   })
 
   const handleAnswer = useCallback((): void => {
-    const action = decideAnswerAction({
-      questions: useQuestions.getState().questions,
-      autoDetectQuestions: settings?.autoDetectQuestions
-    })
-    if (action.kind === 'answerDetected') {
-      useQuestions.getState().markAnswered(action.questionId)
-      void runPromptRef.current(action.questionText, 'Answer last question')
-    } else {
-      void runPromptRef.current(
-        action.prompt,
-        'Answer last question',
-        undefined,
-        action.waitForTranscript
-      )
-    }
-  }, [settings?.autoDetectQuestions])
+    void runPromptRef.current(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
+  }, [])
 
   const handleAnswerRef = useRef(handleAnswer)
   useEffect(() => {
