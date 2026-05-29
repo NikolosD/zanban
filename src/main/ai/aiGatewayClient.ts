@@ -10,6 +10,7 @@ import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './p
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieveContext } from '../rag/index.js'
+import type { IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
 import {
@@ -118,9 +119,9 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       let webSearchBlock = ''
       const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
       if (webProvider && opts.prompt.trim().split(/\s+/).length >= 4) {
-        type SearchHit = { title: string; url: string; snippet: string }
+        type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
         const hits = await raceTimeout(
-          webProvider.search(opts.prompt, { topK: 3 }).catch(() => [] as SearchHit[]),
+          webProvider.search(opts.prompt, { topK: 3 }),
           800,
           [] as SearchHit[]
         )
