@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Ear } from 'lucide-react'
 import { useTranscript } from '@renderer/features/transcript/store'
-import { useQuestions } from '@renderer/features/transcript/questionsStore'
-import { useSettingsStore } from '@renderer/features/settings/store'
 import { cn } from '@renderer/lib/utils'
 import { buildLane, type LaneItem } from './rollingLane'
 
@@ -12,21 +10,11 @@ export function RollingTranscript() {
   const session = useTranscript((s) => s.session)
   const finals = useTranscript((s) => s.finals)
   const partial = useTranscript((s) => s.partials.system)
-  const questions = useQuestions((s) => s.questions)
-  const autoDetect = useSettingsStore((s) => s.settings?.autoDetectQuestions)
-
   const systemFinals = useMemo(() => finals.filter((f) => f.channel === 'system'), [finals])
 
   const lane = useMemo(
-    () =>
-      buildLane({
-        finals: systemFinals,
-        partial,
-        questions,
-        autoDetectQuestions: autoDetect !== false,
-        limit: SYSTEM_LIMIT
-      }),
-    [systemFinals, partial, questions, autoDetect]
+    () => buildLane({ finals: systemFinals, partial, limit: SYSTEM_LIMIT }),
+    [systemFinals, partial]
   )
 
   // Single-line strip with no "stick to bottom" mode — every content change pins
@@ -90,20 +78,6 @@ function SegmentSpan({ item }: { item: LaneItem }) {
       <span className="text-muted-foreground/70">
         {item.text}
         <span className="text-muted-foreground/60">▍</span>
-      </span>
-    )
-  }
-  if (item.highlight === 'pending') {
-    return (
-      <span data-highlight="pending" className="text-primary">
-        {item.text}
-      </span>
-    )
-  }
-  if (item.highlight === 'resolved') {
-    return (
-      <span data-highlight="resolved" className="text-foreground/45">
-        {item.text}
       </span>
     )
   }

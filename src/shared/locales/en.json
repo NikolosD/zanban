@@ -299,8 +299,6 @@
       "hide_app_switcher_hint": "Drop Zanban from the dock + Cmd+Tab on macOS, and the taskbar + Alt+Tab on Windows. Restart on macOS for the dock change to take effect.",
       "assistant_title": "assistant",
       "assistant_hint": "How proactively Zanban surfaces helpers during the call.",
-      "auto_detect_label": "Auto-detect questions from the other speaker",
-      "auto_detect_hint": "When the other side asks something, surface it as a chip you can answer in one click.",
       "transcript_window_label": "Transcript window",
       "transcript_window_hint": "Seconds of recent audio sent as context for each Ask.",
       "sessions_title": "sessions",

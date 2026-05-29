@@ -93,7 +93,7 @@ export async function startMic(
 ): Promise<CaptureHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
-      deviceId: deviceId ? { exact: deviceId } : undefined,
+      deviceId: deviceId ? { ideal: deviceId } : undefined,
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false
@@ -102,9 +102,10 @@ export async function startMic(
   return startCapture({ channel: 'mic', stream, vad })
 }
 
-export async function startSystem(
-  vad?: { enabled: boolean; threshold: number }
-): Promise<CaptureHandle | null> {
+export async function startSystem(vad?: {
+  enabled: boolean
+  threshold: number
+}): Promise<CaptureHandle | null> {
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: 1, height: 1, frameRate: 1 },

@@ -35,8 +35,7 @@ export const IPC = {
     ask: 'ai:ask',
     chunk: 'ai:chunk',
     done: 'ai:done',
-    error: 'ai:error',
-    extractQuestion: 'ai:extract-question'
+    error: 'ai:error'
   },
   settings: {
     get: 'settings:get',

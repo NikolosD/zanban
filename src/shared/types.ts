@@ -257,7 +257,6 @@ export interface AppSettings {
    * a meeting tile is bright. Applied via BrowserWindow.setOpacity.
    */
   overlayOpacity: number
-  autoDetectQuestions: boolean
   /**
    * Max height in CSS pixels of the overlay's answer-history scroll area.
    * The user sets this by dragging the resize handle below the answer list.
@@ -547,7 +546,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideWidgetWhenHidden: false,
   hideFromAppSwitcher: false,
   overlayOpacity: 1,
-  autoDetectQuestions: true,
   overlayAnswerMaxHeight: 320,
   recap: {
     autoGenerate: false,

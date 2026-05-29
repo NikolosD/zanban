@@ -6,15 +6,11 @@ import { IPC } from '../../shared/ipc-channels.js'
 import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
 import type { TranscriptSegment } from '../../shared/types.js'
-import {
-  buildSystemPrompt,
-  buildUserPrompt,
-  buildVisionSystemPrompt,
-  QUESTION_EXTRACTOR_PROMPT
-} from './prompts.js'
+import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './prompts.js'
+import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieveContext } from '../rag/index.js'
-import { generateOneShot } from './llm/baseLlm.js'
+import type { IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
 import {
@@ -123,14 +119,15 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       let webSearchBlock = ''
       const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
       if (webProvider && opts.prompt.trim().split(/\s+/).length >= 4) {
-        try {
-          const hits = await webProvider.search(opts.prompt, { topK: 3 })
-          if (hits.length > 0) {
-            const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
-            webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
-          }
-        } catch (err) {
-          console.warn('[ai] web search failed', err)
+        type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
+        const hits = await raceTimeout(
+          webProvider.search(opts.prompt, { topK: 3 }),
+          800,
+          [] as SearchHit[]
+        )
+        if (hits.length > 0) {
+          const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
+          webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
         }
       }
 
@@ -356,29 +353,4 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   })()
 
   return { requestId }
-}
-
-export async function extractQuestion(text: string): Promise<string | null> {
-  const trimmed = text.trim().slice(0, 1000)
-  if (!trimmed) return null
-  try {
-    // Routes through whichever LLM provider is active (Anthropic, OpenAI,
-    // Gemini, Groq, Ollama, or Vercel Gateway as the fallback). Previously
-    // it was hard-wired to Vercel — that meant question detection silently
-    // died on users who only had an Anthropic / OpenAI key set.
-    const out = await generateOneShot({
-      role: 'filter',
-      system: QUESTION_EXTRACTOR_PROMPT,
-      prompt: trimmed,
-      temperature: 0,
-      maxOutputTokens: 120
-    })
-    const cleaned = out.trim()
-    if (!cleaned) return null
-    if (/^none\b/i.test(cleaned)) return null
-    return cleaned.replace(/^["'`]+|["'`]+$/g, '')
-  } catch (err) {
-    console.warn('[ai] extractQuestion failed', err)
-    return null
-  }
 }
