@@ -7,6 +7,7 @@ import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
 import type { TranscriptSegment } from '../../shared/types.js'
 import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './prompts.js'
+import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieveContext } from '../rag/index.js'
 import { streamWithFallback } from './llm/fallbackChain.js'
@@ -117,14 +118,15 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       let webSearchBlock = ''
       const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
       if (webProvider && opts.prompt.trim().split(/\s+/).length >= 4) {
-        try {
-          const hits = await webProvider.search(opts.prompt, { topK: 3 })
-          if (hits.length > 0) {
-            const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
-            webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
-          }
-        } catch (err) {
-          console.warn('[ai] web search failed', err)
+        type SearchHit = { title: string; url: string; snippet: string }
+        const hits = await raceTimeout(
+          webProvider.search(opts.prompt, { topK: 3 }).catch(() => [] as SearchHit[]),
+          800,
+          [] as SearchHit[]
+        )
+        if (hits.length > 0) {
+          const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
+          webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
         }
       }
 
