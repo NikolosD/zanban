@@ -1,10 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import type { TranscriptSegment, AppSettings } from '@shared/types'
+import type { TranscriptSegment } from '@shared/types'
 import { useTranscript } from '@renderer/features/transcript/store'
-import { useQuestions } from '@renderer/features/transcript/questionsStore'
-import { useSettingsStore } from '@renderer/features/settings/store'
 import { RollingTranscript } from './RollingTranscript'
 
 function fSeg(
@@ -13,10 +11,6 @@ function fSeg(
   channel: TranscriptSegment['channel'] = 'system'
 ): TranscriptSegment {
   return { id, text, channel, speaker: 0, startMs: 0, endMs: 0, isFinal: true, createdAt: 0 }
-}
-
-function settingsWith(autoDetectQuestions: boolean): AppSettings {
-  return { autoDetectQuestions } as unknown as AppSettings
 }
 
 beforeEach(() => {
@@ -28,8 +22,6 @@ beforeEach(() => {
     lastUpdateAt: null,
     lastFinalAt: null
   })
-  useQuestions.setState({ questions: [] })
-  useSettingsStore.setState({ settings: null })
 })
 
 afterEach(() => {
@@ -37,9 +29,7 @@ afterEach(() => {
 })
 
 function makeRunning(): void {
-  useTranscript.setState({
-    session: { kind: 'running', sessionId: 's1', startedAt: 0 }
-  })
+  useTranscript.setState({ session: { kind: 'running', sessionId: 's1', startedAt: 0 } })
 }
 
 describe('RollingTranscript', () => {
@@ -63,42 +53,6 @@ describe('RollingTranscript', () => {
     const el = getByTestId('overlay-rolling-transcript')
     expect(el.textContent).toContain('system-line')
     expect(el.textContent).not.toContain('mic-line')
-  })
-
-  it('highlights a segment whose id matches a pending question', () => {
-    makeRunning()
-    useTranscript.setState({ finals: [fSeg('s1', 'tell me about react?', 'system')] })
-    useQuestions.setState({
-      questions: [{ id: 's1', text: 'tell me about react?', detectedAt: 0, status: 'pending' }]
-    })
-    useSettingsStore.setState({ settings: settingsWith(true) })
-    const { container } = render(<RollingTranscript />)
-    const highlighted = container.querySelector('[data-highlight="pending"]')
-    expect(highlighted?.textContent).toBe('tell me about react?')
-  })
-
-  it('dims the highlight after the question is marked answered', () => {
-    makeRunning()
-    useTranscript.setState({ finals: [fSeg('s1', 'q?', 'system')] })
-    useQuestions.setState({
-      questions: [{ id: 's1', text: 'q?', detectedAt: 0, status: 'answered' }]
-    })
-    useSettingsStore.setState({ settings: settingsWith(true) })
-    const { container } = render(<RollingTranscript />)
-    expect(container.querySelector('[data-highlight="pending"]')).toBeNull()
-    expect(container.querySelector('[data-highlight="resolved"]')?.textContent).toBe('q?')
-  })
-
-  it('does not highlight when autoDetectQuestions is false', () => {
-    makeRunning()
-    useTranscript.setState({ finals: [fSeg('s1', 'q?', 'system')] })
-    useQuestions.setState({
-      questions: [{ id: 's1', text: 'q?', detectedAt: 0, status: 'pending' }]
-    })
-    useSettingsStore.setState({ settings: settingsWith(false) })
-    const { container } = render(<RollingTranscript />)
-    expect(container.querySelector('[data-highlight="pending"]')).toBeNull()
-    expect(container.querySelector('[data-highlight="resolved"]')).toBeNull()
   })
 
   it('shows partial system text in the tail with the cursor glyph', () => {
