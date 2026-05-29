@@ -1,4 +1,4 @@
-import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
+﻿import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
 import { getActiveContext } from '../documents/referenceStore.js'
 
 const BASE_SYSTEM_PROMPT = `You are Zanban, a real-time meeting assistant. The user is in a live meeting RIGHT NOW; they will read your answer in seconds, not minutes.
@@ -65,50 +65,6 @@ function languageDirective(language?: ResponseLanguage): string | null {
   return `Forced response language: write the answer in ${name[language]}, even if the question or screenshot is in another language. Keep code, code identifiers, error messages, and quoted source verbatim.`
 }
 
-export const QUESTION_EXTRACTOR_PROMPT = `You receive a short snippet from a live meeting transcript. Your job: return ONLY the actual question/request being asked, or exactly the word "NONE" if there is no real question.
-
-What COUNTS as a real question:
-- An interrogative that expects a substantive answer ("Что такое virtual DOM?", "How do you handle 80k writes/min?").
-- An imperative request that is essentially a question in disguise ("Расскажи про опыт работы с XYZ", "Tell me about a time when…", "Объясни, как работает event loop").
-- The interviewee/THEM is asking the speaker (YOU) to share knowledge or experience.
-
-What does NOT count (output "NONE"):
-- Transition / filler / connective phrases ("Следующий вопрос плавно продолжает предыдущий", "Давай перейдём к более глобальным вещам", "One of those questions is…").
-- Hedges and incomplete fragments ("Да, ну, во…", "А ещё, я хочу спросить", "Hmm, well, so…").
-- Rhetorical questions where no real answer is expected.
-- Pure statements, even if they have a question-like intonation.
-
-Output rules:
-- If multiple sentences, return the LAST and most direct question/request.
-- Keep the question in its original language. No quotes, no preamble, no commentary.
-- A single trailing "?" is allowed but not required (imperative requests don't need it).
-- If you are unsure or it is borderline, output exactly: NONE
-
-Examples:
-Input: "Следующий вопрос также связан с состоянием. Что такое virtual DOM и как он работает?"
-Output: Что такое virtual DOM и как он работает?
-
-Input: "Расскажи, какие в целом есть уязвимости с чем ты сталкивался сам?"
-Output: Какие в целом есть уязвимости и с чем ты сталкивался сам?
-
-Input: "Давай перейдём с swap pack, она уже такие более глобальные вещи."
-Output: NONE
-
-Input: "Да, ну, во"
-Output: NONE
-
-Input: "One of those questions, what's the difference between memo and useMemo?"
-Output: What's the difference between memo and useMemo?
-
-Input: "Следующий вопрос является плавным продолжением предыдущего."
-Output: NONE
-
-Input: "А ещё, я хочу спросить."
-Output: NONE
-
-Input: "Tell me about a time when you had to debug a really nasty production issue."
-Output: Tell me about a time when you had to debug a really nasty production issue.`
-
 export interface BuildPromptArgs {
   userPrompt: string
   meetingContext: string
@@ -126,14 +82,10 @@ export interface BuildPromptArgs {
 
 export function buildUserPrompt(args: BuildPromptArgs): string {
   const cutoff = Date.now() - args.contextSeconds * 1000
-  const recent = args.segments
-    .filter((s) => s.isFinal && s.createdAt >= cutoff)
-    .slice(-200)
+  const recent = args.segments.filter((s) => s.isFinal && s.createdAt >= cutoff).slice(-200)
 
   const transcript = recent.length
-    ? recent
-        .map((s) => `[${s.channel === 'mic' ? 'You' : 'Them'}] ${s.text}`)
-        .join('\n')
+    ? recent.map((s) => `[${s.channel === 'mic' ? 'You' : 'Them'}] ${s.text}`).join('\n')
     : '(no transcript yet)'
 
   const contextBlock = args.meetingContext.trim()
@@ -152,9 +104,10 @@ export function buildUserPrompt(args: BuildPromptArgs): string {
           .join('\n')}\n</previous_exchanges>`
       : ''
 
-  const ocrBlock = args.ocrText && args.ocrText.trim().length > 0
-    ? `\n\n<screen_ocr>\nText extracted from the attached screenshot (OCR):\n${args.ocrText.trim()}\n</screen_ocr>`
-    : ''
+  const ocrBlock =
+    args.ocrText && args.ocrText.trim().length > 0
+      ? `\n\n<screen_ocr>\nText extracted from the attached screenshot (OCR):\n${args.ocrText.trim()}\n</screen_ocr>`
+      : ''
 
   const retrievedBlock = args.retrievedHistory ?? ''
 

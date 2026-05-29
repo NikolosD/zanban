@@ -81,7 +81,6 @@ export interface ZanbanApi {
     onChunk(cb: (chunk: AiChunk) => void): () => void
     onDone(cb: (done: AiDone) => void): () => void
     onError(cb: (err: AiError) => void): () => void
-    extractQuestion(text: string): Promise<string | null>
   }
   settings: {
     get(): Promise<AppSettings>

@@ -1,9 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
-import {
-  ask as aiAsk,
-  extractQuestion as aiExtractQuestion
-} from '../ai/aiGatewayClient.js'
+import { ask as aiAsk } from '../ai/aiGatewayClient.js'
 
 export function registerAiHandlers(): void {
   ipcMain.handle(
@@ -19,5 +16,4 @@ export function registerAiHandlers(): void {
       }
     ) => aiAsk(input)
   )
-  ipcMain.handle(IPC.ai.extractQuestion, (_e, text: string) => aiExtractQuestion(text))
 }
