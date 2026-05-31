@@ -71,6 +71,38 @@
     "working_one": "{{count}} в работе",
     "working_other": "{{count}} в работе"
   },
+  "chat": {
+    "title": "zanban · чат",
+    "clear": "Очистить",
+    "empty": "Спросите что угодно. Активная персона, история RAG, справочные документы и веб-поиск (если включён) применяются и здесь.",
+    "placeholder": "Спросите Zanban о чём угодно…",
+    "stop_generating": "Остановить генерацию"
+  },
+  "tray": {
+    "tooltip_idle": "Zanban — ожидание",
+    "tooltip_recording": "Zanban — запись",
+    "start_session": "Начать сессию",
+    "stop_session": "Остановить сессию",
+    "show_overlay": "Показать оверлей",
+    "show_dashboard": "Показать дашборд",
+    "ask_ai": "Спросить ИИ",
+    "stealth_on": "Скрытность: невидим при демонстрации экрана",
+    "stealth_off": "Скрытность: виден при демонстрации экрана",
+    "settings": "Настройки",
+    "quit": "Выйти из Zanban"
+  },
+  "updates": {
+    "available_title": "Обновление готово",
+    "available_body": "Версия {{version}} загружена.",
+    "restart": "Перезапустить и обновить",
+    "later": "Позже",
+    "check": "Проверить обновления",
+    "checking": "Проверяю…",
+    "up_to_date": "У вас последняя версия",
+    "downloading": "Загрузка обновления…",
+    "error": "Не удалось проверить обновления",
+    "dev_disabled": "Обновления доступны только в установленном приложении"
+  },
   "ask_panel": {
     "ask_placeholder": "Спросите что-нибудь о звонке…",
     "ask_about_screenshot_short": "Спросите про этот скриншот…",
@@ -160,7 +192,16 @@
     },
     "about": {
       "title": "о программе",
-      "description": "Десктопный AI-ассистент для встреч. Реальное-время распознавание через Deepgram, Google, OpenAI Whisper, ElevenLabs или локальный Whisper; ответы через Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq или локальную Ollama. Сессии хранятся локально."
+      "description": "Десктопный AI-ассистент для встреч. Реальное-время распознавание через Deepgram, Google, OpenAI Whisper, ElevenLabs или локальный Whisper; ответы через Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq или локальную Ollama. Сессии хранятся локально.",
+      "updates_title": "обновления",
+      "updates_hint": "Zanban обновляется в фоне. Проверить можно вручную в любой момент.",
+      "check_updates": "Проверить обновления",
+      "diagnostics_title": "диагностика",
+      "diagnostics_hint": "Логи и сведения об окружении для отладки и сообщений об ошибках.",
+      "open_logs": "Открыть логи",
+      "report_bug": "Сообщить об ошибке",
+      "copy_env": "Скопировать сведения об окружении",
+      "env_copied": "Сведения об окружении скопированы"
     },
     "identity": {
       "reference_documents_divider": "справочные документы"
@@ -443,7 +484,9 @@
     "hotkeys_section": {
       "title": "горячие клавиши",
       "hint": "Глобальные акселераторы. Нажмите на сочетание, чтобы перепривязать — Esc отмена, ⌫ очистить.",
-      "reset_all": "Сбросить все к default"
+      "reset_all": "Сбросить все к default",
+      "conflict_toast": "Сочетание уже занято — {{accelerator}} использует другое приложение. Выберите другую комбинацию.",
+      "conflict_badge": "занято в другом месте"
     },
     "hotkey": {
       "toggleOverlay": {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send, Loader2, Trash2, Square } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useAi, wireAiIpc } from '@renderer/features/ai/store'
@@ -13,6 +14,7 @@ import { ZanbanMark } from '@renderer/components/brand'
  * of a live call. Persona settings still apply.
  */
 export function ChatApp() {
+  const { t } = useTranslation()
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
   const [input, setInput] = useState('')
@@ -49,7 +51,7 @@ export function ChatApp() {
         <div className="flex items-center gap-2">
           <ZanbanMark size={13} fg="oklch(0.66 0.01 260)" />
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            zanban · chat
+            {t('chat.title')}
           </div>
         </div>
         <Button
@@ -59,15 +61,14 @@ export function ChatApp() {
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           onClick={() => useAi.getState().reset()}
         >
-          <Trash2 className="size-3" /> Clear
+          <Trash2 className="size-3" /> {t('chat.clear')}
         </Button>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="mt-12 text-center text-[12px] text-muted-foreground">
-            Ask anything. The active persona, RAG history, reference docs, and web search (if
-            enabled) all apply here too.
+            {t('chat.empty')}
           </div>
         ) : (
           <ul className="flex flex-col gap-5">
@@ -99,11 +100,16 @@ export function ChatApp() {
               void send()
             }
           }}
-          placeholder="Ask Zanban anything…"
+          placeholder={t('chat.placeholder')}
           className="flex-1 resize-none rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] outline-none focus:border-white/30"
         />
         {streaming ? (
-          <Button variant="destructive" size="icon" onClick={() => stop()} title="Stop generating">
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={() => stop()}
+            title={t('chat.stop_generating')}
+          >
             <Square className="size-3.5 fill-current" />
           </Button>
         ) : (

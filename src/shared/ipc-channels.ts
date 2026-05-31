@@ -2,7 +2,21 @@ export const IPC = {
   app: {
     getVersion: 'app:get-version',
     revealLog: 'app:reveal-log',
-    openExternal: 'app:open-external'
+    openExternal: 'app:open-external',
+    /** Environment info for the About → diagnostics "copy" button. */
+    getEnvInfo: 'app:get-env-info'
+  },
+  updater: {
+    /** Renderer → main: kick off a manual update check. */
+    check: 'updater:check',
+    /** Renderer → main: restart the app and apply the downloaded update. */
+    quitAndInstall: 'updater:quit-and-install',
+    /** Main → renderer: an update finished downloading and is ready to apply. */
+    downloaded: 'updater:downloaded',
+    /** Main → renderer: a check/download failed. */
+    error: 'updater:error',
+    /** Main → renderer: status pulses for the "Check for updates" button. */
+    status: 'updater:status'
   },
   overlay: {
     show: 'overlay:show',
@@ -18,7 +32,15 @@ export const IPC = {
     stealthChanged: 'overlay:stealth-changed'
   },
   dashboard: {
-    show: 'dashboard:show'
+    show: 'dashboard:show',
+    /** Main → dashboard: open the Settings dialog (optionally on a tab). */
+    openSettings: 'dashboard:open-settings',
+    /** Main → dashboard: start a session via the renderer's capture pipeline
+     *  (mic/system audio capture runs in the renderer, so the tray can't just
+     *  call sessionManager.start directly — it must route through the UI). */
+    requestStartSession: 'dashboard:request-start-session',
+    /** Main → dashboard: stop the active session + tear down captures. */
+    requestStopSession: 'dashboard:request-stop-session'
   },
   session: {
     start: 'session:start',
@@ -43,7 +65,10 @@ export const IPC = {
   settings: {
     get: 'settings:get',
     set: 'settings:set',
-    changed: 'settings:changed'
+    changed: 'settings:changed',
+    /** Main → renderer: one or more hotkeys failed to (re)register, e.g. the
+     *  accelerator is already taken by another app. */
+    hotkeyConflict: 'settings:hotkey-conflict'
   },
   sessions: {
     list: 'sessions:list',

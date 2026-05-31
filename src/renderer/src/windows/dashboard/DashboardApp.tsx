@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Settings as SettingsIcon,
   Sparkles,
@@ -67,6 +67,7 @@ type SessionListItem = {
 }
 
 export function DashboardApp() {
+  const { t } = useTranslation()
   const [version, setVersion] = useState<string>('')
   const [selected, setSelected] = useState<string | null>(null)
   const [askOpen, setAskOpen] = useState(false)
@@ -102,13 +103,36 @@ export function DashboardApp() {
         void queryClient.invalidateQueries({ queryKey: ['sessions-local'] })
       }
     })
+    // Tray "Settings" opens the dashboard then asks us to surface the dialog.
+    const offOpenSettings = window.zanban.dashboard.onOpenSettings(() => {
+      setSettingsTab('general')
+      setSettingsOpen(true)
+    })
+    // Update lifecycle: a downloaded update offers a persistent "Restart to
+    // update" toast (quitAndInstall); errors surface as a transient toast.
+    const offUpdate = window.zanban.updater.onDownloaded((info) => {
+      toast(t('updates.available_title'), {
+        description: t('updates.available_body', { version: info.version }),
+        duration: Infinity,
+        action: {
+          label: t('updates.restart'),
+          onClick: () => void window.zanban.updater.quitAndInstall()
+        }
+      })
+    })
+    const offUpdateErr = window.zanban.updater.onError((message) => {
+      toast.error(t('updates.error'), { description: message })
+    })
     return () => {
       offTr()
       offAi()
       offSession()
       offSettings()
+      offOpenSettings()
+      offUpdate()
+      offUpdateErr()
     }
-  }, [queryClient])
+  }, [queryClient, t])
 
   if (selected) {
     return (
@@ -527,6 +551,13 @@ function SessionStartButton() {
   const { t } = useTranslation()
   const session = useTranscript((s) => s.session)
   const [busy, setBusy] = useState(false)
+  const running = session.kind === 'running'
+
+  // Keep the latest handlers in refs so the tray IPC subscription (mounted
+  // once) always calls the current closure without re-subscribing on every
+  // state change.
+  const startRef = useRef<() => void>(() => {})
+  const stopRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const off = wireCaptureAutostop()
@@ -534,13 +565,17 @@ function SessionStartButton() {
       if (n.kind === 'mic-healed') toast.warning(n.message)
       else toast.error(n.message)
     })
+    // Tray "Start/Stop session" routes here so the renderer's capture pipeline
+    // (mic/system audio) runs — the main process can't capture audio itself.
+    const offStart = window.zanban.dashboard.onRequestStartSession(() => startRef.current())
+    const offStop = window.zanban.dashboard.onRequestStopSession(() => stopRef.current())
     return () => {
       off()
       offNotice()
+      offStart()
+      offStop()
     }
   }, [])
-
-  const running = session.kind === 'running'
 
   async function handleStart() {
     setBusy(true)
@@ -568,6 +603,20 @@ function SessionStartButton() {
       setBusy(false)
     }
   }
+
+  // Keep the ref-held tray handlers current (they capture busy/running/handlers)
+  // without re-subscribing the IPC listener on every state change. Updating the
+  // ref in an effect (not during render) keeps the lint rule happy. A tray
+  // request is a no-op if we're mid-transition or already in the target state,
+  // mirroring the button's own disabled/guard behavior.
+  useEffect(() => {
+    startRef.current = () => {
+      if (!busy && !running) void handleStart()
+    }
+    stopRef.current = () => {
+      if (!busy && running) void handleStop()
+    }
+  })
 
   return (
     <Button

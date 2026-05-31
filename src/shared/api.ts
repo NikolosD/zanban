@@ -50,6 +50,11 @@ export interface SessionDetailPayload {
 
 export interface ZanbanApi {
   getVersion(): Promise<string>
+  /** Reveal the app log file in the OS file manager. Returns the path (or null
+   *  if the logs dir couldn't be resolved). */
+  revealLog(): Promise<string | null>
+  /** Environment info for the About → "copy environment info" button. */
+  getEnvInfo(): Promise<EnvInfo>
   /** Open a URL in the OS default handler (mailto:, http:, https: only).
    *  Returns false if the scheme is rejected or the URL is malformed. */
   openExternal(url: string): Promise<boolean>
@@ -68,6 +73,25 @@ export interface ZanbanApi {
   }
   dashboard: {
     show(): Promise<void>
+    /** Main → dashboard: open the Settings dialog (fired by the tray). */
+    onOpenSettings(cb: () => void): () => void
+    /** Main → dashboard: start a session through the renderer capture pipeline
+     *  (fired by the tray's Start action). */
+    onRequestStartSession(cb: () => void): () => void
+    /** Main → dashboard: stop the active session (fired by the tray). */
+    onRequestStopSession(cb: () => void): () => void
+  }
+  updater: {
+    /** Trigger a manual update check. No-op in dev (returns false). */
+    check(): Promise<boolean>
+    /** Restart and install a downloaded update. */
+    quitAndInstall(): Promise<void>
+    /** An update finished downloading and is ready to apply on restart. */
+    onDownloaded(cb: (info: UpdateInfo) => void): () => void
+    /** A check/download failed. */
+    onError(cb: (message: string) => void): () => void
+    /** Status pulses for the manual "Check for updates" button. */
+    onStatus(cb: (status: UpdateStatus) => void): () => void
   }
   session: {
     start(input?: { resumeId?: string }): Promise<{ sessionId: string }>
@@ -102,6 +126,12 @@ export interface ZanbanApi {
      * in sync when the user tweaks something in the dashboard.
      */
     onChanged(cb: (settings: AppSettings) => void): () => void
+    /**
+     * Subscribe to hotkey-registration failures. Fires after a rebind when one
+     * or more accelerators couldn't bind (taken by another app / malformed) so
+     * the UI can flag the offending binding.
+     */
+    onHotkeyConflict(cb: (failed: HotkeyConflict[]) => void): () => void
   }
   sessions: {
     list(): Promise<SessionListItem[]>
@@ -178,6 +208,38 @@ export interface ZanbanApi {
      *  session first. Renderer filters out items the user has ticked off. */
     listActionItems(): Promise<GlobalActionItem[]>
   }
+}
+
+/** A single hotkey that failed to register, surfaced to the KeyRecorder UI. */
+export interface HotkeyConflict {
+  action: keyof AppSettings['hotkeys']
+  accelerator: string
+}
+
+/** Payload for an `update-downloaded` event surfaced to the renderer. */
+export interface UpdateInfo {
+  version: string
+}
+
+/** Coarse status pulses for the manual update-check button. */
+export type UpdateStatus =
+  | { kind: 'checking' }
+  | { kind: 'up-to-date' }
+  | { kind: 'downloading' }
+  | { kind: 'downloaded'; version: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'dev-disabled' }
+
+/** Environment snapshot for bug reports (About tab "copy" button). */
+export interface EnvInfo {
+  appVersion: string
+  platform: string
+  arch: string
+  electron: string
+  chrome: string
+  node: string
+  v8: string
+  osRelease: string
 }
 
 export interface BackgroundJob {

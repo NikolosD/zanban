@@ -28,7 +28,8 @@ import type { ScreenSnapshotOcr } from '../shared/types.js'
 import { createCropperWindow } from './windows/cropperWindow.js'
 import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
-import { registerShortcuts, unregisterShortcuts } from './shortcuts.js'
+import { createTray, destroyTray } from './tray.js'
+import { registerShortcuts, reRegisterShortcuts, unregisterShortcuts } from './shortcuts.js'
 import { registerJobsWindow, trackJob } from './services/jobsManager.js'
 import { installLogger } from './services/logger.js'
 import { registerAiHandlers } from './ipc/ai.js'
@@ -68,6 +69,10 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
+// The standalone chat window — shows AI answers, so it must honor the same
+// stealth/content-protection posture as the overlay/dashboard. Hoisted here
+// so applyStealth() can include it (it's lazily created inside openChat).
+let chatWin: BrowserWindow | null = null
 // Seeded from settings.detectable in app.whenReady() — we cache here so we
 // don't have to hit the settings store on every show().
 let stealthOn = true
@@ -176,7 +181,7 @@ app.whenReady().then(async () => {
   // then schedule the real value on the next tick. Same trick the user was
   // doing by hand, just programmatic.
   function applyStealth(): void {
-    for (const w of [overlayWindow, mainWindow]) {
+    for (const w of [overlayWindow, mainWindow, chatWin]) {
       if (!w || w.isDestroyed()) continue
       if (stealthOn) {
         // Going INVISIBLE: we must never briefly flip to visible — even a
@@ -283,22 +288,34 @@ app.whenReady().then(async () => {
     if (Math.abs(curH - next) < 2) return
     overlayWindow.setContentSize(curW, next, false)
   })
-  ipcMain.handle(IPC.overlay.getStealth, () => stealthOn)
-  ipcMain.handle(IPC.overlay.setStealth, (_e, on: boolean) => {
+  // Apply a stealth state and keep every dependent surface in sync: content
+  // protection, dashboard taskbar posture, persisted setting, overlay badge,
+  // and the tray's checkbox/tooltip. Shared by the overlay IPC and the tray.
+  function setStealth(on: boolean): boolean {
     stealthOn = !!on
     applyStealth()
     applyDashboardVisibility()
     // Persist so the next session honors the user's last choice.
     void setSettings({ detectable: !stealthOn })
+    // Notify overlay so its UI badge flips without a polling round-trip.
+    overlayWindow?.webContents.send(IPC.overlay.stealthChanged, stealthOn)
     return stealthOn
-  })
+  }
+  ipcMain.handle(IPC.overlay.getStealth, () => stealthOn)
+  ipcMain.handle(IPC.overlay.setStealth, (_e, on: boolean) => setStealth(on))
 
-  ipcMain.handle(IPC.dashboard.show, () => {
-    if (!mainWindow) return
+  function showDashboard(): void {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    // Mirror the Show-Dashboard hotkey: defeat stealth+hideWidget low-profile
+    // so a dashboard summoned from the tray is actually reachable in the
+    // taskbar/Alt+Tab until the next session boundary.
+    dashboardForcedVisible = true
+    mainWindow.setSkipTaskbar(false)
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
-  })
+  }
+  ipcMain.handle(IPC.dashboard.show, () => showDashboard())
 
   ipcMain.handle(IPC.session.start, async (_e, input?: { resumeId?: string }) => {
     // A fresh session re-arms the stealth+hideWidget posture: any prior use of
@@ -356,6 +373,16 @@ app.whenReady().then(async () => {
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'overlayOpacity')) {
       applyOverlayOpacity()
+    }
+    // Re-register global shortcuts when hotkeys change so a rebind takes effect
+    // immediately instead of waiting for an app restart. Surface any accelerator
+    // that failed to bind (already taken by another app, malformed) back to the
+    // dashboard so the KeyRecorder can flag it.
+    if (Object.prototype.hasOwnProperty.call(patch, 'hotkeys')) {
+      const { failed } = reRegisterShortcuts()
+      if (failed.length > 0) {
+        mainWindow?.webContents.send(IPC.settings.hotkeyConflict, failed)
+      }
     }
     // Broadcast the new settings to every window — the overlay holds its own
     // copy in zustand, so without this it would not pick up changes like
@@ -495,16 +522,21 @@ app.whenReady().then(async () => {
     }
   }
 
-  let chatWin: BrowserWindow | null = null
   function openChat(): void {
     if (chatWin && !chatWin.isDestroyed()) {
       chatWin.focus()
       return
     }
-    chatWin = createChatWindow()
+    chatWin = createChatWindow(stealthOn)
     chatWin.once('ready-to-show', () => chatWin?.show())
     chatWin.on('closed', () => {
       chatWin = null
+    })
+    // Mirror the overlay/dashboard: re-apply content-protection on every show
+    // so the first paint already carries the correct display affinity and a
+    // later hide→show round-trip preserves it (Windows HWND race).
+    chatWin.on('show', () => {
+      chatWin?.setContentProtection(stealthOn)
     })
     registerAiWindow(chatWin)
     registerJobsWindow(chatWin)
@@ -542,22 +574,46 @@ app.whenReady().then(async () => {
     },
     onCropper: () => openCropper(),
     onChat: () => openChat(),
-    onShowDashboard: () => {
-      if (!mainWindow || mainWindow.isDestroyed()) return
-      // Force the dashboard back into the foreground even if stealth+hideWidget
-      // dropped it from Alt+Tab/taskbar — that combination used to be a one-way
-      // trip that required relaunching the app. We override the low-profile
-      // posture for this window until the next session boundary, so the user
-      // can actually interact with the dashboard they just summoned.
-      dashboardForcedVisible = true
-      mainWindow.setSkipTaskbar(false)
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    // Force the dashboard back into the foreground even if stealth+hideWidget
+    // dropped it from Alt+Tab/taskbar — that combination used to be a one-way
+    // trip that required relaunching the app. showDashboard() overrides the
+    // low-profile posture until the next session boundary.
+    onShowDashboard: () => showDashboard()
   })
 
-  initAutoUpdate()
+  // System tray — the reliable way back to the app when stealth +
+  // hideWidget + hideFromAppSwitcher have dropped the dashboard from the
+  // taskbar/Alt+Tab. Reuses the same action closures as the hotkeys/IPC.
+  function openSettings(): void {
+    showDashboard()
+    mainWindow?.webContents.send(IPC.dashboard.openSettings)
+  }
+  createTray({
+    // Start/Stop must route through the dashboard renderer — mic/system audio
+    // capture lives there (getUserMedia + chunk streaming), so calling
+    // sessionManager directly would record silence.
+    startSession: () => {
+      showDashboard()
+      mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
+    },
+    stopSession: () => {
+      mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
+    },
+    showOverlay: () => showOverlay(),
+    showDashboard: () => showDashboard(),
+    openSettings,
+    askAi: () => {
+      showOverlay()
+      overlayWindow?.webContents.send(IPC.overlay.focusAsk)
+    },
+    toggleStealth: () => setStealth(!stealthOn),
+    getStealth: () => stealthOn,
+    quit: () => app.quit()
+  })
+
+  // Forward updater events to the dashboard so it can show a "Restart to
+  // update" toast and drive the manual "Check for updates" button.
+  initAutoUpdate(() => mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -618,6 +674,7 @@ function installAppMenu(): void {
 
 app.on('will-quit', () => {
   unregisterShortcuts()
+  destroyTray()
   // F4: tear down the singleton Tesseract worker (WASM/process) so it doesn't
   // leak on exit. Best-effort — terminateOcrWorker swallows its own errors.
   void terminateOcrWorker()

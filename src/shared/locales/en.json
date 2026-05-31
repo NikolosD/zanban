@@ -71,6 +71,38 @@
     "working_one": "{{count}} working",
     "working_other": "{{count}} working"
   },
+  "chat": {
+    "title": "zanban · chat",
+    "clear": "Clear",
+    "empty": "Ask anything. The active persona, RAG history, reference docs, and web search (if enabled) all apply here too.",
+    "placeholder": "Ask Zanban anything…",
+    "stop_generating": "Stop generating"
+  },
+  "tray": {
+    "tooltip_idle": "Zanban — idle",
+    "tooltip_recording": "Zanban — recording",
+    "start_session": "Start session",
+    "stop_session": "Stop session",
+    "show_overlay": "Show overlay",
+    "show_dashboard": "Show dashboard",
+    "ask_ai": "Ask AI",
+    "stealth_on": "Stealth: hidden from screen-share",
+    "stealth_off": "Stealth: visible to screen-share",
+    "settings": "Settings",
+    "quit": "Quit Zanban"
+  },
+  "updates": {
+    "available_title": "Update ready",
+    "available_body": "Version {{version}} has been downloaded.",
+    "restart": "Restart to update",
+    "later": "Later",
+    "check": "Check for updates",
+    "checking": "Checking…",
+    "up_to_date": "You're on the latest version",
+    "downloading": "Downloading update…",
+    "error": "Update check failed",
+    "dev_disabled": "Updates are only available in the packaged app"
+  },
   "ask_panel": {
     "ask_placeholder": "Ask anything about the call…",
     "ask_about_screenshot_short": "Ask about this screenshot…",
@@ -160,7 +192,16 @@
     },
     "about": {
       "title": "about",
-      "description": "Desktop AI meeting assistant. Real-time transcription via Deepgram, Google, OpenAI Whisper, ElevenLabs or local Whisper; answers via Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq or local Ollama. Sessions stored locally."
+      "description": "Desktop AI meeting assistant. Real-time transcription via Deepgram, Google, OpenAI Whisper, ElevenLabs or local Whisper; answers via Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq or local Ollama. Sessions stored locally.",
+      "updates_title": "updates",
+      "updates_hint": "Zanban updates itself in the background. Check manually any time.",
+      "check_updates": "Check for updates",
+      "diagnostics_title": "diagnostics",
+      "diagnostics_hint": "Logs and environment info for troubleshooting and bug reports.",
+      "open_logs": "Open logs",
+      "report_bug": "Report a bug",
+      "copy_env": "Copy environment info",
+      "env_copied": "Environment info copied"
     },
     "identity": {
       "reference_documents_divider": "reference documents"
@@ -443,7 +484,9 @@
     "hotkeys_section": {
       "title": "hotkeys",
       "hint": "Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear.",
-      "reset_all": "Reset all to defaults"
+      "reset_all": "Reset all to defaults",
+      "conflict_toast": "Hotkey already in use — {{accelerator}} is taken by another app. Pick a different combination.",
+      "conflict_badge": "in use elsewhere"
     },
     "hotkey": {
       "toggleOverlay": {

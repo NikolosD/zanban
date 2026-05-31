@@ -12,7 +12,10 @@ import {
   Zap,
   Check,
   ChevronRight,
-  FileText
+  FileText,
+  Bug,
+  ClipboardCopy,
+  DownloadCloud
 } from 'lucide-react'
 import {
   DEFAULT_SETTINGS,
@@ -44,6 +47,7 @@ import {
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { copyToClipboard } from '@renderer/lib/clipboard'
 
 // Settings IDs the rest of the app passes around. The legacy `providers`,
 // `models`, and `documents` ids are kept as aliases (mapped to their merged
@@ -1064,6 +1068,19 @@ function HotkeysTab({
     (k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k]
   )
 
+  // Actions whose accelerator failed to (re)register — surfaced from main when
+  // the user picks a chord another app already owns. We flag the offending
+  // KeyRecorder and toast once so the rebind doesn't silently no-op.
+  const [conflicts, setConflicts] = useState<Set<keyof AppSettings['hotkeys']>>(new Set())
+  useEffect(() => {
+    return window.zanban.settings.onHotkeyConflict((failed) => {
+      setConflicts(new Set(failed.map((f) => f.action)))
+      for (const f of failed) {
+        toast.error(t('settings.hotkeys_section.conflict_toast', { accelerator: f.accelerator }))
+      }
+    })
+  }, [t])
+
   return (
     <Section title={t('settings.hotkeys_section.title')} hint={t('settings.hotkeys_section.hint')}>
       <div className="flex flex-col gap-2">
@@ -1073,11 +1090,28 @@ function HotkeysTab({
             label={t(`settings.hotkey.${k}.label`)}
             hint={t(`settings.hotkey.${k}.hint`)}
           >
-            <KeyRecorder
-              value={settings.hotkeys[k]}
-              defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
-              onChange={(v) => updateHotkey(k, v)}
-            />
+            <div className="flex flex-col gap-1">
+              <KeyRecorder
+                value={settings.hotkeys[k]}
+                defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
+                onChange={(v) => {
+                  // Clear this action's conflict flag on edit — the user is
+                  // actively picking a new chord; re-flag only if it fails again.
+                  setConflicts((prev) => {
+                    if (!prev.has(k)) return prev
+                    const next = new Set(prev)
+                    next.delete(k)
+                    return next
+                  })
+                  updateHotkey(k, v)
+                }}
+              />
+              {conflicts.has(k) && (
+                <span className="text-[10px] font-medium text-amber-400">
+                  {t('settings.hotkeys_section.conflict_badge')}
+                </span>
+              )}
+            </div>
           </Field>
         ))}
       </div>
@@ -1092,18 +1126,128 @@ function HotkeysTab({
   )
 }
 
+// Repo coordinates for the "Report a bug" deep link. Matches the about-panel
+// metadata wired in main/index.ts (github.com/NikolosD/zanban).
+const GITHUB_ISSUES_URL = 'https://github.com/NikolosD/zanban/issues/new'
+
 function AboutTab({ version }: { version: string }) {
   const { t } = useTranslation()
+  const [checking, setChecking] = useState(false)
+
+  // Manual update check. In dev the main process replies dev-disabled; the
+  // status subscription below turns that (and every other outcome) into a
+  // single toast so the button always gives feedback.
+  useEffect(() => {
+    const off = window.zanban.updater.onStatus((status) => {
+      setChecking(status.kind === 'checking' || status.kind === 'downloading')
+      switch (status.kind) {
+        case 'up-to-date':
+          toast.success(t('updates.up_to_date'))
+          break
+        case 'downloading':
+          toast(t('updates.downloading'))
+          break
+        case 'dev-disabled':
+          toast(t('updates.dev_disabled'))
+          break
+        case 'error':
+          toast.error(t('updates.error'), { description: status.message })
+          break
+        // 'downloaded' is handled by the dashboard-level toast (with the
+        // Restart action), so we don't double-notify here.
+      }
+    })
+    return off
+  }, [t])
+
+  async function checkForUpdates(): Promise<void> {
+    setChecking(true)
+    try {
+      await window.zanban.updater.check()
+    } finally {
+      // The status subscription clears `checking`; this guards the case where
+      // no status pulse arrives (e.g. handler missing).
+      setChecking(false)
+    }
+  }
+
+  async function copyEnv(): Promise<void> {
+    const env = await window.zanban.getEnvInfo()
+    const text = [
+      `Zanban v${env.appVersion}`,
+      `Platform: ${env.platform} ${env.arch}`,
+      `OS: ${env.osRelease}`,
+      `Electron: ${env.electron}`,
+      `Chrome: ${env.chrome}`,
+      `Node: ${env.node}`,
+      `V8: ${env.v8}`
+    ].join('\n')
+    await copyToClipboard(text, t('settings.about.env_copied'))
+  }
+
   return (
-    <Section title={t('settings.about.title')}>
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="flex items-baseline gap-2">
-          <div className="text-base font-semibold">Zanban</div>
-          <div className="font-mono text-[11px] text-muted-foreground">v{version || '…'}</div>
+    <>
+      <Section title={t('settings.about.title')}>
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="flex items-baseline gap-2">
+            <div className="text-base font-semibold">Zanban</div>
+            <div className="font-mono text-[11px] text-muted-foreground">v{version || '…'}</div>
+          </div>
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            {t('settings.about.description')}
+          </p>
         </div>
-        <p className="mt-2 text-[12px] text-muted-foreground">{t('settings.about.description')}</p>
-      </div>
-    </Section>
+      </Section>
+
+      <Section title={t('settings.about.updates_title')} hint={t('settings.about.updates_hint')}>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            disabled={checking}
+            onClick={() => void checkForUpdates()}
+          >
+            {checking ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <DownloadCloud className="size-3.5" />
+            )}
+            {checking ? t('updates.checking') : t('settings.about.check_updates')}
+          </Button>
+        </div>
+      </Section>
+
+      <Section
+        title={t('settings.about.diagnostics_title')}
+        hint={t('settings.about.diagnostics_hint')}
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => void window.zanban.revealLog()}
+          >
+            <FileText className="size-3.5" />
+            {t('settings.about.open_logs')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => void window.zanban.openExternal(GITHUB_ISSUES_URL)}
+          >
+            <Bug className="size-3.5" />
+            {t('settings.about.report_bug')}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => void copyEnv()}>
+            <ClipboardCopy className="size-3.5" />
+            {t('settings.about.copy_env')}
+          </Button>
+        </div>
+      </Section>
+    </>
   )
 }
 

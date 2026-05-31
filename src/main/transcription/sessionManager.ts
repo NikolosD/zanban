@@ -94,8 +94,7 @@ export class SessionManager {
 
   async stop(): Promise<void> {
     if (this.state.kind === 'idle') return
-    const finishedSessionId =
-      this.state.kind === 'running' ? this.state.sessionId : null
+    const finishedSessionId = this.state.kind === 'running' ? this.state.sessionId : null
     this.setState({ kind: 'stopping' })
     for (const ch of this.channels.values()) ch.close()
     this.channels.clear()
@@ -114,6 +113,18 @@ export class SessionManager {
   onSessionEnd(cb: (sessionId: string) => void): () => void {
     this.endListeners.add(cb)
     return () => this.endListeners.delete(cb)
+  }
+
+  private stateListeners = new Set<(state: SessionState) => void>()
+  /**
+   * Subscribe to in-process session-state transitions (idle/starting/
+   * running/stopping). Distinct from the window broadcast — lets main-process
+   * consumers like the tray react without an IPC round-trip. Returns an
+   * unsubscribe.
+   */
+  onState(cb: (state: SessionState) => void): () => void {
+    this.stateListeners.add(cb)
+    return () => this.stateListeners.delete(cb)
   }
 
   sendAudio(channel: AudioChannel, buffer: ArrayBuffer): void {
@@ -202,6 +213,7 @@ export class SessionManager {
   private setState(state: SessionState): void {
     this.state = state
     this.broadcast(IPC.session.state, state)
+    for (const cb of this.stateListeners) cb(state)
   }
 }
 

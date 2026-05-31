@@ -10,6 +10,8 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api: ZanbanApi = {
   getVersion: () => ipcRenderer.invoke(IPC.app.getVersion),
+  revealLog: () => ipcRenderer.invoke(IPC.app.revealLog),
+  getEnvInfo: () => ipcRenderer.invoke(IPC.app.getEnvInfo),
   openExternal: (url) => ipcRenderer.invoke(IPC.app.openExternal, url),
   overlay: {
     show: () => ipcRenderer.invoke(IPC.overlay.show),
@@ -25,7 +27,17 @@ const api: ZanbanApi = {
     onStealthChanged: (cb) => on<boolean>(IPC.overlay.stealthChanged, (v) => cb(v))
   },
   dashboard: {
-    show: () => ipcRenderer.invoke(IPC.dashboard.show)
+    show: () => ipcRenderer.invoke(IPC.dashboard.show),
+    onOpenSettings: (cb) => on(IPC.dashboard.openSettings, () => cb()),
+    onRequestStartSession: (cb) => on(IPC.dashboard.requestStartSession, () => cb()),
+    onRequestStopSession: (cb) => on(IPC.dashboard.requestStopSession, () => cb())
+  },
+  updater: {
+    check: () => ipcRenderer.invoke(IPC.updater.check),
+    quitAndInstall: () => ipcRenderer.invoke(IPC.updater.quitAndInstall),
+    onDownloaded: (cb) => on(IPC.updater.downloaded, cb),
+    onError: (cb) => on<string>(IPC.updater.error, (m) => cb(m)),
+    onStatus: (cb) => on(IPC.updater.status, cb)
   },
   session: {
     start: (input) => ipcRenderer.invoke(IPC.session.start, input),
@@ -52,7 +64,8 @@ const api: ZanbanApi = {
   settings: {
     get: () => ipcRenderer.invoke(IPC.settings.get),
     set: (patch) => ipcRenderer.invoke(IPC.settings.set, patch),
-    onChanged: (cb) => on(IPC.settings.changed, cb)
+    onChanged: (cb) => on(IPC.settings.changed, cb),
+    onHotkeyConflict: (cb) => on(IPC.settings.hotkeyConflict, cb)
   },
   sessions: {
     list: () => ipcRenderer.invoke(IPC.sessions.list),
