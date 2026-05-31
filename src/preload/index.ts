@@ -22,6 +22,7 @@ const api: ZanbanApi = {
     onFocusAsk: (cb) => on(IPC.overlay.focusAsk, () => cb()),
     onAnswerLast: (cb) => on(IPC.overlay.answerLast, () => cb()),
     onSnapshotAsk: (cb) => on(IPC.overlay.snapshotAsk, cb),
+    onSnapshotAnswer: (cb) => on(IPC.overlay.snapshotAnswer, cb),
     getStealth: () => ipcRenderer.invoke(IPC.overlay.getStealth),
     setStealth: (on) => ipcRenderer.invoke(IPC.overlay.setStealth, on),
     onStealthChanged: (cb) => on<boolean>(IPC.overlay.stealthChanged, (v) => cb(v))

@@ -515,6 +515,10 @@
         "label": "Snap full screen → Ask",
         "hint": "Capture full screen, OCR it, attach to next Ask."
       },
+      "screenshotAnswer": {
+        "label": "Snap full screen → Answer",
+        "hint": "Capture full screen and answer it instantly — no manual Ask."
+      },
       "cropper": {
         "label": "Drag region → OCR Ask",
         "hint": "Drag a region, OCR only that area, attach to next Ask."

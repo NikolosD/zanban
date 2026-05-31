@@ -240,6 +240,13 @@ export function OverlayApp() {
       inputRef.current?.focus()
     })
 
+    // One-shot "snap → answer" hotkey: don't touch the input attachment, just
+    // fire the answer about the captured image. Empty prompt falls back to
+    // SCREENSHOT_DEFAULT_PROMPT and the image triggers vision routing.
+    const offSnapshotAnswer = window.zanban.overlay.onSnapshotAnswer((snap) => {
+      void runPromptRef.current('', 'Screenshot answer', snap.dataUrl, false, snap.ocrText)
+    })
+
     // Background OCR for an instant snapshot landed — fold it in only if the
     // attachment the user is looking at is still the one we captured.
     const offOcr = window.zanban.screenshot.onOcr((result) => {
@@ -260,6 +267,7 @@ export function OverlayApp() {
       offAsk()
       offAnswerLast()
       offSnapshot()
+      offSnapshotAnswer()
       offOcr()
       offStealth()
       offSettings()

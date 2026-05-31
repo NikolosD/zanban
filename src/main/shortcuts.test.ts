@@ -17,6 +17,7 @@ const hotkeys = {
   answerLast: 'Control+Shift+Return',
   hideShow: 'Control+Shift+H',
   screenshot: 'Control+Shift+S',
+  screenshotAnswer: 'Control+Shift+A',
   cropper: 'Control+Shift+Alt+S',
   chat: 'Control+Shift+G',
   showDashboard: 'Control+Shift+D'
@@ -34,6 +35,7 @@ const handlers = {
   onAnswerLast: noop,
   onHideShow: noop,
   onScreenshot: noop,
+  onScreenshotAnswer: noop,
   onCropper: noop,
   onChat: noop,
   onShowDashboard: noop
@@ -50,8 +52,8 @@ describe('registerShortcuts', () => {
     registerMock.mockReturnValue(true)
     const { failed } = registerShortcuts(handlers)
     expect(failed).toEqual([])
-    // One register() call per non-empty binding (all 8 are set).
-    expect(registerMock).toHaveBeenCalledTimes(8)
+    // One register() call per non-empty binding (all 9 are set).
+    expect(registerMock).toHaveBeenCalledTimes(9)
   })
 
   it('reports the action + accelerator that fails to bind', () => {
@@ -74,8 +76,8 @@ describe('registerShortcuts', () => {
     registerShortcuts(handlers)
     unregisterMock.mockClear()
     reRegisterShortcuts()
-    // Re-register unregisters the 8 it bound last time.
-    expect(unregisterMock).toHaveBeenCalledTimes(8)
+    // Re-register unregisters the 9 it bound last time.
+    expect(unregisterMock).toHaveBeenCalledTimes(9)
   })
 
   it('reRegisterShortcuts is a no-op before any initial registration', () => {

@@ -7,6 +7,7 @@ export interface ShortcutHandlers {
   onAnswerLast(): void
   onHideShow(): void
   onScreenshot(): void
+  onScreenshotAnswer(): void
   onCropper(): void
   onChat(): void
   onShowDashboard(): void
@@ -35,6 +36,7 @@ export function registerShortcuts(handlers: ShortcutHandlers): ShortcutRegistrat
     ['answerLast', hotkeys.answerLast, handlers.onAnswerLast],
     ['hideShow', hotkeys.hideShow, handlers.onHideShow],
     ['screenshot', hotkeys.screenshot, handlers.onScreenshot],
+    ['screenshotAnswer', hotkeys.screenshotAnswer, handlers.onScreenshotAnswer],
     ['cropper', hotkeys.cropper, handlers.onCropper],
     ['chat', hotkeys.chat, handlers.onChat],
     ['showDashboard', hotkeys.showDashboard, handlers.onShowDashboard]

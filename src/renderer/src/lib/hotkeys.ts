@@ -8,6 +8,7 @@ const LABELS: Record<HotkeyKey, string> = {
   answerLast: 'Answer last',
   hideShow: 'Toggle stealth',
   screenshot: 'Snap full screen → Ask',
+  screenshotAnswer: 'Snap full screen → Answer',
   cropper: 'Drag region → OCR Ask',
   chat: 'Open chat window',
   showDashboard: 'Force-show dashboard'
@@ -19,6 +20,7 @@ const HINTS: Record<HotkeyKey, string> = {
   answerLast: 'Answer the last detected question with one keypress.',
   hideShow: 'Toggle stealth — hides from screen-share.',
   screenshot: 'Capture full screen, OCR it, attach to next Ask.',
+  screenshotAnswer: 'Capture full screen and answer it instantly — no manual Ask.',
   cropper: 'Drag a region, OCR only that area, attach to next Ask.',
   chat: 'Open the standalone chat window (no transcript context).',
   showDashboard:

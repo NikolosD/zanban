@@ -361,6 +361,9 @@ export interface AppSettings {
     answerLast: string
     hideShow: string
     screenshot: string
+    /** Snap the full screen and immediately answer about it in one keypress —
+     *  no manual Ask step (uses SCREENSHOT_DEFAULT_PROMPT + vision routing). */
+    screenshotAnswer: string
     cropper: string
     chat: string
     /** Force-shows the dashboard window. Survives stealth+hideWidget mode
@@ -638,6 +641,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     answerLast: 'Control+Shift+Return',
     hideShow: 'Control+Shift+H',
     screenshot: 'Control+Shift+S',
+    screenshotAnswer: 'Control+Shift+A',
     cropper: 'Control+Shift+Alt+S',
     chat: 'Control+Shift+G',
     showDashboard: 'Control+Shift+D'

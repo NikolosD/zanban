@@ -27,6 +27,9 @@ export const IPC = {
     focusAsk: 'overlay:focus-ask',
     answerLast: 'overlay:answer-last',
     snapshotAsk: 'overlay:snapshot-ask',
+    /** Main → overlay: a screenshot was captured AND should be answered
+     *  immediately (the screenshotAnswer hotkey), no manual Ask step. */
+    snapshotAnswer: 'overlay:snapshot-answer',
     getStealth: 'overlay:get-stealth',
     setStealth: 'overlay:set-stealth',
     stealthChanged: 'overlay:stealth-changed'

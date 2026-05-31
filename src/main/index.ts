@@ -448,6 +448,23 @@ app.whenReady().then(async () => {
     overlayWindow.webContents.send(IPC.overlay.snapshotAsk, snap)
   }
 
+  // Like captureAndAttach, but the overlay answers immediately instead of just
+  // attaching the image (the screenshotAnswer hotkey). The vision model uses the
+  // image; OCR (for non-vision models) folds in a beat later via screenshot.ocr,
+  // but the answer is already streaming so we never block on it.
+  async function captureAndAnswer(): Promise<void> {
+    if (!overlayWindow) return
+    const snap = await captureInstant((snapshotId, ocrText) => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        const payload: ScreenSnapshotOcr = { snapshotId, ocrText }
+        overlayWindow.webContents.send(IPC.screenshot.ocr, payload)
+      }
+    }).catch(() => null)
+    if (!snap) return
+    showOverlay()
+    overlayWindow.webContents.send(IPC.overlay.snapshotAnswer, snap)
+  }
+
   // Region-cropper: open a transparent fullscreen window where the user drags
   // a rectangle, then capture only that area, OCR it, and feed the snippet
   // into the overlay's snapshot pipeline.
@@ -583,6 +600,9 @@ app.whenReady().then(async () => {
     },
     onScreenshot: () => {
       void captureAndAttach()
+    },
+    onScreenshotAnswer: () => {
+      void captureAndAnswer()
     },
     onCropper: () => openCropper(),
     onChat: () => openChat(),

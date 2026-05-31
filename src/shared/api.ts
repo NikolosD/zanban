@@ -68,6 +68,9 @@ export interface ZanbanApi {
     onFocusAsk(cb: () => void): () => void
     onAnswerLast(cb: () => void): () => void
     onSnapshotAsk(cb: (snap: ScreenSnapshot) => void): () => void
+    /** Main → overlay: capture happened AND should be answered immediately
+     *  (screenshotAnswer hotkey). */
+    onSnapshotAnswer(cb: (snap: ScreenSnapshot) => void): () => void
     getStealth(): Promise<boolean>
     setStealth(on: boolean): Promise<boolean>
     onStealthChanged(cb: (stealth: boolean) => void): () => void
