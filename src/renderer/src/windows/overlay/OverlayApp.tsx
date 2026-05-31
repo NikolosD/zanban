@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
+import { useAskRequest } from '@renderer/features/ai/useAskRequest'
 import { wireJobsIpc } from '@renderer/features/jobs/jobsStore'
 import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
@@ -28,7 +29,6 @@ import {
   ANSWER_LAST_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
-  SCREENSHOT_DEFAULT_PROMPT,
   SHORTEN_PROMPT,
   WHAT_TO_ANSWER_PROMPT
 } from '@shared/prompts'
@@ -64,7 +64,8 @@ export function OverlayApp() {
   const { t } = useTranslation()
   const [stealth, setStealth] = useState(true)
   const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
+  const { run: runAsk, stop: stopAsk, busy } = useAskRequest()
+  const [stoppingSession, setStoppingSession] = useState(false)
   const [snapping, setSnapping] = useState(false)
   const [image, setImage] = useState<string | null>(null)
   const [ocrText, setOcrText] = useState<string | null>(null)
@@ -272,31 +273,18 @@ export function OverlayApp() {
   }
 
   async function stopSession(): Promise<void> {
-    setBusy(true)
+    setStoppingSession(true)
     try {
       stopCaptures()
       await window.zanban.session.stop()
     } finally {
-      setBusy(false)
+      setStoppingSession(false)
     }
   }
 
-  /**
-   * Wait briefly for STT to flush the latest partial. If the transcript was
-   * updated within `quietMs` of now, poll until either: it has been quiet for
-   * `quietMs`, OR the cap (`maxWaitMs`) elapses. Returns immediately if the
-   * transcript is already settled.
-   */
-  async function awaitTranscriptSettle(maxWaitMs = 600, quietMs = 250): Promise<void> {
-    const start = Date.now()
-    if (useTranscript.getState().session.kind !== 'running') return
-    while (Date.now() - start < maxWaitMs) {
-      const last = useTranscript.getState().lastUpdateAt
-      if (!last || Date.now() - last >= quietMs) return
-      await new Promise((r) => setTimeout(r, 120))
-    }
-  }
-
+  // Settle-wait + ask + error handling + model-override all live in the shared
+  // useAskRequest hook now, so the overlay and the dashboard AskPanel behave
+  // identically (the dashboard used to skip the transcript settle).
   async function runPrompt(
     prompt: string,
     label?: string,
@@ -304,25 +292,14 @@ export function OverlayApp() {
     waitForTranscript?: boolean,
     ocr?: string | null
   ): Promise<void> {
-    const p = prompt.trim()
-    if ((!p && !imageDataUrl) || busy) return
-    setBusy(true)
-    try {
-      if (waitForTranscript) await awaitTranscriptSettle()
-      const { requestId } = await window.zanban.ai.ask({
-        prompt: p || SCREENSHOT_DEFAULT_PROMPT,
-        ...(imageDataUrl ? { imageDataUrl } : {}),
-        ...(ocr ? { ocrText: ocr } : {}),
-        ...(modelOverride ? { modelOverride } : {})
-      })
-      useAi.getState().newRequest(label ?? p, requestId)
-    } catch (err) {
-      const id = `err-${Date.now()}`
-      useAi.getState().newRequest(label ?? p, id)
-      useAi.getState().failRequest(id, err instanceof Error ? err.message : 'failed')
-    } finally {
-      setBusy(false)
-    }
+    await runAsk({
+      prompt,
+      label,
+      image: imageDataUrl ?? null,
+      ocr,
+      waitForTranscript,
+      modelOverride
+    })
   }
 
   useEffect(() => {
@@ -397,7 +374,7 @@ export function OverlayApp() {
         >
           <StatusBar
             running={running}
-            busy={busy}
+            busy={stoppingSession}
             elapsed={elapsed}
             stealth={stealth}
             onStop={() => void stopSession()}
@@ -437,11 +414,13 @@ export function OverlayApp() {
               text={text}
               image={image}
               busy={busy}
+              streaming={latest?.status === 'streaming'}
               snapping={snapping}
               inputRef={inputRef}
               onTextChange={setText}
               onKey={onKey}
               onSend={() => void send()}
+              onStop={() => stopAsk()}
               onSnap={() => void snap()}
               onClearImage={() => {
                 setImage(null)
@@ -872,11 +851,13 @@ function InputPill({
   text,
   image,
   busy,
+  streaming,
   snapping,
   inputRef,
   onTextChange,
   onKey,
   onSend,
+  onStop,
   onSnap,
   onClearImage,
   modelOverride,
@@ -887,11 +868,13 @@ function InputPill({
   text: string
   image: string | null
   busy: boolean
+  streaming: boolean
   snapping: boolean
   inputRef: React.RefObject<HTMLTextAreaElement | null>
   onTextChange: (v: string) => void
   onKey: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onSend: () => void
+  onStop: () => void
   onSnap: () => void
   onClearImage: () => void
   modelOverride: string | null
@@ -979,17 +962,35 @@ function InputPill({
           <TooltipContent>{t('overlay.input.snap_tooltip')}</TooltipContent>
         </Tooltip>
       )}
-      <Button
-        data-interactive
-        onClick={onSend}
-        disabled={busy || (!text.trim() && !image)}
-        size="icon"
-        variant={text.trim() || image ? 'default' : 'ghost'}
-        style={noDrag}
-        className="size-7 shrink-0 rounded-full"
-      >
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-      </Button>
+      {streaming ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              data-interactive
+              onClick={onStop}
+              size="icon"
+              variant="destructive"
+              style={noDrag}
+              className="size-7 shrink-0 rounded-full"
+            >
+              <Square className="size-3 fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('overlay.stop_generating')}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <Button
+          data-interactive
+          onClick={onSend}
+          disabled={busy || (!text.trim() && !image)}
+          size="icon"
+          variant={text.trim() || image ? 'default' : 'ghost'}
+          style={noDrag}
+          className="size-7 shrink-0 rounded-full"
+        >
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+        </Button>
+      )}
     </div>
   )
 }

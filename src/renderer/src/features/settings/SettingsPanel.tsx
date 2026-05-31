@@ -301,6 +301,17 @@ export function SettingsPanel({
               >
                 <WebSearchCard settings={settings} update={update} />
               </Section>
+              <Section title={t('settings.ai.answers_title')} hint={t('settings.ai.answers_hint')}>
+                <Row
+                  label={t('settings.ai.detailed_answers_label')}
+                  hint={t('settings.ai.detailed_answers_hint')}
+                >
+                  <Switch
+                    checked={settings.detailedAnswers}
+                    onCheckedChange={(v) => update('detailedAnswers', v)}
+                  />
+                </Row>
+              </Section>
             </>
           )}
           {tab === 'audio' && (

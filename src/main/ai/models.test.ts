@@ -9,7 +9,8 @@ vi.mock('../settings.js', () => ({
   getSettings: () => mockSettings.value
 }))
 
-const { modelFor } = await import('./models.js')
+const { modelFor, fastMaxOutputTokens, FAST_MAX_OUTPUT_TOKENS, DETAILED_MAX_OUTPUT_TOKENS } =
+  await import('./models.js')
 
 describe('modelFor', () => {
   beforeEach(() => {
@@ -78,5 +79,16 @@ describe('modelFor', () => {
     expect(modelFor('fast')).toBe('a-fast')
     mockSettings.value = { ...mockSettings.value, llmProvider: 'openai' }
     expect(modelFor('fast')).toBe('o-fast')
+  })
+})
+
+describe('fastMaxOutputTokens', () => {
+  it('uses the brief cap when detailed answers are off', () => {
+    expect(fastMaxOutputTokens(false)).toBe(FAST_MAX_OUTPUT_TOKENS)
+  })
+
+  it('raises the cap when detailed answers are on', () => {
+    expect(fastMaxOutputTokens(true)).toBe(DETAILED_MAX_OUTPUT_TOKENS)
+    expect(DETAILED_MAX_OUTPUT_TOKENS).toBeGreaterThan(FAST_MAX_OUTPUT_TOKENS)
   })
 })

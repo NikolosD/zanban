@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, Trash2 } from 'lucide-react'
+import { Send, Loader2, Trash2, Square } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useAi, wireAiIpc } from '@renderer/features/ai/store'
+import { useAskRequest } from '@renderer/features/ai/useAskRequest'
 import { Toaster } from '@renderer/components/ui/sonner'
-import { toast } from 'sonner'
 import { ZanbanMark } from '@renderer/components/brand'
 
 /**
@@ -14,8 +14,10 @@ import { ZanbanMark } from '@renderer/components/brand'
  */
 export function ChatApp() {
   const messages = useAi((s) => s.messages)
+  const latest = messages.at(-1)
   const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
+  const { run, stop, busy } = useAskRequest()
+  const streaming = latest?.status === 'streaming'
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -34,18 +36,8 @@ export function ChatApp() {
     const text = input.trim()
     if (!text || busy) return
     setInput('')
-    setBusy(true)
-    try {
-      const { requestId } = await window.zanban.ai.ask({ prompt: text })
-      useAi.getState().newRequest(text, requestId)
-    } catch (err) {
-      toast.error('Failed to send', {
-        description: err instanceof Error ? err.message : String(err)
-      })
-    } finally {
-      setBusy(false)
-      inputRef.current?.focus()
-    }
+    await run({ prompt: text })
+    inputRef.current?.focus()
   }
 
   return (
@@ -74,24 +66,20 @@ export function ChatApp() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="mt-12 text-center text-[12px] text-muted-foreground">
-            Ask anything. The active persona, RAG history, reference docs, and
-            web search (if enabled) all apply here too.
+            Ask anything. The active persona, RAG history, reference docs, and web search (if
+            enabled) all apply here too.
           </div>
         ) : (
           <ul className="flex flex-col gap-5">
             {messages.map((m) => (
               <li key={m.id} className="flex flex-col gap-2">
-                <div className="rounded-md bg-white/[0.04] px-3 py-2 text-[13px]">
-                  {m.prompt}
-                </div>
+                <div className="rounded-md bg-white/[0.04] px-3 py-2 text-[13px]">{m.prompt}</div>
                 <div className="px-1 text-[13px]">
                   <StreamingMarkdown text={m.answer} />
                   {m.status === 'streaming' && (
                     <span className="ml-1 inline-block size-1.5 animate-pulse rounded-full bg-muted-foreground" />
                   )}
-                  {m.status === 'error' && (
-                    <span className="text-red-400">{m.error}</span>
-                  )}
+                  {m.status === 'error' && <span className="text-red-400">{m.error}</span>}
                 </div>
               </li>
             ))}
@@ -114,14 +102,20 @@ export function ChatApp() {
           placeholder="Ask Zanban anything…"
           className="flex-1 resize-none rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] outline-none focus:border-white/30"
         />
-        <Button
-          variant="default"
-          size="icon"
-          onClick={() => void send()}
-          disabled={busy || !input.trim()}
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-        </Button>
+        {streaming ? (
+          <Button variant="destructive" size="icon" onClick={() => stop()} title="Stop generating">
+            <Square className="size-3.5 fill-current" />
+          </Button>
+        ) : (
+          <Button
+            variant="default"
+            size="icon"
+            onClick={() => void send()}
+            disabled={busy || !input.trim()}
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          </Button>
+        )}
       </div>
       <Toaster richColors position="bottom-right" />
     </div>

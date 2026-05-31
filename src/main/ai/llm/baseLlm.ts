@@ -25,10 +25,9 @@ function gateway() {
 }
 
 /**
- * Run a non-streaming completion. Used by the small helper LLMs (intent
- * classification, clarify, follow-ups, question extraction) that don't need
- * to stream — token counts are tiny so latency is bounded by TTFT + a couple
- * of dozen tokens.
+ * Run a non-streaming completion. Used by the small helper LLMs (follow-up
+ * suggestions, recap generation) that don't need to stream — token counts are
+ * tiny so latency is bounded by TTFT + a couple of dozen tokens.
  *
  * Routes through whichever LLM provider the user picked in Settings. If the
  * alt provider fails, falls back to Vercel Gateway so the helper doesn't

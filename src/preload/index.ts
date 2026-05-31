@@ -42,6 +42,8 @@ const api: ZanbanApi = {
   },
   ai: {
     ask: (input) => ipcRenderer.invoke(IPC.ai.ask, input),
+    stop: (requestId) => ipcRenderer.invoke(IPC.ai.stop, requestId),
+    followUps: (question, answer) => ipcRenderer.invoke(IPC.ai.followUps, { question, answer }),
     onChunk: (cb) => on(IPC.ai.chunk, cb),
     onDone: (cb) => on(IPC.ai.done, cb),
     onError: (cb) => on(IPC.ai.error, cb)

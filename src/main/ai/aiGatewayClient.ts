@@ -20,11 +20,36 @@ import {
   getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
-import { modelFor, FAST_MAX_OUTPUT_TOKENS } from './models.js'
+import { modelFor, fastMaxOutputTokens } from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
 const STREAM_IDLE_TIMEOUT_MS = 30_000
+
+/**
+ * In-flight requests, keyed by requestId. Lets `stop()` abort a specific
+ * stream from a separate IPC call — the AbortController used to be trapped
+ * inside the ask() closure, so the only way to end a stream was the idle
+ * timeout. `stoppedByUser` distinguishes an explicit Stop (finalize the
+ * partial answer cleanly) from a timeout/error abort (surface a message).
+ */
+interface InFlight {
+  abort: AbortController
+  stoppedByUser: boolean
+}
+const inFlight = new Map<string, InFlight>()
+
+/**
+ * Abort an in-flight ask() by id. The stream loop sees the aborted signal and
+ * finalizes the partial answer via the shared done-path — no error toast.
+ * No-op if the request already finished or never existed.
+ */
+export function stop(requestId: string): void {
+  const entry = inFlight.get(requestId)
+  if (!entry) return
+  entry.stoppedByUser = true
+  entry.abort.abort()
+}
 
 function armStreamTimeout(abort: AbortController): { reset: () => void; clear: () => void } {
   let timer: NodeJS.Timeout | null = null
@@ -109,7 +134,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   // only when we actually need to fall back to the gateway path below.
   const requestId = randomUUID()
   const abort = new AbortController()
-
+  const entry: InFlight = { abort, stoppedByUser: false }
+  inFlight.set(requestId, entry)
   ;(async () => {
     try {
       const gw = gateway()
@@ -161,6 +187,9 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
 
       const hasImage = !!opts.imageDataUrl
       const modelId = hasImage ? modelFor('vision') : modelFor('fast')
+      // Text answers honor the "Detailed answers" toggle; vision answers keep
+      // their own wider 8k ceiling (code-heavy diagnoses need the room).
+      const maxOutputTokens = fastMaxOutputTokens(settings.detailedAnswers)
 
       // Resolution order: per-request modelOverride > persona.defaultModel >
       // settings/role default. The override layer lets the user pick a model
@@ -221,8 +250,9 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         }
 
         const timeout = armStreamTimeout(abort)
+        // Hoisted so the catch can finalize the partial answer on a Stop.
+        let fullAnswer = ''
         try {
-          let fullAnswer = ''
           let chosenProviderId: string = altProvider.id
           const stream = streamWithFallback(providers, {
             model: overrideModel,
@@ -231,27 +261,41 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
               : buildSystemPrompt(personaText, responseLanguage),
             prompt: userPrompt,
             temperature: hasImage ? 0.3 : 0.4,
-            maxOutputTokens: hasImage ? 8000 : FAST_MAX_OUTPUT_TOKENS,
+            maxOutputTokens: maxOutputTokens,
             imageDataUrl: opts.imageDataUrl,
             signal: abort.signal
           })
-          for await (const ev of stream) {
-            if (abort.signal.aborted) return
+          // Drive the generator by hand so we can read its *return* value (the
+          // normalized finish reason) — `for await` would discard it.
+          let next = await stream.next()
+          while (!next.done) {
+            const ev = next.value
+            // User-initiated Stop: finalize the partial answer cleanly via the
+            // shared done-path below. A timeout abort (stoppedByUser === false)
+            // still bails to the catch so it surfaces as an error.
+            if (abort.signal.aborted) {
+              if (entry.stoppedByUser) break
+              return
+            }
             timeout.reset()
             if (ev.kind === 'fallback') {
               chosenProviderId = ev.toProviderId
               console.warn(
                 `[ai] provider ${ev.fromProviderId} failed before emitting; falling back to ${ev.toProviderId}: ${ev.reason}`
               )
-              continue
+            } else {
+              fullAnswer += ev.text
+              broadcast(IPC.ai.chunk, { requestId, text: ev.text })
             }
-            fullAnswer += ev.text
-            broadcast(IPC.ai.chunk, { requestId, text: ev.text })
+            next = await stream.next()
           }
+          // The generator's done-value holds the finish reason; on a user Stop
+          // we broke early, so flag it as a clean 'stop'.
+          const finishReason = entry.stoppedByUser ? 'stop' : next.done ? next.value : undefined
           timeout.clear()
           recordExchange(opts.prompt, fullAnswer)
           void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
-          broadcast(IPC.ai.done, { requestId })
+          broadcast(IPC.ai.done, { requestId, finishReason })
           // Best-effort: log which provider actually answered, useful when
           // the fallback chain kicks in and the user's primary was unhealthy.
           if (chosenProviderId !== altProvider.id) {
@@ -266,6 +310,14 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           //   2. Vercel routing parsed a non-namespaced model ID
           //      (e.g. "claude-haiku-4-5" without "anthropic/") and rejected.
           // If the user picked a non-default provider, we honor that pick.
+          // An explicit Stop can surface as an AbortError from the SDK — treat
+          // it as a clean finalize, not a failure.
+          if (entry.stoppedByUser) {
+            recordExchange(opts.prompt, fullAnswer)
+            void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
+            broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
+            return
+          }
           const aborted = abort.signal.aborted
           const message = aborted
             ? 'LLM stream timed out (no response for 30s)'
@@ -318,7 +370,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             system: buildSystemPrompt(personaText, responseLanguage),
             prompt: userPrompt,
             abortSignal: abort.signal,
-            maxOutputTokens: FAST_MAX_OUTPUT_TOKENS,
+            maxOutputTokens: maxOutputTokens,
             temperature: 0.4
           }
 
@@ -326,9 +378,18 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       const gwTimeout = armStreamTimeout(abort)
 
       let fullAnswer = ''
+      let stoppedEarly = false
       try {
         for await (const text of result.textStream) {
-          if (abort.signal.aborted) return
+          // User-initiated Stop finalizes the partial answer below; a timeout
+          // abort still bails to the catch as an error.
+          if (abort.signal.aborted) {
+            if (entry.stoppedByUser) {
+              stoppedEarly = true
+              break
+            }
+            return
+          }
           gwTimeout.reset()
           if (text) {
             fullAnswer += text
@@ -341,14 +402,25 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // `finishReason` is resolved once the stream completes. We surface it
       // so the UI can flag length-truncations (the model hit maxOutputTokens
       // and stopped mid-thought) — that was the failure mode the user hit
-      // when a vision answer cut off in the middle of a code block.
-      const finishReason = await Promise.resolve(result.finishReason).catch(() => undefined)
+      // when a vision answer cut off in the middle of a code block. On an
+      // explicit Stop we broke early, so flag it as a clean 'stop'.
+      const finishReason = stoppedEarly
+        ? 'stop'
+        : await Promise.resolve(result.finishReason).catch(() => undefined)
       recordExchange(opts.prompt, fullAnswer)
       void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
       broadcast(IPC.ai.done, { requestId, finishReason })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'unknown error'
-      broadcast(IPC.ai.error, { requestId, message })
+      // An explicit Stop can throw an AbortError from the SDK — finalize
+      // cleanly rather than showing an error toast.
+      if (entry.stoppedByUser) {
+        broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
+      } else {
+        const message = err instanceof Error ? err.message : 'unknown error'
+        broadcast(IPC.ai.error, { requestId, message })
+      }
+    } finally {
+      inFlight.delete(requestId)
     }
   })()
 

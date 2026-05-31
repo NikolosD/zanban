@@ -1,4 +1,5 @@
-import type { ILlmProvider, LlmStreamArgs } from '../types.js'
+import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
+import { normalizeFinishReason } from './finishReason.js'
 
 interface GeminiLike {
   models: {
@@ -8,7 +9,7 @@ interface GeminiLike {
       model: string
       contents: unknown
       config?: { temperature?: number; maxOutputTokens?: number; systemInstruction?: string }
-    }): Promise<AsyncIterable<{ text?: string }>>
+    }): Promise<AsyncIterable<{ text?: string; candidates?: Array<{ finishReason?: string }> }>>
     generateContent(args: {
       model: string
       contents: unknown
@@ -95,7 +96,7 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'google-gemini',
     label: 'Google Gemini',
-    async *stream(args: LlmStreamArgs) {
+    async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       // generateContentStream returns Promise<AsyncIterable> — must await
       // BEFORE the for-await loop, otherwise we try to iterate the Promise
@@ -113,9 +114,16 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
           }
         })
       )
+      // Gemini reports the finish reason on each chunk's candidate
+      // ('STOP' | 'MAX_TOKENS' | 'SAFETY' | 'RECITATION' | …); the last
+      // non-empty value wins.
+      let finishReason: string | undefined
       for await (const chunk of it) {
+        const fr = chunk.candidates?.[0]?.finishReason
+        if (fr) finishReason = fr
         if (chunk.text) yield chunk.text
       }
+      return normalizeFinishReason(finishReason)
     },
     async generate(args) {
       const c = await client(apiKey)

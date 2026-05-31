@@ -1,15 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
 import { streamWithFallback, type FallbackStreamEvent } from './fallbackChain.js'
-import type { ILlmProvider } from '../../providers/types.js'
+import type { ILlmProvider, LlmFinishReason } from '../../providers/types.js'
 
 function makeProvider(
   id: string,
   behaviour:
-    | { kind: 'chunks'; chunks: string[] }
+    | { kind: 'chunks'; chunks: string[]; finishReason?: LlmFinishReason }
     | { kind: 'throw-before'; error: Error }
     | { kind: 'throw-after'; chunks: string[]; error: Error }
 ): ILlmProvider {
-  const stream = vi.fn(async function* () {
+  const stream = vi.fn(async function* (): AsyncGenerator<
+    string,
+    LlmFinishReason | undefined,
+    void
+  > {
     if (behaviour.kind === 'throw-before') {
       throw behaviour.error
     }
@@ -19,6 +23,7 @@ function makeProvider(
     if (behaviour.kind === 'throw-after') {
       throw behaviour.error
     }
+    return behaviour.kind === 'chunks' ? behaviour.finishReason : undefined
   })
   // The actual ILlmProvider type wants generate() too. Tests don't use it.
   return {
@@ -112,5 +117,33 @@ describe('streamWithFallback', () => {
 
   it('throws when the provider list is empty', async () => {
     await expect(collect(streamWithFallback([], ARGS))).rejects.toThrow('no providers supplied')
+  })
+
+  it('returns the finish reason of the provider that completed', async () => {
+    const primary = makeProvider('anthropic', {
+      kind: 'chunks',
+      chunks: ['done'],
+      finishReason: 'length'
+    })
+    const gen = streamWithFallback([primary], ARGS)
+    let res = await gen.next()
+    while (!res.done) res = await gen.next()
+    expect(res.value).toBe('length')
+  })
+
+  it('returns the finish reason of the fallback provider after a switch', async () => {
+    const primary = makeProvider('anthropic', {
+      kind: 'throw-before',
+      error: new Error('down')
+    })
+    const secondary = makeProvider('openai', {
+      kind: 'chunks',
+      chunks: ['ok'],
+      finishReason: 'stop'
+    })
+    const gen = streamWithFallback([primary, secondary], ARGS)
+    let res = await gen.next()
+    while (!res.done) res = await gen.next()
+    expect(res.value).toBe('stop')
   })
 })

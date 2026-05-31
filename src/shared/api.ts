@@ -78,6 +78,12 @@ export interface ZanbanApi {
   }
   ai: {
     ask(input: AiAskInput): Promise<{ requestId: string }>
+    /** Abort an in-flight ask() by id. Main finalizes the partial answer
+     *  cleanly (emits `done`, no error). No-op if already finished. */
+    stop(requestId: string): Promise<void>
+    /** Suggest up to 3 short follow-up questions for a completed Q+A turn.
+     *  Returns [] on LLM/parse failure. */
+    followUps(question: string, answer: string): Promise<string[]>
     onChunk(cb: (chunk: AiChunk) => void): () => void
     onDone(cb: (done: AiDone) => void): () => void
     onError(cb: (err: AiError) => void): () => void

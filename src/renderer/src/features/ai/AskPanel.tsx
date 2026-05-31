@@ -8,15 +8,21 @@ import {
   Image as ImageIcon,
   X,
   Copy,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Square,
+  RefreshCw
 } from 'lucide-react'
 import { useAi } from './store'
+import { useAskRequest } from './useAskRequest'
+import { ModelReaskMenu } from './ModelReaskMenu'
 import { StreamingMarkdown } from './StreamingMarkdown'
+import { useSettingsStore } from '@renderer/features/settings/store'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Card, CardContent } from '@renderer/components/ui/card'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
-import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
+import { ANSWER_LAST_PROMPT } from '@shared/prompts'
+import type { LlmProvider } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
@@ -33,9 +39,14 @@ export function AskPanel({
   const latest = messages.at(-1)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
   const [snapping, setSnapping] = useState(false)
   const [image, setImage] = useState<string | null>(null)
+  const [modelOverride, setModelOverride] = useState<string | null>(null)
+  const { run, stop, busy } = useAskRequest()
+  const streaming = latest?.status === 'streaming'
+  const settings = useSettingsStore((s) => s.settings)
+  // Remember the last prompt+context so Regenerate / model re-ask can repeat it.
+  const lastReqRef = useRef<{ prompt: string; label?: string; image: string | null } | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -54,38 +65,33 @@ export function AskPanel({
     const attached = image
     if (!p && !attached) return
     if (busy) return
-    setBusy(true)
     if (!prompt) setText('')
     setImage(null)
-    try {
-      const askPrompt = p || SCREENSHOT_DEFAULT_PROMPT
-      const { requestId } = await window.zanban.ai.ask({
-        prompt: askPrompt,
-        ...(attached ? { imageDataUrl: attached } : {})
-      })
-      useAi.getState().newRequest(askPrompt, requestId)
-    } catch (err) {
-      const id = `err-${Date.now()}`
-      useAi.getState().newRequest(p, id)
-      useAi.getState().failRequest(id, err instanceof Error ? err.message : 'failed')
-    } finally {
-      setBusy(false)
-    }
+    lastReqRef.current = { prompt: p, image: attached }
+    await run({ prompt: p, image: attached, modelOverride })
   }
 
   async function answerLast() {
     if (busy) return
-    setBusy(true)
-    try {
-      const { requestId } = await window.zanban.ai.ask({ prompt: ANSWER_LAST_PROMPT })
-      useAi.getState().newRequest('Answer last question', requestId)
-    } catch (err) {
-      const id = `err-${Date.now()}`
-      useAi.getState().newRequest('Answer last question', id)
-      useAi.getState().failRequest(id, err instanceof Error ? err.message : 'failed')
-    } finally {
-      setBusy(false)
-    }
+    lastReqRef.current = { prompt: ANSWER_LAST_PROMPT, label: 'Answer last question', image: null }
+    await run({
+      prompt: ANSWER_LAST_PROMPT,
+      label: 'Answer last question',
+      waitForTranscript: true,
+      modelOverride
+    })
+  }
+
+  // Regenerate / re-ask the last prompt, optionally with a different model.
+  async function regenerate(modelId?: string | null) {
+    const last = lastReqRef.current
+    if (!last || busy) return
+    await run({
+      prompt: last.prompt,
+      label: last.label,
+      image: last.image,
+      modelOverride: modelId ?? modelOverride
+    })
   }
 
   async function snap() {
@@ -113,9 +119,22 @@ export function AskPanel({
           <Empty onSend={send} onAnswerLast={answerLast} />
         ) : (
           <div className="flex flex-col gap-3 pr-2">
-            {messages.map((m) => (
-              <AskCard key={m.id} message={m} onContinue={() => void send('continue')} />
-            ))}
+            {messages.map((m, i) => {
+              const isLatest = i === messages.length - 1
+              return (
+                <AskCard
+                  key={m.id}
+                  message={m}
+                  onContinue={() => void send('continue')}
+                  // Regenerate/model re-ask/follow-ups only on the latest card.
+                  onRegenerate={isLatest ? () => void regenerate() : undefined}
+                  onReaskModel={isLatest ? (model) => void regenerate(model) : undefined}
+                  onAskFollowUp={isLatest ? (q) => void send(q) : undefined}
+                  provider={settings?.llmProvider ?? 'vercel-gateway'}
+                  busy={busy}
+                />
+              )
+            })}
           </div>
         )}
       </ScrollArea>
@@ -177,15 +196,33 @@ export function AskPanel({
           >
             <Wand2 className="size-3.5" />
           </Button>
-          <Button
-            onClick={() => void send()}
-            disabled={busy || (!text.trim() && !image)}
-            size="icon"
-            variant={text.trim() || image ? 'default' : 'ghost'}
-            className="size-8 shrink-0"
-          >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-          </Button>
+          <ModelReaskMenu
+            value={modelOverride}
+            onChange={setModelOverride}
+            provider={settings?.llmProvider ?? 'vercel-gateway'}
+            triggerClassName="h-8 shrink-0"
+          />
+          {streaming ? (
+            <Button
+              onClick={() => stop()}
+              size="icon"
+              variant="destructive"
+              title={t('ask_panel.stop_tooltip')}
+              className="size-8 shrink-0"
+            >
+              <Square className="size-3.5 fill-current" />
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void send()}
+              disabled={busy || (!text.trim() && !image)}
+              size="icon"
+              variant={text.trim() || image ? 'default' : 'ghost'}
+              className="size-8 shrink-0"
+            >
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -244,13 +281,28 @@ interface AskMessage {
 
 export function AskCard({
   message: m,
-  onContinue
+  onContinue,
+  onRegenerate,
+  onReaskModel,
+  onAskFollowUp,
+  provider,
+  busy
 }: {
   message: AskMessage
   onContinue?: () => void
+  /** Repeat the last prompt with the current model. Latest card only. */
+  onRegenerate?: () => void
+  /** Repeat the last prompt with a different model. Latest card only. */
+  onReaskModel?: (model: string) => void
+  /** Ask one of the suggested follow-up questions. Latest card only. */
+  onAskFollowUp?: (question: string) => void
+  provider?: LlmProvider
+  busy?: boolean
 }) {
   const { t } = useTranslation()
   const canCopy = m.status !== 'error' && m.answer.length > 0
+  // Show regenerate/re-ask only on a finished (non-streaming) latest card.
+  const showActions = m.status !== 'streaming' && (onRegenerate || onReaskModel)
   return (
     <Card
       className={cn(
@@ -300,7 +352,98 @@ export function AskCard({
             )}
           </div>
         )}
+        {showActions && (
+          <div className="mt-2 flex items-center gap-1.5">
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                disabled={busy}
+                title={t('ask_panel.regenerate_tooltip')}
+                className="inline-flex items-center gap-1 rounded border border-border/60 bg-card/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+              >
+                <RefreshCw className="size-3" />
+                {t('ask_panel.regenerate')}
+              </button>
+            )}
+            {onReaskModel && provider && (
+              <ModelReaskMenu
+                value={null}
+                onChange={() => {}}
+                onReask={onReaskModel}
+                provider={provider}
+                align="start"
+                triggerClassName="h-6 py-0.5"
+              />
+            )}
+          </div>
+        )}
+        {m.status === 'done' && onAskFollowUp && m.answer.length > 0 && (
+          <FollowUpChips
+            question={m.prompt}
+            answer={m.answer}
+            onAsk={onAskFollowUp}
+            disabled={busy}
+          />
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Clickable follow-up question chips shown under a completed answer. Fetches up
+ * to 3 short suggestions from the helper LLM once, on mount. Renders nothing
+ * while loading or when the LLM returns none — so a flaky/disabled helper just
+ * means no chips, never an error.
+ */
+function FollowUpChips({
+  question,
+  answer,
+  onAsk,
+  disabled
+}: {
+  question: string
+  answer: string
+  onAsk: (q: string) => void
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+  const [chips, setChips] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.zanban.ai
+      .followUps(question, answer)
+      .then((qs) => {
+        if (!cancelled) setChips(qs)
+      })
+      .catch(() => {
+        /* helper LLM unavailable — just show no chips */
+      })
+    return () => {
+      cancelled = true
+    }
+    // Suggestions depend on the finished answer; refetch only if it changes.
+  }, [question, answer])
+
+  if (chips.length === 0) return null
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+        {t('ask_panel.follow_ups')}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map((q) => (
+          <button
+            key={q}
+            onClick={() => onAsk(q)}
+            disabled={disabled}
+            className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1 text-left text-[11px] text-foreground/85 transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

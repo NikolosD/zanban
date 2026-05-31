@@ -1,4 +1,4 @@
-import type { ILlmProvider, LlmStreamArgs } from '../../providers/types.js'
+import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../../providers/types.js'
 
 /**
  * Stream events emitted by `streamWithFallback`. `chunk` events carry the
@@ -19,12 +19,16 @@ export type FallbackStreamEvent =
  * bubbles up unchanged because rerouting would replace partially-rendered
  * text with a different answer (worse UX than a clean error).
  *
+ * Returns the normalized finish reason of the provider that completed (or
+ * `undefined` when the provider couldn't expose one) so the caller can flag a
+ * length-truncation regardless of which provider answered.
+ *
  * Throws if every provider fails, with the last error preserved.
  */
 export async function* streamWithFallback(
   providers: ReadonlyArray<ILlmProvider>,
   args: LlmStreamArgs
-): AsyncGenerator<FallbackStreamEvent, void, void> {
+): AsyncGenerator<FallbackStreamEvent, LlmFinishReason | undefined, void> {
   if (providers.length === 0) {
     throw new Error('streamWithFallback: no providers supplied')
   }
@@ -35,14 +39,21 @@ export async function* streamWithFallback(
     const provider = providers[i]!
     let emittedAny = false
     try {
-      for await (const text of provider.stream(args)) {
+      // The provider's stream *returns* its finish reason; capture it from the
+      // generator's done-value rather than the for-await loop (which only sees
+      // yielded text deltas).
+      const it = provider.stream(args)
+      let res = await it.next()
+      while (!res.done) {
+        const text = res.value
         if (text) {
           emittedAny = true
           yield { kind: 'chunk', text, providerId: provider.id }
         }
+        res = await it.next()
       }
-      // Stream completed without errors.
-      return
+      // Stream completed without errors — surface the finish reason.
+      return res.value
     } catch (err) {
       lastError = err
       const reason = err instanceof Error ? err.message : String(err)

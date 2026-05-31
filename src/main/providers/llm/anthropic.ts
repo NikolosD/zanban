@@ -1,4 +1,5 @@
-import type { ILlmProvider, LlmStreamArgs } from '../types.js'
+import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
+import { normalizeFinishReason } from './finishReason.js'
 
 interface AnthropicSdk {
   messages: {
@@ -16,7 +17,9 @@ interface AnthropicSdk {
       messages: Array<{ role: string; content: unknown }>
       max_tokens: number
       temperature?: number
-    }): AsyncIterable<unknown> & { finalMessage(): Promise<{ content: Array<{ type: string; text?: string }> }> }
+    }): AsyncIterable<unknown> & {
+      finalMessage(): Promise<{ content: Array<{ type: string; text?: string }> }>
+    }
   }
 }
 
@@ -31,7 +34,7 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
   return {
     id: 'anthropic',
     label: 'Anthropic Claude',
-    async *stream(args: LlmStreamArgs) {
+    async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       const stream = c.messages.stream({
         model: args.model,
@@ -40,14 +43,20 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
         max_tokens: args.maxOutputTokens ?? 1200,
         temperature: args.temperature ?? 0.3
       })
+      // Anthropic surfaces the stop reason on the `message_delta` event
+      // (delta.stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence' | …).
+      let stopReason: string | null | undefined
       for await (const event of stream as AsyncIterable<{
         type?: string
-        delta?: { type?: string; text?: string }
+        delta?: { type?: string; text?: string; stop_reason?: string | null }
       }>) {
         if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
           if (event.delta.text) yield event.delta.text
+        } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
+          stopReason = event.delta.stop_reason
         }
       }
+      return normalizeFinishReason(stopReason)
     },
     async generate(args) {
       const c = await client(apiKey)
@@ -60,7 +69,7 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
         stream: false
       })) as { content: Array<{ type: string; text?: string }> }
       return res.content
-        .map((b) => (b.type === 'text' ? b.text ?? '' : ''))
+        .map((b) => (b.type === 'text' ? (b.text ?? '') : ''))
         .join('')
         .trim()
     }

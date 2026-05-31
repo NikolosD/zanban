@@ -208,6 +208,14 @@ export interface AppSettings {
    *  looks like a factual lookup (≥4 words). Requires `tavilyApiKey`. */
   autoWebSearch: boolean
   /**
+   * "Detailed answers" — when off (default) streaming text answers are capped
+   * at FAST_MAX_OUTPUT_TOKENS (~600 tokens) so the overlay never waits on an
+   * over-long reply. When on, the cap is raised (~1800 tokens) for fuller,
+   * less truncation-prone answers at the cost of latency. Only affects the
+   * text (non-vision) path — vision answers already use a wider 8k ceiling.
+   */
+  detailedAnswers: boolean
+  /**
    * Per-role model IDs **per provider**. Empty string in any slot means
    * "use the provider's default" — see PROVIDER_MODEL_DEFAULTS. Switching
    * providers automatically swaps which set of model IDs is in effect, so
@@ -535,6 +543,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llmFallbackOrder: [],
   privacyMode: false,
   autoWebSearch: false,
+  detailedAnswers: false,
   aiModels: {},
   transcriptionLanguage: 'multi',
   contextSeconds: 120,

@@ -17,9 +17,7 @@ import { PROVIDER_MODEL_DEFAULTS, type AiRole, type LlmProvider } from '../../sh
 export function modelFor(role: AiRole): string {
   const settings = getSettings()
   const provider: LlmProvider =
-    role === 'vision' && settings.visionProvider
-      ? settings.visionProvider
-      : settings.llmProvider
+    role === 'vision' && settings.visionProvider ? settings.visionProvider : settings.llmProvider
   const userOverride = settings.aiModels?.[provider]?.[role]?.trim()
   if (userOverride) return userOverride
   return PROVIDER_MODEL_DEFAULTS[provider][role]
@@ -29,3 +27,16 @@ export function modelFor(role: AiRole): string {
 // response. 600 output tokens ≈ 3-5 bullets or 1-2 short paragraphs, which is
 // the answer shape the system prompt asks for.
 export const FAST_MAX_OUTPUT_TOKENS = 600
+
+// Raised cap used when the user enables "Detailed answers" in Settings. ~1800
+// tokens ≈ 3-4 full paragraphs or a short code walkthrough — enough that text
+// answers rarely truncate, at the cost of a longer stream.
+export const DETAILED_MAX_OUTPUT_TOKENS = 1800
+
+/**
+ * Resolve the streaming text-answer token cap from the "Detailed answers"
+ * toggle. Vision answers don't go through here — they use their own 8k ceiling.
+ */
+export function fastMaxOutputTokens(detailedAnswers: boolean): number {
+  return detailedAnswers ? DETAILED_MAX_OUTPUT_TOKENS : FAST_MAX_OUTPUT_TOKENS
+}

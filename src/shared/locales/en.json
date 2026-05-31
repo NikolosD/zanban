@@ -28,6 +28,7 @@
     "stealth_on_tooltip": "Invisible to screen-share. Click to expose.",
     "stealth_off_tooltip": "Visible to screen-share — others can see this. Click to hide.",
     "stop_recording_tooltip": "Click to stop recording",
+    "stop_generating": "Stop generating",
     "back_to_dashboard": "Back to dashboard",
     "more": "more",
     "chips": {
@@ -72,7 +73,18 @@
     "streaming": "streaming…",
     "answer_truncated": "answer truncated — hit max output tokens.",
     "continue": "continue",
-    "continue_tooltip": "Submit a 'continue' prompt to resume the answer"
+    "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
+    "stop_tooltip": "Stop generating",
+    "regenerate": "regenerate",
+    "regenerate_tooltip": "Re-ask the last prompt",
+    "follow_ups": "follow-ups",
+    "model_picker": {
+      "default": "Default",
+      "override_label": "Override · {{provider}}",
+      "text_answers": "Text answers",
+      "vision": "Vision (screenshots)",
+      "tooltip": "Override model for this request · provider: {{provider}}"
+    }
   },
   "dashboard": {
     "start_session": "Start session",
@@ -313,6 +325,10 @@
       "models_card_hint": "What model handles each task. Selector lists only the active provider's catalogue — no more `openai/gpt-oss-120b` showing up while talking to Anthropic.",
       "web_search_title": "web search",
       "web_search_hint": "External knowledge for company research. Uses Tavily; falls back to LLM general knowledge if no key.",
+      "answers_title": "answers",
+      "answers_hint": "Length and verbosity of streamed text answers.",
+      "detailed_answers_label": "Detailed answers",
+      "detailed_answers_hint": "Raise the output limit so answers truncate less often. Slightly slower. Off by default for short, snappy replies.",
       "streaming_label": "Streaming answers",
       "streaming_hint": "Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels.",
       "question_detector_label": "Question detector",
