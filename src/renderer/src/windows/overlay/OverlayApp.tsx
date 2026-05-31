@@ -9,7 +9,8 @@ import {
   Loader2,
   ChevronDown,
   Copy,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Camera
 } from 'lucide-react'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
@@ -50,6 +51,7 @@ import {
 } from '@renderer/components/ui/dropdown-menu'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { Kbd } from '@renderer/components/ui/kbd'
+import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
@@ -433,6 +435,7 @@ export function OverlayApp() {
                 settings?.aiModels?.[settings.llmProvider]?.fast ||
                 (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
               }
+              screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
             />
 
             {hasContent && (
@@ -660,6 +663,18 @@ function ActionChipsRow({
   onAnswer: () => void
 }) {
   const { t } = useTranslation()
+  // Two disable axes, made explicit so the rules aren't opaque:
+  //   - requires-session: Answer, Recap, What-to-answer — useless with no live
+  //     transcript. Answer USED to be always-on (it could conjure an answer
+  //     "from nowhere"); it now needs a running session like the rest.
+  //   - requires-answer: Shorten, Follow-up, Continue — operate on an existing
+  //     answer, so they need one to exist.
+  // Each disabled chip carries a tooltip explaining WHY, so the user isn't left
+  // guessing why a control is greyed out.
+  const needsSession = t('overlay.chips.disabled_needs_session')
+  const needsAnswer = t('overlay.chips.disabled_needs_answer')
+  const sessionReason = !running ? needsSession : undefined
+  const answerReason = !hasAnswer ? needsAnswer : undefined
   // Hierarchy revamp: 5 equally-weighted chips → 2 visible primaries (Answer
   // + Recap) and a `more` dropdown for the rest. Reduces eye-traversal cost
   // during a live call where attention is already fragmented.
@@ -668,9 +683,14 @@ function ActionChipsRow({
       className="flex items-center gap-1.5 px-2.5 py-2"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Recap is the most-used "look back at the last 90s" gesture. Visible
-          only while running — there's no transcript to recap when idle. */}
-      <ActionChip label={t('overlay.chips.recap')} disabled={busy || !running} onClick={onRecap} />
+      {/* Recap is the most-used "look back at the last 90s" gesture. Requires a
+          session — there's no transcript to recap when idle. */}
+      <ActionChip
+        label={t('overlay.chips.recap')}
+        disabled={busy || !running}
+        disabledReason={sessionReason}
+        onClick={onRecap}
+      />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -693,13 +713,21 @@ function ActionChipsRow({
           data-interactive
           className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
         >
-          <DropdownMenuItem disabled={busy || !running} onSelect={onWhatToAnswer}>
+          <DropdownMenuItem
+            disabled={busy || !running}
+            onSelect={onWhatToAnswer}
+            title={sessionReason}
+          >
             <span className="text-[12px]">{t('overlay.chips.what_to_answer')}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten}>
+          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten} title={answerReason}>
             <span className="text-[12px]">{t('overlay.chips.shorten')}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onFollowUp}>
+          <DropdownMenuItem
+            disabled={busy || !hasAnswer}
+            onSelect={onFollowUp}
+            title={answerReason}
+          >
             <span className="text-[12px]">{t('overlay.chips.follow_up')}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -707,9 +735,15 @@ function ActionChipsRow({
 
       <span className="flex-1" />
 
-      {/* Answer — single primary CTA. Foreground-on-bg per the design canvas;
-          no sparkle — emphasis comes from the inverted color, not an icon. */}
-      <ActionChip label={t('overlay.chips.answer')} emphasis disabled={busy} onClick={onAnswer} />
+      {/* Answer — single primary CTA. Now requires a session: answering "the
+          last question" is meaningless without a live transcript. */}
+      <ActionChip
+        label={t('overlay.chips.answer')}
+        emphasis
+        disabled={busy || !running}
+        disabledReason={sessionReason}
+        onClick={onAnswer}
+      />
     </div>
   )
 }
@@ -718,14 +752,17 @@ function ActionChip({
   label,
   emphasis,
   disabled,
+  disabledReason,
   onClick
 }: {
   label: string
   emphasis?: boolean
   disabled?: boolean
+  /** Why the chip is disabled. When present (and disabled), shown as a tooltip. */
+  disabledReason?: string
   onClick: () => void
 }) {
-  return (
+  const chip = (
     <button
       data-interactive
       onClick={onClick}
@@ -742,6 +779,21 @@ function ActionChip({
       {label}
     </button>
   )
+  // Tooltip only when we actually have a reason to show — a disabled button
+  // swallows pointer events, so wrap in a span the Tooltip can hang off of.
+  if (disabled && disabledReason) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span data-interactive className="inline-flex">
+            {chip}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{disabledReason}</TooltipContent>
+      </Tooltip>
+    )
+  }
+  return chip
 }
 
 function ModelOverridePicker({
@@ -863,7 +915,8 @@ function InputPill({
   modelOverride,
   onModelChange,
   activeProvider,
-  activeDefaultModel
+  activeDefaultModel,
+  screenshotHotkey
 }: {
   text: string
   image: string | null
@@ -881,9 +934,16 @@ function InputPill({
   onModelChange: (m: string | null) => void
   activeProvider: LlmProvider
   activeDefaultModel: string
+  /** Configured screenshot accelerator (e.g. "Control+Shift+S"); null until settings load. */
+  screenshotHotkey: string | null
 }) {
   const { t } = useTranslation()
   const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
+  // Render the REAL screenshot chord from settings, not a hardcoded ⌘+H (which
+  // is wrong on Windows and clashed with the hideShow 'H' binding). Falls back
+  // to a camera glyph if no binding is set.
+  const snapTokens = screenshotHotkey ? acceleratorTokens(screenshotHotkey) : []
+  const snapChord = snapTokens.length > 0 ? snapTokens.join(' + ') : t('overlay.input.snap_tooltip')
   return (
     <div
       className="flex items-center gap-2 border-t border-white/10 px-3 py-2"
@@ -950,16 +1010,23 @@ function InputPill({
             >
               {snapping ? (
                 <Loader2 className="size-3 animate-spin" />
+              ) : snapTokens.length > 0 ? (
+                snapTokens.map((tok, i) => (
+                  <span key={i} className="inline-flex items-center gap-1">
+                    {i > 0 && <span>+</span>}
+                    <Kbd>{tok}</Kbd>
+                  </span>
+                ))
               ) : (
-                <>
-                  <Kbd>⌘</Kbd>
-                  <span>+</span>
-                  <Kbd>H</Kbd>
-                </>
+                <Camera className="size-3" />
               )}
             </button>
           </TooltipTrigger>
-          <TooltipContent>{t('overlay.input.snap_tooltip')}</TooltipContent>
+          <TooltipContent>
+            {snapTokens.length > 0
+              ? t('overlay.input.snap_hotkey_tooltip', { chord: snapChord })
+              : t('overlay.input.snap_tooltip')}
+          </TooltipContent>
         </Tooltip>
       )}
       {streaming ? (

@@ -133,6 +133,16 @@ export function prettyAccelerator(acc: string): string {
   return parseAccelerator(acc).join(' + ')
 }
 
+/**
+ * Split an Electron accelerator ("Control+Shift+S") into platform-pretty
+ * tokens (["Ctrl", "Shift", "S"]) so callers can render each as its own key
+ * cap. Shares the same token mapping as the settings recorder so the chord a
+ * user sees in the overlay matches exactly what they'd see while rebinding it.
+ */
+export function acceleratorTokens(acc: string): string[] {
+  return parseAccelerator(acc)
+}
+
 function parseAccelerator(acc: string): string[] {
   return acc
     .split('+')

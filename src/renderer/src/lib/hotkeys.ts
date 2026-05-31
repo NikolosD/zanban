@@ -6,7 +6,7 @@ const LABELS: Record<HotkeyKey, string> = {
   toggleOverlay: 'Toggle overlay',
   askAi: 'Focus ask',
   answerLast: 'Answer last',
-  hideShow: 'Hide / show',
+  hideShow: 'Toggle stealth',
   screenshot: 'Snap full screen → Ask',
   cropper: 'Drag region → OCR Ask',
   chat: 'Open chat window',

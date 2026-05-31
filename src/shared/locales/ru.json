@@ -31,12 +31,25 @@
     "stop_generating": "Остановить генерацию",
     "back_to_dashboard": "Назад в дашборд",
     "more": "ещё",
+    "rolling": {
+      "listening": "слушаю…",
+      "you": "Вы",
+      "them": "Они",
+      "mic_label": "Микрофон",
+      "system_label": "Система",
+      "state_idle": "{{label}}: подключено, тишина",
+      "state_connecting": "{{label}}: подключение…",
+      "state_speaking": "{{label}}: слышу звук",
+      "state_error": "{{label}}: ошибка захвата"
+    },
     "chips": {
       "recap": "Резюме",
       "answer": "Ответить",
       "what_to_answer": "Как ответить?",
       "shorten": "Сократить ответ",
-      "follow_up": "Уточняющий вопрос"
+      "follow_up": "Уточняющий вопрос",
+      "disabled_needs_session": "Сначала начните сессию — пока не с чем работать",
+      "disabled_needs_answer": "Сначала получите ответ"
     },
     "model_picker": {
       "default": "По умолчанию",
@@ -49,7 +62,8 @@
     "input": {
       "remove_screenshot": "Убрать скриншот",
       "screenshot_attached_tooltip": "Скриншот прикреплён · нажмите, чтобы убрать",
-      "snap_tooltip": "Сделайте снимок экрана и приложите к вопросу"
+      "snap_tooltip": "Сделайте снимок экрана и приложите к вопросу",
+      "snap_hotkey_tooltip": "Нажмите {{chord}}, чтобы снять весь экран и приложить его"
     },
     "continue_tooltip": "Отправить запрос «continue», чтобы продолжить ответ"
   },
@@ -445,7 +459,7 @@
         "hint": "Ответить на последний обнаруженный вопрос одним нажатием."
       },
       "hideShow": {
-        "label": "Скрыть / показать",
+        "label": "Переключить стелс",
         "hint": "Переключить стелс — скрывает от демонстрации экрана."
       },
       "screenshot": {

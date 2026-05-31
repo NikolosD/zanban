@@ -31,12 +31,25 @@
     "stop_generating": "Stop generating",
     "back_to_dashboard": "Back to dashboard",
     "more": "more",
+    "rolling": {
+      "listening": "listening…",
+      "you": "You",
+      "them": "Them",
+      "mic_label": "Mic",
+      "system_label": "System",
+      "state_idle": "{{label}}: connected, quiet",
+      "state_connecting": "{{label}}: connecting…",
+      "state_speaking": "{{label}}: hearing audio",
+      "state_error": "{{label}}: capture error"
+    },
     "chips": {
       "recap": "Recap",
       "answer": "Answer",
       "what_to_answer": "What to answer?",
       "shorten": "Shorten last answer",
-      "follow_up": "Suggest follow-up"
+      "follow_up": "Suggest follow-up",
+      "disabled_needs_session": "Start a session first — there's nothing to work with yet",
+      "disabled_needs_answer": "Generate an answer first"
     },
     "model_picker": {
       "default": "Default",
@@ -49,7 +62,8 @@
     "input": {
       "remove_screenshot": "Remove screenshot",
       "screenshot_attached_tooltip": "Screenshot attached · click to remove",
-      "snap_tooltip": "Snap a screenshot to send with your question"
+      "snap_tooltip": "Snap a screenshot to send with your question",
+      "snap_hotkey_tooltip": "Press {{chord}} to snap the full screen and attach it"
     },
     "continue_tooltip": "Submit a 'continue' prompt to resume the answer"
   },
@@ -445,7 +459,7 @@
         "hint": "Answer the last detected question with one keypress."
       },
       "hideShow": {
-        "label": "Hide / show",
+        "label": "Toggle stealth",
         "hint": "Toggle stealth — hides from screen-share."
       },
       "screenshot": {
