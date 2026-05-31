@@ -22,10 +22,12 @@ import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
+  RESPONSE_LANGUAGES,
   type AiModelSettings,
   type AiRole,
   type AppSettings,
-  type LlmProvider
+  type LlmProvider,
+  type ResponseLanguage
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
 import { KeyRecorder } from './KeyRecorder'
@@ -493,6 +495,26 @@ function GeneralTab({
           <SelectContent>
             <SelectItem value="en">English</SelectItem>
             <SelectItem value="ru">Русский</SelectItem>
+          </SelectContent>
+        </Select>
+      </Section>
+      <Section
+        title={t('settings.general.answer_language_title')}
+        hint={t('settings.general.answer_language_hint')}
+      >
+        <Select
+          value={settings.responseLanguage ?? 'auto'}
+          onValueChange={(v) => update('responseLanguage', v as ResponseLanguage)}
+        >
+          <SelectTrigger className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RESPONSE_LANGUAGES.map((l) => (
+              <SelectItem key={l.value} value={l.value}>
+                {l.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Section>
