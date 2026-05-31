@@ -9,7 +9,7 @@ import type { TranscriptSegment } from '../../shared/types.js'
 import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './prompts.js'
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
-import { retrieveContext } from '../rag/index.js'
+import { retrieve, type RetrievedSource } from '../rag/index.js'
 import type { IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
@@ -166,14 +166,21 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
 
       // RAG: per-persona tuning. useRag === false skips retrieval entirely
       // (handy for brainstorm-style personas that benefit from a clean slate).
+      // retrieve() now ranks across transcript history, reference documents, and
+      // structured recaps — full docs are no longer dumped into the prompt.
       const ragStrategy = activePersona?.ragStrategy
-      const retrievedHistory =
+      const retrieval =
         ragStrategy?.useRag === false
-          ? ''
-          : await retrieveContext(opts.prompt, {
+          ? { prompt: '', sources: [] as RetrievedSource[] }
+          : await retrieve(opts.prompt, {
               topK: ragStrategy?.topK,
               distanceThreshold: ragStrategy?.distanceThreshold
-            }).catch(() => '')
+            }).catch(() => ({ prompt: '', sources: [] as RetrievedSource[] }))
+
+      // Surface what was retrieved so the renderer can show a "Sources" list
+      // under the answer. Sent before the answer streams; an empty list clears
+      // any stale sources from a previous turn.
+      broadcast(IPC.ai.sources, { requestId, sources: retrieval.sources })
 
       const userPrompt = buildUserPrompt({
         userPrompt: opts.prompt,
@@ -182,7 +189,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         contextSeconds: opts.contextSeconds ?? settings.contextSeconds,
         exchanges: getExchanges(),
         ocrText: opts.ocrText,
-        retrievedHistory: retrievedHistory + webSearchBlock
+        retrievedHistory: retrieval.prompt + webSearchBlock
       })
 
       const hasImage = !!opts.imageDataUrl

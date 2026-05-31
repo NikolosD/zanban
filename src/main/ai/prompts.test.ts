@@ -1,13 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
 
-// Reference docs come from a stateful main-process store (electron + fs);
-// stub it out so prompt-building can be tested in pure-fn isolation.
-const refContext = vi.hoisted(() => ({ value: '' }))
-vi.mock('../documents/referenceStore.js', () => ({
-  getActiveContext: () => refContext.value
-}))
-
+// Reference documents are no longer dumped wholesale into the prompt — they go
+// through the shared RAG pipeline and arrive (when relevant) inside the
+// retrievedHistory block, so prompt-building no longer depends on the doc store.
 const { buildSystemPrompt, buildVisionSystemPrompt, buildUserPrompt } = await import('./prompts.js')
 
 describe('buildSystemPrompt', () => {
@@ -89,7 +85,6 @@ describe('buildUserPrompt', () => {
   }
 
   it('emits an empty-transcript marker when there is nothing to show', () => {
-    refContext.value = ''
     const out = buildUserPrompt({
       userPrompt: 'hello?',
       meetingContext: '',
@@ -102,7 +97,6 @@ describe('buildUserPrompt', () => {
   })
 
   it('labels mic segments as You and system segments as Them', () => {
-    refContext.value = ''
     const now = Date.now()
     const out = buildUserPrompt({
       userPrompt: 'q',
@@ -118,7 +112,6 @@ describe('buildUserPrompt', () => {
   })
 
   it('drops non-final segments and segments older than the cutoff', () => {
-    refContext.value = ''
     const now = Date.now()
     const out = buildUserPrompt({
       userPrompt: 'q',
@@ -135,8 +128,7 @@ describe('buildUserPrompt', () => {
     expect(out).not.toContain('old')
   })
 
-  it('wraps meeting context, OCR text, exchanges, and retrieved history in their tags', () => {
-    refContext.value = ''
+  it('wraps meeting context, OCR text, exchanges, and retrieved context in their tags', () => {
     const out = buildUserPrompt({
       userPrompt: 'go',
       meetingContext: 'interview for senior FE role',
@@ -147,7 +139,7 @@ describe('buildUserPrompt', () => {
         { prompt: 'hi', answer: 'hello' },
         { prompt: 'next?', answer: 'sure' }
       ],
-      retrievedHistory: '\n\n<retrieved_history>\nold note\n</retrieved_history>'
+      retrievedHistory: '\n\n<retrieved_context>\nold note\n</retrieved_context>'
     })
     expect(out).toContain('<meeting_context>\ninterview for senior FE role\n</meeting_context>')
     expect(out).toContain('<screen_ocr>')
@@ -155,11 +147,10 @@ describe('buildUserPrompt', () => {
     expect(out).toContain('<previous_exchanges>')
     expect(out).toContain('--- exchange 1 ---')
     expect(out).toContain('--- exchange 2 ---')
-    expect(out).toContain('<retrieved_history>')
+    expect(out).toContain('<retrieved_context>')
   })
 
   it('skips empty optional blocks', () => {
-    refContext.value = ''
     const out = buildUserPrompt({
       userPrompt: 'go',
       meetingContext: '   ',
@@ -173,15 +164,17 @@ describe('buildUserPrompt', () => {
     expect(out).not.toContain('<previous_exchanges>')
   })
 
-  it('injects reference-document text when the store has any active', () => {
-    refContext.value = '\nresume snippet\n'
+  it('no longer dumps reference documents — retrieved fragments arrive via retrievedHistory', () => {
     const out = buildUserPrompt({
       userPrompt: 'go',
       meetingContext: '',
       contextSeconds: 60,
-      segments: []
+      segments: [],
+      retrievedHistory:
+        '\n\n<retrieved_context>\n[document · resume.pdf]\nresume snippet\n</retrieved_context>'
     })
-    expect(out).toContain('<reference_documents>')
+    expect(out).not.toContain('<reference_documents>')
+    expect(out).toContain('<retrieved_context>')
     expect(out).toContain('resume snippet')
   })
 })

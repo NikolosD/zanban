@@ -10,7 +10,11 @@ import {
   Copy,
   ArrowDownToLine,
   Square,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  FileText,
+  History,
+  ListChecks
 } from 'lucide-react'
 import { useAi } from './store'
 import { useAskRequest } from './useAskRequest'
@@ -22,7 +26,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { Card, CardContent } from '@renderer/components/ui/card'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { ANSWER_LAST_PROMPT } from '@shared/prompts'
-import type { LlmProvider } from '@shared/types'
+import type { AiSource, LlmProvider } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
@@ -314,6 +318,7 @@ interface AskMessage {
   status: 'streaming' | 'done' | 'error'
   error?: string
   finishReason?: string
+  sources?: AiSource[]
 }
 
 export function AskCard({
@@ -422,8 +427,61 @@ export function AskCard({
             disabled={busy}
           />
         )}
+        {m.status !== 'error' && m.sources && m.sources.length > 0 && (
+          <SourcesList sources={m.sources} />
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+/** Icon + accent per source kind. */
+function sourceMeta(kind: AiSource['kind']) {
+  if (kind === 'doc') return { Icon: FileText, color: 'text-sky-300' }
+  if (kind === 'recap') return { Icon: ListChecks, color: 'text-violet-300' }
+  return { Icon: History, color: 'text-emerald-300' }
+}
+
+/**
+ * Collapsible "Sources" list shown under an answer: the RAG fragments that were
+ * retrieved (transcript history, reference docs, recaps) with their similarity
+ * distance and a short snippet. Collapsed by default to keep answers tight.
+ */
+function SourcesList({ sources }: { sources: AiSource[] }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-2 border-t border-border/40 pt-1.5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80 hover:text-foreground"
+      >
+        <ChevronDown className={cn('size-3 transition-transform', !open && '-rotate-90')} />
+        {t('ask_panel.sources', { count: sources.length })}
+      </button>
+      {open && (
+        <ul className="mt-1.5 flex flex-col gap-1">
+          {sources.map((s) => {
+            const { Icon, color } = sourceMeta(s.kind)
+            return (
+              <li
+                key={s.id}
+                className="rounded-md border border-border/50 bg-card/40 px-2 py-1.5 text-[11px]"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon className={cn('size-3 shrink-0', color)} />
+                  <span className="truncate font-medium text-foreground/85">{s.label}</span>
+                  <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">
+                    {s.distance.toFixed(2)}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-3 text-muted-foreground">{s.snippet}</p>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 

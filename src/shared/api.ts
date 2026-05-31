@@ -3,6 +3,7 @@ import type {
   AiChunk,
   AiDone,
   AiError,
+  AiSources,
   AppSettings,
   AudioChannel,
   LlmProvider,
@@ -116,6 +117,9 @@ export interface ZanbanApi {
     onChunk(cb: (chunk: AiChunk) => void): () => void
     onDone(cb: (done: AiDone) => void): () => void
     onError(cb: (err: AiError) => void): () => void
+    /** RAG fragments retrieved for an ask (Sources affordance). Fires once per
+     *  ask, before the answer streams; an empty list means nothing retrieved. */
+    onSources(cb: (sources: AiSources) => void): () => void
   }
   settings: {
     get(): Promise<AppSettings>
@@ -263,7 +267,12 @@ export interface ProviderTestResult {
 
 export interface RagHit {
   id: number
-  sessionId: string
+  /** What this chunk came from. */
+  sourceKind: 'session' | 'doc' | 'recap'
+  /** Session id (session/recap) or document id (doc). */
+  sourceId: string
+  /** Doc filename for docs; null for sessions/recaps. */
+  sourceLabel: string | null
   speaker: string | null
   ts: number
   text: string

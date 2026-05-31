@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Trash2, UploadCloud, Loader2, FileType2 } from 'lucide-react'
+import { Trash2, UploadCloud, Loader2, FileType2, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import type { ReferenceDoc } from '@shared/types'
@@ -168,36 +168,92 @@ export function ReferenceDocsTab() {
       ) : (
         <ul className="flex flex-col gap-1.5">
           {docs.map((d) => (
-            <li
+            <DocRow
               key={d.id}
-              className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-            >
-              <FileType2 className="size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px]">{d.name}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {d.kind.toUpperCase()} · {formatBytes(d.bytes)} ·{' '}
-                  {t('settings.documents.stats_chars', { count: d.text.length })}
-                </div>
-              </div>
-              <Switch
-                checked={d.active}
-                onCheckedChange={(v) => void toggleActive(d.id, v)}
-                aria-label={t('settings.documents.inject_aria')}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:text-red-400"
-                onClick={() => void remove(d.id, d.name)}
-                aria-label={t('settings.documents.remove_aria')}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </li>
+              doc={d}
+              onToggleActive={(v) => void toggleActive(d.id, v)}
+              onRemove={() => void remove(d.id, d.name)}
+            />
           ))}
         </ul>
       )}
     </div>
+  )
+}
+
+function DocRow({
+  doc: d,
+  onToggleActive,
+  onRemove
+}: {
+  doc: ReferenceDoc
+  onToggleActive: (active: boolean) => void
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  const [showText, setShowText] = useState(false)
+  const empty = d.extractEmpty ?? d.text.trim().length === 0
+  const hasText = d.text.trim().length > 0
+
+  return (
+    <li className="flex flex-col gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+      <div className="flex items-center gap-3">
+        <FileType2 className="size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-[13px]">{d.name}</span>
+            {empty && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                <AlertTriangle className="size-3" />
+                {t('settings.documents.badge_no_text')}
+              </span>
+            )}
+            {d.truncated && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                {t('settings.documents.badge_truncated')}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {d.kind.toUpperCase()} · {formatBytes(d.bytes)} ·{' '}
+            {t('settings.documents.stats_chars', { count: d.text.length })}
+          </div>
+        </div>
+        {hasText && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowText((v) => !v)}
+            aria-label={t('settings.documents.view_text_aria')}
+            title={t('settings.documents.view_text_aria')}
+          >
+            {showText ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+          </Button>
+        )}
+        <Switch
+          checked={d.active}
+          onCheckedChange={onToggleActive}
+          aria-label={t('settings.documents.inject_aria')}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground hover:text-red-400"
+          onClick={onRemove}
+          aria-label={t('settings.documents.remove_aria')}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+      {empty && (
+        <p className="text-[11px] text-red-300/80">{t('settings.documents.empty_text_hint')}</p>
+      )}
+      {showText && hasText && (
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          {d.text}
+        </pre>
+      )}
+    </li>
   )
 }

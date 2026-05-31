@@ -37,6 +37,28 @@ export function chunkSegments(segs: TranscriptSegment[]): Chunk[] {
   return chunks
 }
 
+/**
+ * Pack a block of plain text (reference document, recap, etc.) into ~TARGET_WORDS
+ * chunks with the same tail overlap the transcript path uses. Paragraph breaks
+ * are softened to spaces — we chunk purely by word budget, which is good enough
+ * for retrieval and keeps the logic shared/testable. `speaker` is null and `ts`
+ * is the caller-supplied timestamp (e.g. the doc's addedAt) so chunks sort and
+ * format consistently with transcript chunks.
+ */
+export function chunkText(text: string, ts: number): Chunk[] {
+  const allWords = text.split(/\s+/).filter(Boolean)
+  if (allWords.length === 0) return []
+  const chunks: Chunk[] = []
+  let i = 0
+  while (i < allWords.length) {
+    const slice = allWords.slice(i, i + TARGET_WORDS)
+    chunks.push({ speaker: null, ts, text: slice.join(' ') })
+    if (i + TARGET_WORDS >= allWords.length) break
+    i += TARGET_WORDS - OVERLAP_WORDS
+  }
+  return chunks
+}
+
 function packChunk(slice: Array<{ word: string; speaker: string; ts: number }>): Chunk {
   const text = slice.map((w) => w.word).join(' ')
   const ts = slice[0]?.ts ?? 0

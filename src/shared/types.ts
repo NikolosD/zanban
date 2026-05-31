@@ -11,8 +11,16 @@ export interface ReferenceDoc {
   text: string
   /** Whether this doc participates in the next LLM prompt. */
   active: boolean
+  /** True when extraction yielded no text (e.g. a scanned PDF with no text
+   *  layer) — such a doc contributes nothing to retrieval. UI flags it. */
+  extractEmpty?: boolean
+  /** True when the extracted text was clipped to MAX_TEXT_PER_DOC. */
+  truncated?: boolean
   addedAt: number
 }
+
+/** Max characters of extracted text stored/indexed per reference doc. */
+export const MAX_TEXT_PER_DOC = 200_000
 
 export interface SessionExportPayload {
   title: string
@@ -122,6 +130,23 @@ export interface AiDone {
 export interface AiError {
   requestId: string
   message: string
+}
+
+/** A single RAG fragment retrieved for an ask, surfaced in the Sources list. */
+export interface AiSource {
+  id: number
+  kind: 'session' | 'doc' | 'recap'
+  /** Display-ready label: doc filename, short session id, or "recap …". */
+  label: string
+  /** L2 distance — lower is more similar. */
+  distance: number
+  /** Short preview of the retrieved fragment. */
+  snippet: string
+}
+
+export interface AiSources {
+  requestId: string
+  sources: AiSource[]
 }
 
 export type SttProvider = 'google' | 'deepgram' | 'elevenlabs' | 'openai-whisper' | 'local-whisper'

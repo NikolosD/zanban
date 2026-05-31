@@ -1,6 +1,11 @@
+/** Model id baked into the vec schema meta — change forces a reindex. */
+export const LOCAL_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2'
+
 export interface IEmbeddingProvider {
   /** Output dimensionality. RAG schema is bound to this — keep stable. */
   readonly dim: number
+  /** Stable model identifier — persisted in the vec meta for migration checks. */
+  readonly model: string
   /** Embed a batch of strings. Result length === input length. */
   embed(texts: string[]): Promise<Float32Array[]>
 }
@@ -31,9 +36,10 @@ export async function getLocalEmbedder(): Promise<IEmbeddingProvider | null> {
           ) => Promise<{ data: Float32Array; dims: number[] }>
         >
       }
-      const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
+      const extractor = await pipeline('feature-extraction', LOCAL_EMBEDDING_MODEL)
       local = {
         dim: 384,
+        model: LOCAL_EMBEDDING_MODEL,
         async embed(texts) {
           const out: Float32Array[] = []
           // Run sequentially — the pipeline is single-threaded in this build.

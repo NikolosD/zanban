@@ -149,6 +149,18 @@ app.whenReady().then(async () => {
   registerScreenshotHandlers()
   registerDocumentsHandlers()
   registerRagHandlers()
+
+  // Reconcile reference docs with the RAG store after a tick: index active docs
+  // whose chunks are missing (first run after documents-into-RAG, or after a
+  // schema rebuild) and drop chunks for docs deleted/deactivated while closed.
+  // Deferred + best-effort so it never blocks startup or the embedder download.
+  setTimeout(() => {
+    void (async () => {
+      const { listDocs } = await import('./documents/referenceStore.js')
+      const { reconcileDocs } = await import('./rag/index.js')
+      await reconcileDocs(listDocs())
+    })().catch((err) => console.error('[rag] startup reconcile failed', err))
+  }, 4000)
   registerOllamaHandlers()
   registerProvidersHandlers()
   registerPersonasHandlers()

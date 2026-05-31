@@ -302,12 +302,17 @@ function SearchPill({
     const timer = setTimeout(() => {
       void window.zanban.rag.search(q, 3).then((hits) => {
         setRagHits(
-          hits.map((h) => ({
-            kind: 'rag' as const,
-            sessionId: h.sessionId,
-            snippet: h.text.slice(0, 140) + (h.text.length > 140 ? '…' : ''),
-            subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString()}`
-          }))
+          hits
+            // This list navigates to a session on click, so only session/recap
+            // hits (which carry a session id) are actionable here; doc fragments
+            // are surfaced under answers via the Sources affordance instead.
+            .filter((h) => h.sourceKind !== 'doc')
+            .map((h) => ({
+              kind: 'rag' as const,
+              sessionId: h.sourceId,
+              snippet: h.text.slice(0, 140) + (h.text.length > 140 ? '…' : ''),
+              subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString()}`
+            }))
         )
       })
     }, 250)

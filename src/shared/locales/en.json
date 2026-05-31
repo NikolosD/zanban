@@ -124,6 +124,8 @@
     "regenerate": "regenerate",
     "regenerate_tooltip": "Re-ask the last prompt",
     "follow_ups": "follow-ups",
+    "sources_one": "{{count}} source",
+    "sources_other": "{{count}} sources",
     "model_picker": {
       "default": "Default",
       "override_label": "Override · {{provider}}",
@@ -346,7 +348,7 @@
     },
     "documents": {
       "title": "Reference documents",
-      "hint": "PDF, DOCX, TXT, MD. Active docs are injected into every AI request as context — useful for resumes, job descriptions, specs, briefs.",
+      "hint": "PDF, DOCX, TXT, MD. Active docs are indexed and the most relevant fragments are retrieved into AI answers — useful for resumes, job descriptions, specs, briefs.",
       "drop_label": "Drop files here or click to upload",
       "extracting": "Extracting…",
       "accepted": "Accepted: PDF, DOCX, TXT, MD",
@@ -354,6 +356,10 @@
       "empty": "No reference documents yet.",
       "remove_aria": "Remove",
       "inject_aria": "Inject into prompts",
+      "view_text_aria": "View extracted text",
+      "badge_no_text": "no text extracted",
+      "badge_truncated": "truncated",
+      "empty_text_hint": "No text could be extracted — likely a scanned PDF without a text layer. This document won't contribute to AI answers.",
       "stats_chars": "{{count}} chars",
       "delete_confirm": "Delete reference document \"{{name}}\"?",
       "drop_error": "Could not read file paths from drop",

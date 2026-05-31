@@ -60,7 +60,9 @@ export const IPC = {
     followUps: 'ai:follow-ups',
     chunk: 'ai:chunk',
     done: 'ai:done',
-    error: 'ai:error'
+    error: 'ai:error',
+    /** Main → renderer: RAG fragments retrieved for an ask, for the Sources UI. */
+    sources: 'ai:sources'
   },
   settings: {
     get: 'settings:get',

@@ -59,7 +59,8 @@ const api: ZanbanApi = {
     followUps: (question, answer) => ipcRenderer.invoke(IPC.ai.followUps, { question, answer }),
     onChunk: (cb) => on(IPC.ai.chunk, cb),
     onDone: (cb) => on(IPC.ai.done, cb),
-    onError: (cb) => on(IPC.ai.error, cb)
+    onError: (cb) => on(IPC.ai.error, cb),
+    onSources: (cb) => on(IPC.ai.sources, cb)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.settings.get),

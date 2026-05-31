@@ -1,5 +1,4 @@
 import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
-import { getActiveContext } from '../documents/referenceStore.js'
 
 const BASE_SYSTEM_PROMPT = `You are Zanban, a real-time meeting assistant. The user is in a live meeting RIGHT NOW; they will read your answer in seconds, not minutes.
 
@@ -74,8 +73,11 @@ export interface BuildPromptArgs {
   /** OCR text from an attached screenshot, if any. */
   ocrText?: string
   /**
-   * Pre-rendered block of retrieved snippets from prior sessions (RAG).
-   * Already wrapped in a `<retrieved_history>` tag — pass it through verbatim.
+   * Pre-rendered block of retrieved fragments from prior sessions, reference
+   * documents, and recaps (RAG). Already wrapped in a `<retrieved_context>` tag
+   * (plus any appended web-search block) — pass it through verbatim. Reference
+   * documents are NO LONGER dumped wholesale here; only the relevant retrieved
+   * fragments make it into the prompt.
    */
   retrievedHistory?: string
 }
@@ -92,11 +94,6 @@ export function buildUserPrompt(args: BuildPromptArgs): string {
     ? `\n\n<meeting_context>\n${args.meetingContext.trim()}\n</meeting_context>`
     : ''
 
-  const referenceText = getActiveContext()
-  const referenceBlock = referenceText
-    ? `\n\n<reference_documents>${referenceText}\n</reference_documents>`
-    : ''
-
   const exchangeBlock =
     args.exchanges && args.exchanges.length > 0
       ? `\n\n<previous_exchanges>\nThese are the most recent Q&A turns this session. Use them to avoid repeating yourself and to stay coherent.\n${args.exchanges
@@ -111,5 +108,5 @@ export function buildUserPrompt(args: BuildPromptArgs): string {
 
   const retrievedBlock = args.retrievedHistory ?? ''
 
-  return `<recent_transcript>\n${transcript}\n</recent_transcript>${contextBlock}${referenceBlock}${retrievedBlock}${ocrBlock}${exchangeBlock}\n\n<user_request>\n${args.userPrompt}\n</user_request>`
+  return `<recent_transcript>\n${transcript}\n</recent_transcript>${contextBlock}${retrievedBlock}${ocrBlock}${exchangeBlock}\n\n<user_request>\n${args.userPrompt}\n</user_request>`
 }

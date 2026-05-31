@@ -6,6 +6,7 @@ import { getSettings } from '../settings.js'
 import { generateRecap as llmGenerateRecap } from '../ai/llm/recapLlm.js'
 import { createRecapService, type RecapService } from '../services/recap/recapService.js'
 import type { RecapOptions } from '../services/recap/recapSchema.js'
+import { indexRecap, deleteRecap } from '../rag/index.js'
 
 let service: RecapService | null = null
 let registered = false
@@ -18,7 +19,7 @@ function broadcast(sessionId: string): void {
 
 export function getRecapService(): RecapService {
   if (!service) {
-    service = createRecapService({
+    const svc = createRecapService({
       dir: join(app.getPath('userData'), 'sessions'),
       readSession: async (id) => (isValidSessionId(id) ? readSessionFromDisk(id) : null),
       llm: (session, options) => {
@@ -30,8 +31,23 @@ export function getRecapService(): RecapService {
         }
         return llmGenerateRecap(session, merged)
       },
-      onUpdated: broadcast
+      onUpdated: (sessionId) => {
+        broadcast(sessionId)
+        // Keep the recap's structured content retrievable: re-index when it
+        // changes, drop it when it was deleted (read returns null). Best-effort
+        // and async so recap UX never blocks on the embedder.
+        void (async () => {
+          try {
+            const recap = await svc.get(sessionId)
+            if (recap) await indexRecap(sessionId, recap)
+            else await deleteRecap(sessionId)
+          } catch (err) {
+            console.error('[recap] rag index failed', err)
+          }
+        })()
+      }
     })
+    service = svc
   }
   return service
 }
