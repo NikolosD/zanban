@@ -41,16 +41,33 @@ export function AskPanel({
   const [text, setText] = useState('')
   const [snapping, setSnapping] = useState(false)
   const [image, setImage] = useState<string | null>(null)
+  const [ocrText, setOcrText] = useState<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const { run, stop, busy } = useAskRequest()
   const streaming = latest?.status === 'streaming'
   const settings = useSettingsStore((s) => s.settings)
   // Remember the last prompt+context so Regenerate / model re-ask can repeat it.
-  const lastReqRef = useRef<{ prompt: string; label?: string; image: string | null } | null>(null)
+  const lastReqRef = useRef<{
+    prompt: string
+    label?: string
+    image: string | null
+    ocr: string | null
+  } | null>(null)
+  // Tracks the in-flight instant snapshot so a late OCR result folds into the
+  // current attachment, not a stale one (F1/F5 — same path as the overlay).
+  const snapshotIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [autoFocusKey])
+
+  // Background OCR for an instant snapshot landed — fold it in if the
+  // attachment is still the one we captured.
+  useEffect(() => {
+    return window.zanban.screenshot.onOcr((result) => {
+      if (result.snapshotId === snapshotIdRef.current) setOcrText(result.ocrText)
+    })
+  }, [])
 
   // Keep the latest answer visible while it streams. Radix ScrollArea
   // scrolls a descendant viewport, not the root, so we resolve it.
@@ -63,17 +80,25 @@ export function AskPanel({
   async function send(prompt?: string) {
     const p = (prompt ?? text).trim()
     const attached = image
+    const ocrAttached = ocrText
     if (!p && !attached) return
     if (busy) return
     if (!prompt) setText('')
     setImage(null)
-    lastReqRef.current = { prompt: p, image: attached }
-    await run({ prompt: p, image: attached, modelOverride })
+    setOcrText(null)
+    snapshotIdRef.current = null
+    lastReqRef.current = { prompt: p, image: attached, ocr: ocrAttached }
+    await run({ prompt: p, image: attached, ocr: ocrAttached, modelOverride })
   }
 
   async function answerLast() {
     if (busy) return
-    lastReqRef.current = { prompt: ANSWER_LAST_PROMPT, label: 'Answer last question', image: null }
+    lastReqRef.current = {
+      prompt: ANSWER_LAST_PROMPT,
+      label: 'Answer last question',
+      image: null,
+      ocr: null
+    }
     await run({
       prompt: ANSWER_LAST_PROMPT,
       label: 'Answer last question',
@@ -90,6 +115,7 @@ export function AskPanel({
       prompt: last.prompt,
       label: last.label,
       image: last.image,
+      ocr: last.ocr,
       modelOverride: modelId ?? modelOverride
     })
   }
@@ -98,8 +124,15 @@ export function AskPanel({
     if (snapping) return
     setSnapping(true)
     try {
-      const dataUrl = await window.zanban.screenshot.capture()
-      if (dataUrl) setImage(dataUrl)
+      // F5: same OCR-capable instant path as the overlay — image attaches at
+      // once, OCR text folds in via the onOcr subscription. Previously this
+      // used screenshot.capture() (no OCR), so the model got only the image.
+      const snap = await window.zanban.screenshot.captureInstant()
+      if (snap) {
+        snapshotIdRef.current = snap.snapshotId
+        setImage(snap.dataUrl)
+        setOcrText(snap.ocrText)
+      }
     } finally {
       setSnapping(false)
     }
@@ -153,7 +186,11 @@ export function AskPanel({
               variant="ghost"
               size="icon"
               className="ml-auto size-6"
-              onClick={() => setImage(null)}
+              onClick={() => {
+                setImage(null)
+                setOcrText(null)
+                snapshotIdRef.current = null
+              }}
               title={t('ask_panel.remove_screenshot')}
             >
               <X className="size-3" />

@@ -9,6 +9,7 @@ import type {
   Persona,
   ReferenceDoc,
   ScreenSnapshot,
+  ScreenSnapshotOcr,
   SessionExportPayload,
   SessionState,
   TranscriptSegment,
@@ -120,6 +121,12 @@ export interface ZanbanApi {
   screenshot: {
     capture(): Promise<string | null>
     captureWithOcr(): Promise<ScreenSnapshot | null>
+    /** Instant capture of the active display. Returns the image at once with
+     *  `ocrText: null`; subscribe via `onOcr` to receive the OCR text keyed by
+     *  the same `snapshotId` once it finishes in the background. */
+    captureInstant(): Promise<ScreenSnapshot | null>
+    /** Subscribe to background-OCR results for instant snapshots. */
+    onOcr(cb: (result: ScreenSnapshotOcr) => void): () => void
   }
   documents: {
     list(): Promise<ReferenceDoc[]>
@@ -153,7 +160,10 @@ export interface ZanbanApi {
   }
   cropper: {
     open(): Promise<void>
-    submit(rect: { x: number; y: number; w: number; h: number }): Promise<void>
+    /** Submit the dragged selection. `dpr` is the cropper window's
+     *  devicePixelRatio at selection time, used by main to reconcile the
+     *  CSS-px rect against the captured image's scaleFactor. */
+    submit(rect: { x: number; y: number; w: number; h: number; dpr: number }): Promise<void>
     cancel(): Promise<void>
   }
   jobs: {

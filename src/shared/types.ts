@@ -89,7 +89,23 @@ export interface AiAskInput {
 }
 
 export interface ScreenSnapshot {
+  /**
+   * Correlation id tying the instantly-delivered image to the OCR result that
+   * lands a beat later (see `screenshot.ocr` IPC event). Lets the renderer fold
+   * the OCR text into the right in-flight snapshot without racing.
+   */
+  snapshotId: string
   dataUrl: string
+  ocrText: string | null
+}
+
+/**
+ * Second-pass OCR result for a previously delivered {@link ScreenSnapshot}.
+ * Emitted on the `screenshot.ocr` channel once Tesseract finishes — the image
+ * is shown instantly with `ocrText: null`, then upgraded when this arrives.
+ */
+export interface ScreenSnapshotOcr {
+  snapshotId: string
   ocrText: string | null
 }
 

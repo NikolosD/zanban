@@ -65,7 +65,9 @@ const api: ZanbanApi = {
   },
   screenshot: {
     capture: () => ipcRenderer.invoke(IPC.screenshot.capture),
-    captureWithOcr: () => ipcRenderer.invoke(IPC.screenshot.captureWithOcr)
+    captureWithOcr: () => ipcRenderer.invoke(IPC.screenshot.captureWithOcr),
+    captureInstant: () => ipcRenderer.invoke(IPC.screenshot.captureInstant),
+    onOcr: (cb) => on(IPC.screenshot.ocr, cb)
   },
   documents: {
     list: () => ipcRenderer.invoke(IPC.documents.list),

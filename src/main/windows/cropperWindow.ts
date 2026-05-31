@@ -1,8 +1,20 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow } from 'electron'
+import type { Display } from 'electron'
 import { join } from 'node:path'
+import { getActiveDisplay } from '../screenshot/index.js'
 
-export function createCropperWindow(): BrowserWindow {
-  const display = screen.getPrimaryDisplay()
+/**
+ * Open the transparent fullscreen drag-surface for the region cropper.
+ *
+ * By default it covers the display **under the cursor** so the drag UI lines up
+ * with the same screen that capture + crop target (F2) — on a second monitor
+ * the primary-display window would otherwise never appear where the user is
+ * looking. The caller may pass an explicit display to pin it elsewhere; main
+ * passes the active one so the window bounds, the captured background image,
+ * and the crop coordinates all refer to a single display (no primary-vs-active
+ * mismatch in the rect math).
+ */
+export function createCropperWindow(display: Display = getActiveDisplay()): BrowserWindow {
   const { width, height, x, y } = display.bounds
 
   const win = new BrowserWindow({

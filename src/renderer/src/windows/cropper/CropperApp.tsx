@@ -40,11 +40,16 @@ export function CropperApp() {
   function onMouseUp() {
     dragging.current = false
     if (rect && rect.w > 4 && rect.h > 4) {
+      // Send the selection in CSS px tagged with this window's DPR. Main
+      // reconciles it against the captured image's scaleFactor and clamps to
+      // the source bounds (see cropGeometry) — doing the scale here is what
+      // caused the DPR/scaleFactor mismatch on Windows at 125%/150%.
       void window.zanban.cropper.submit({
-        x: Math.round(rect.x * window.devicePixelRatio),
-        y: Math.round(rect.y * window.devicePixelRatio),
-        w: Math.round(rect.w * window.devicePixelRatio),
-        h: Math.round(rect.h * window.devicePixelRatio)
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        h: rect.h,
+        dpr: window.devicePixelRatio
       })
     } else {
       void window.zanban.cropper.cancel()

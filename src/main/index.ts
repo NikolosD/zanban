@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { randomUUID } from 'node:crypto'
 import {
   app,
   BrowserWindow,
@@ -20,8 +21,10 @@ import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
 import type { AppSettings, AudioChannel } from '../shared/types.js'
 import { registerSyncWindow, awaitSessionFinalized } from './sync/sessionSync.js'
-import { captureWithOcr } from './screenshot/index.js'
-import { runOcr } from './screenshot/ocrPipeline.js'
+import { captureInstant, getActiveDisplay } from './screenshot/index.js'
+import { cssRectToCroppedPx } from './screenshot/cropGeometry.js'
+import { runOcr, terminateOcrWorker } from './screenshot/ocrPipeline.js'
+import type { ScreenSnapshotOcr } from '../shared/types.js'
 import { createCropperWindow } from './windows/cropperWindow.js'
 import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
@@ -391,10 +394,16 @@ app.whenReady().then(async () => {
 
   async function captureAndAttach(): Promise<void> {
     if (!overlayWindow) return
-    // Run capture+OCR in parallel — OCR can be slow on first invocation
-    // (Tesseract worker bootstrap), but the user sees the image immediately
-    // because the renderer renders on the dataUrl regardless.
-    const snap = await captureWithOcr().catch(() => null)
+    // Instant image, background OCR (F1): the snapshot comes back at once with
+    // ocrText: null so the overlay paints the image immediately. The OCR text
+    // arrives a beat later on the `screenshot.ocr` channel keyed by snapshotId,
+    // and the overlay folds it into the in-flight snapshot.
+    const snap = await captureInstant((snapshotId, ocrText) => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        const payload: ScreenSnapshotOcr = { snapshotId, ocrText }
+        overlayWindow.webContents.send(IPC.screenshot.ocr, payload)
+      }
+    }).catch(() => null)
     if (!snap) return
     showOverlay()
     overlayWindow.webContents.send(IPC.overlay.snapshotAsk, snap)
@@ -404,51 +413,83 @@ app.whenReady().then(async () => {
   // a rectangle, then capture only that area, OCR it, and feed the snippet
   // into the overlay's snapshot pipeline.
   let cropperWin: BrowserWindow | null = null
+  // The display the cropper was opened on. Pinned at open time so the drag
+  // surface, the captured background image, and the crop coordinates all refer
+  // to the SAME display — even if the cursor drifts to another monitor mid-drag
+  // (which would otherwise make a fresh getActiveDisplay() at submit diverge
+  // from the window the user actually dragged on).
+  let cropperDisplay: Electron.Display | null = null
   function openCropper(): void {
     if (cropperWin) return
-    cropperWin = createCropperWindow()
+    // F2: open on the display under the cursor, not the hardcoded primary.
+    cropperDisplay = getActiveDisplay()
+    cropperWin = createCropperWindow(cropperDisplay)
     cropperWin.once('ready-to-show', () => cropperWin?.show())
+    // F4: Alt-Tab / clicking away used to leave the dimming overlay stuck on
+    // screen. Treat losing focus as a cancel so the overlay never lingers.
+    cropperWin.on('blur', () => closeCropper())
     cropperWin.on('closed', () => {
       cropperWin = null
     })
   }
   function closeCropper(): void {
-    cropperWin?.close()
+    if (!cropperWin) return
+    const win = cropperWin
     cropperWin = null
+    if (!win.isDestroyed()) win.close()
   }
   async function handleCropperSubmit(rect: {
     x: number
     y: number
     w: number
     h: number
+    dpr: number
   }): Promise<void> {
+    // Resolve the cropper's display BEFORE closeCropper() clears the pin.
+    // Fall back to the active display if it's somehow unset (defensive).
+    const display = cropperDisplay ?? getActiveDisplay()
+    cropperDisplay = null
     closeCropper()
     if (!overlayWindow) return
     try {
-      const display = screen.getPrimaryDisplay()
       // Capture at native resolution, then crop. desktopCapturer's
       // thumbnailSize is the target raster size; we want the full-fidelity
       // image so we ask for the display's pixel size and crop in nativeImage.
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
         thumbnailSize: {
-          width: display.size.width * display.scaleFactor,
-          height: display.size.height * display.scaleFactor
+          width: Math.round(display.size.width * display.scaleFactor),
+          height: Math.round(display.size.height * display.scaleFactor)
         }
       })
-      const primary = sources.find((s) => Number(s.display_id) === display.id) ?? sources[0]
-      if (!primary || primary.thumbnail.isEmpty()) return
-      const cropped = primary.thumbnail.crop({
-        x: rect.x,
-        y: rect.y,
-        width: rect.w,
-        height: rect.h
-      })
+      const match = sources.find((s) => Number(s.display_id) === display.id) ?? sources[0]
+      if (!match || match.thumbnail.isEmpty()) return
+      const { width: srcW, height: srcH } = match.thumbnail.getSize()
+      // F3: the renderer reported CSS px tagged with its devicePixelRatio; the
+      // source is rastered at the display's scaleFactor. Reconcile + clamp to
+      // the source bounds in MAIN before cropping, so edge selections can't
+      // throw or yield a garbled crop. Pure math lives in cropGeometry.
+      const cropRect = cssRectToCroppedPx(rect, display.scaleFactor, srcW, srcH)
+      if (!cropRect) return
+      const cropped = match.thumbnail.crop(cropRect)
       if (cropped.isEmpty()) return
       const dataUrl = cropped.toDataURL()
-      const ocrText = await runOcr(dataUrl).catch(() => null)
+      const snapshotId = randomUUID()
+      // Instant image, background OCR (F1) — same contract as captureAndAttach.
       showOverlay()
-      overlayWindow.webContents.send(IPC.overlay.snapshotAsk, { dataUrl, ocrText })
+      overlayWindow.webContents.send(IPC.overlay.snapshotAsk, {
+        snapshotId,
+        dataUrl,
+        ocrText: null
+      })
+      void runOcr(dataUrl)
+        .then((ocrText) => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            const payload: ScreenSnapshotOcr = { snapshotId, ocrText }
+            overlayWindow.webContents.send(IPC.screenshot.ocr, payload)
+          }
+        })
+        .catch(() => {})
     } catch (err) {
       console.error('[cropper] submit failed', err)
     }
@@ -471,8 +512,10 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(IPC.cropper.open, () => openCropper())
   ipcMain.handle(IPC.cropper.cancel, () => closeCropper())
-  ipcMain.handle(IPC.cropper.submit, (_e, rect: { x: number; y: number; w: number; h: number }) =>
-    handleCropperSubmit(rect)
+  ipcMain.handle(
+    IPC.cropper.submit,
+    (_e, rect: { x: number; y: number; w: number; h: number; dpr: number }) =>
+      handleCropperSubmit(rect)
   )
 
   registerShortcuts({
@@ -575,6 +618,9 @@ function installAppMenu(): void {
 
 app.on('will-quit', () => {
   unregisterShortcuts()
+  // F4: tear down the singleton Tesseract worker (WASM/process) so it doesn't
+  // leak on exit. Best-effort — terminateOcrWorker swallows its own errors.
+  void terminateOcrWorker()
 })
 
 app.on('window-all-closed', () => {

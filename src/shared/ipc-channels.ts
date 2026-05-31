@@ -56,7 +56,12 @@ export const IPC = {
   },
   screenshot: {
     capture: 'screenshot:capture',
-    captureWithOcr: 'screenshot:capture-with-ocr'
+    captureWithOcr: 'screenshot:capture-with-ocr',
+    /** Instant capture of the active display: image returns at once, OCR
+     *  follows on the `ocr` event keyed by snapshotId. */
+    captureInstant: 'screenshot:capture-instant',
+    /** Background-OCR result for a previously delivered instant snapshot. */
+    ocr: 'screenshot:ocr'
   },
   documents: {
     upload: 'documents:upload',

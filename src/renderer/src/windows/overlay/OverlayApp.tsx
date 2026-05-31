@@ -71,6 +71,10 @@ export function OverlayApp() {
   const [snapping, setSnapping] = useState(false)
   const [image, setImage] = useState<string | null>(null)
   const [ocrText, setOcrText] = useState<string | null>(null)
+  // Tracks the in-flight instant snapshot so a late-arriving OCR result folds
+  // into the *current* attachment and not a stale one the user already cleared
+  // or replaced (F1).
+  const snapshotIdRef = useRef<string | null>(null)
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -230,9 +234,18 @@ export function OverlayApp() {
     })
 
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
+      snapshotIdRef.current = snap.snapshotId
       setImage(snap.dataUrl)
       setOcrText(snap.ocrText)
       inputRef.current?.focus()
+    })
+
+    // Background OCR for an instant snapshot landed — fold it in only if the
+    // attachment the user is looking at is still the one we captured.
+    const offOcr = window.zanban.screenshot.onOcr((result) => {
+      if (result.snapshotId === snapshotIdRef.current) {
+        setOcrText(result.ocrText)
+      }
     })
 
     const offStealth = window.zanban.overlay.onStealthChanged((next) => {
@@ -247,6 +260,7 @@ export function OverlayApp() {
       offAsk()
       offAnswerLast()
       offSnapshot()
+      offOcr()
       offStealth()
       offSettings()
       window.removeEventListener('mousemove', onMove)
@@ -325,6 +339,7 @@ export function OverlayApp() {
     setText('')
     setImage(null)
     setOcrText(null)
+    snapshotIdRef.current = null
     await runPrompt(value, undefined, attached ?? undefined, false, ocrAttached)
   }
 
@@ -332,8 +347,11 @@ export function OverlayApp() {
     if (snapping) return
     setSnapping(true)
     try {
-      const snap = await window.zanban.screenshot.captureWithOcr()
+      // Instant image, background OCR (F1/F5): the image attaches immediately;
+      // the OCR text folds in via the onOcr subscription above.
+      const snap = await window.zanban.screenshot.captureInstant()
       if (snap) {
+        snapshotIdRef.current = snap.snapshotId
         setImage(snap.dataUrl)
         setOcrText(snap.ocrText)
         inputRef.current?.focus()
@@ -427,6 +445,7 @@ export function OverlayApp() {
               onClearImage={() => {
                 setImage(null)
                 setOcrText(null)
+                snapshotIdRef.current = null
               }}
               modelOverride={modelOverride}
               onModelChange={setModelOverride}
