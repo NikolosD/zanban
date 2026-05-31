@@ -11,6 +11,7 @@ import {
   Headphones,
   Zap,
   Check,
+  ChevronRight,
   FileText
 } from 'lucide-react'
 import {
@@ -20,7 +21,8 @@ import {
   PROVIDER_VISION_MODELS,
   type AiModelSettings,
   type AiRole,
-  type AppSettings
+  type AppSettings,
+  type LlmProvider
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
 import { KeyRecorder } from './KeyRecorder'
@@ -573,7 +575,43 @@ function ModelsTab({
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
   const { t } = useTranslation()
+  // Advanced per-role overrides are collapsed by default — 90% of users never
+  // touch fast/filter/summary/vision and the provider + key (in ProvidersTab
+  // above) is all they need. Auto-open when the user already has an override so
+  // we don't hide their existing config.
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const provider = settings.llmProvider
+
+  // When Ollama is the active (or vision) provider, offer the models actually
+  // installed on the daemon rather than only the static curated list — the
+  // user can run any local model, and the curated names may not match what
+  // they've pulled. Fetched lazily and only when relevant.
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const usesOllama = provider === 'ollama' || settings.visionProvider === 'ollama'
+  useEffect(() => {
+    if (!usesOllama) {
+      setOllamaModels([])
+      return
+    }
+    let cancelled = false
+    void window.zanban.ollama.health().then((h) => {
+      if (!cancelled) setOllamaModels(h.running ? h.models : [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [usesOllama, settings.ollamaHost])
+
+  // Merge installed Ollama models ahead of the curated list (deduped) so a
+  // model the user has actually pulled shows up first.
+  const fastOptionsFor = (p: LlmProvider): string[] =>
+    p === 'ollama'
+      ? Array.from(new Set([...ollamaModels, ...(PROVIDER_FAST_MODELS[p] ?? [])]))
+      : (PROVIDER_FAST_MODELS[p] ?? [])
+  const visionOptionsFor = (p: LlmProvider): string[] =>
+    p === 'ollama'
+      ? Array.from(new Set([...ollamaModels, ...(PROVIDER_VISION_MODELS[p] ?? [])]))
+      : (PROVIDER_VISION_MODELS[p] ?? [])
   const providerOverrides: AiModelSettings = settings.aiModels?.[provider] ?? {
     fast: '',
     filter: '',
@@ -620,16 +658,23 @@ function ModelsTab({
     update('aiModels', next)
   }
 
+  // Reveal the override cards when the user opts in OR already has an override
+  // stored (so saved config is never hidden behind a collapsed disclosure).
+  const showAdvanced = advancedOpen || hasAnyOverride
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[12px] leading-relaxed text-muted-foreground">
-            Showing models for <span className="font-mono text-foreground">{provider}</span>. Each
-            provider keeps its own per-role IDs — switching providers above doesn't lose what you
-            typed here.
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((o) => !o)}
+          className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronRight
+            className={cn('size-3 transition-transform', showAdvanced && 'rotate-90')}
+          />
+          {t('settings.ai.advanced_overrides_label')}
+        </button>
         {hasAnyOverride && (
           <Button
             variant="ghost"
@@ -642,93 +687,103 @@ function ModelsTab({
         )}
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
-        <div className="flex flex-col gap-3">
-          <ModelRoleField
-            label={t('settings.ai.streaming_label')}
-            hint={t('settings.ai.streaming_hint')}
-            value={providerOverrides.fast ?? ''}
-            fallback={providerDefaults.fast}
-            options={PROVIDER_FAST_MODELS[provider] ?? []}
-            onChange={(v) => setModel('fast', v)}
-          />
-          <Divider />
-          <ModelRoleField
-            label={t('settings.ai.question_detector_label')}
-            hint={t('settings.ai.question_detector_hint')}
-            value={providerOverrides.filter ?? ''}
-            fallback={providerDefaults.filter}
-            options={PROVIDER_FAST_MODELS[provider] ?? []}
-            onChange={(v) => setModel('filter', v)}
-          />
-          <Divider />
-          <ModelRoleField
-            label={t('settings.ai.session_title_label')}
-            hint={t('settings.ai.session_title_hint')}
-            value={providerOverrides.summary ?? ''}
-            fallback={providerDefaults.summary}
-            options={PROVIDER_FAST_MODELS[provider] ?? []}
-            onChange={(v) => setModel('summary', v)}
-          />
-        </div>
-      </div>
+      {showAdvanced && (
+        <>
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            Showing models for <span className="font-mono text-foreground">{provider}</span>. Each
+            provider keeps its own per-role IDs — switching providers above doesn't lose what you
+            typed here.
+          </p>
 
-      {/* Vision — its own card so the dual contol (provider + model) stands
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+            <div className="flex flex-col gap-3">
+              <ModelRoleField
+                label={t('settings.ai.streaming_label')}
+                hint={t('settings.ai.streaming_hint')}
+                value={providerOverrides.fast ?? ''}
+                fallback={providerDefaults.fast}
+                options={fastOptionsFor(provider)}
+                onChange={(v) => setModel('fast', v)}
+              />
+              <Divider />
+              <ModelRoleField
+                label={t('settings.ai.question_detector_label')}
+                hint={t('settings.ai.question_detector_hint')}
+                value={providerOverrides.filter ?? ''}
+                fallback={providerDefaults.filter}
+                options={fastOptionsFor(provider)}
+                onChange={(v) => setModel('filter', v)}
+              />
+              <Divider />
+              <ModelRoleField
+                label={t('settings.ai.session_title_label')}
+                hint={t('settings.ai.session_title_hint')}
+                value={providerOverrides.summary ?? ''}
+                fallback={providerDefaults.summary}
+                options={fastOptionsFor(provider)}
+                onChange={(v) => setModel('summary', v)}
+              />
+            </div>
+          </div>
+
+          {/* Vision — its own card so the dual contol (provider + model) stands
           apart from the text roles. The user can route screenshots through
           a different vendor than text. */}
-      <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[13px] font-medium">{t('settings.ai.vision_title')}</div>
-            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-              {t('settings.ai.vision_hint')}
-            </p>
-          </div>
-        </div>
+          <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium">{t('settings.ai.vision_title')}</div>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {t('settings.ai.vision_hint')}
+                </p>
+              </div>
+            </div>
 
-        {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
-        <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-            <label className="text-[11px] text-muted-foreground">
-              {t('settings.ai.provider_label')}
-            </label>
-            <Select
-              value={settings.visionProvider ?? '__same__'}
-              onValueChange={(v) =>
-                update(
-                  'visionProvider',
-                  v === '__same__' ? null : (v as AppSettings['visionProvider'])
-                )
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__same__">
-                  {t('settings.ai.same_as_text', { provider })}
-                </SelectItem>
-                {LLM_PROVIDERS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {t(`settings.providers.llm.${p.value}.name`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <label className="text-[11px] text-muted-foreground">
+                  {t('settings.ai.provider_label')}
+                </label>
+                <Select
+                  value={settings.visionProvider ?? '__same__'}
+                  onValueChange={(v) =>
+                    update(
+                      'visionProvider',
+                      v === '__same__' ? null : (v as AppSettings['visionProvider'])
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__same__">
+                      {t('settings.ai.same_as_text', { provider })}
+                    </SelectItem>
+                    {LLM_PROVIDERS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {t(`settings.providers.llm.${p.value}.name`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <label className="text-[11px] text-muted-foreground">
+                  {t('settings.ai.model_label')}
+                </label>
+                <ModelOptionSelect
+                  value={visionOverrides.vision ?? ''}
+                  fallback={visionDefaults.vision}
+                  options={visionOptionsFor(visionProvider)}
+                  onChange={setVisionModel}
+                />
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-            <label className="text-[11px] text-muted-foreground">
-              {t('settings.ai.model_label')}
-            </label>
-            <ModelOptionSelect
-              value={visionOverrides.vision ?? ''}
-              fallback={visionDefaults.vision}
-              options={PROVIDER_VISION_MODELS[visionProvider] ?? []}
-              onChange={setVisionModel}
-            />
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

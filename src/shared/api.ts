@@ -5,6 +5,7 @@ import type {
   AiError,
   AppSettings,
   AudioChannel,
+  LlmProvider,
   Persona,
   ReferenceDoc,
   ScreenSnapshot,
@@ -134,6 +135,11 @@ export interface ZanbanApi {
     importJson(json: string): Promise<{ added: number; skipped: number }>
     exportJson(ids?: string[]): Promise<string>
   }
+  providers: {
+    /** Real connectivity probe for an LLM provider — a cheap live call that
+     *  validates auth/routing, unlike the config-presence dot. */
+    testConnection(id: LlmProvider): Promise<ProviderTestResult>
+  }
   ollama: {
     health(): Promise<OllamaHealth>
     pull(name: string): Promise<boolean>
@@ -166,6 +172,11 @@ export interface OllamaHealth {
   host: string
   models: string[]
   error?: string
+}
+
+export interface ProviderTestResult {
+  ok: boolean
+  message?: string
 }
 
 export interface RagHit {

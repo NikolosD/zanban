@@ -11,6 +11,7 @@ import type { AppSettings, LlmProvider } from '@shared/types'
 import { LanguageStep } from './steps/LanguageStep'
 import { ProviderStep } from './steps/ProviderStep'
 import { ApiKeysStep } from './steps/ApiKeysStep'
+import { PersonaStep } from './steps/PersonaStep'
 import { HotkeysStep } from './steps/HotkeysStep'
 import { DoneStep } from './steps/DoneStep'
 import { STEP_ORDER, type StepId, type StepProps } from './types'
@@ -86,6 +87,7 @@ export function OnboardingWizard({
           {step === 'language' && <LanguageStep {...stepProps} />}
           {step === 'provider' && <ProviderStep {...stepProps} />}
           {step === 'keys' && <ApiKeysStep {...stepProps} />}
+          {step === 'persona' && <PersonaStep {...stepProps} />}
           {step === 'hotkeys' && <HotkeysStep {...stepProps} />}
           {step === 'done' && <DoneStep {...stepProps} />}
         </div>

@@ -204,6 +204,17 @@ export interface AppSettings {
   llmFallbackOrder: LlmProvider[]
   /** Privacy Mode toggle (Phase 5.6) — flips active LLM/STT/embeddings to local. */
   privacyMode: boolean
+  /**
+   * Snapshot of the LLM/STT providers that were active *before* Privacy Mode
+   * was last enabled. On disable we restore these instead of hardcoding the
+   * cloud defaults, so a custom pick (e.g. anthropic + deepgram) survives a
+   * privacy round-trip. `null` = no snapshot yet (fresh install / never
+   * toggled), in which case disable falls back to the cloud defaults.
+   */
+  privacyModeSnapshot: {
+    llmProvider: LlmProvider
+    sttProvider: SttProvider
+  } | null
   /** Auto-augment AI prompts with Tavily web search results when the query
    *  looks like a factual lookup (≥4 words). Requires `tavilyApiKey`. */
   autoWebSearch: boolean
@@ -542,6 +553,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ollamaHost: '',
   llmFallbackOrder: [],
   privacyMode: false,
+  privacyModeSnapshot: null,
   autoWebSearch: false,
   detailedAnswers: false,
   aiModels: {},

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import Store from 'electron-store'
 import type { Persona } from '../../shared/types.js'
 import { BUILTIN_PERSONAS } from './builtins.js'
+import { parseImportedPersonas } from './personaImport.js'
 
 interface PersistedShape {
   personas: Persona[]
@@ -74,35 +75,10 @@ export function deletePersona(id: string): boolean {
 
 export function importPersonas(json: string): { added: number; skipped: number } {
   const data = JSON.parse(json) as unknown
-  if (!Array.isArray(data)) throw new Error('Expected an array of personas')
-  let added = 0
-  let skipped = 0
-  const existing = new Set(listPersonas().map((p) => p.id))
-  const next = listPersonas()
-  for (const raw of data) {
-    if (!raw || typeof raw !== 'object') {
-      skipped++
-      continue
-    }
-    const p = raw as Persona
-    if (typeof p.name !== 'string' || typeof p.systemPrompt !== 'string') {
-      skipped++
-      continue
-    }
-    const id = existing.has(p.id) ? `custom:${randomUUID()}` : p.id || `custom:${randomUUID()}`
-    next.push({
-      id,
-      name: p.name,
-      systemPrompt: p.systemPrompt,
-      defaultModel: p.defaultModel,
-      responseLanguage: p.responseLanguage,
-      builtin: false,
-      createdAt: Date.now()
-    })
-    existing.add(id)
-    added++
-  }
-  store.set('personas', next)
+  const current = listPersonas()
+  const existing = new Set(current.map((p) => p.id))
+  const { personas, added, skipped } = parseImportedPersonas(data, existing)
+  store.set('personas', [...current, ...personas])
   return { added, skipped }
 }
 

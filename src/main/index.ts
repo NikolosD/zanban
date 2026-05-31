@@ -32,6 +32,7 @@ import { registerAiHandlers } from './ipc/ai.js'
 import { registerAppHandlers } from './ipc/app.js'
 import { registerDocumentsHandlers } from './ipc/documents.js'
 import { registerOllamaHandlers } from './ipc/ollama.js'
+import { registerProvidersHandlers } from './ipc/providers.js'
 import { registerPersonasHandlers } from './ipc/personas.js'
 import { registerRagHandlers } from './ipc/rag.js'
 import { registerScreenshotHandlers } from './ipc/screenshot.js'
@@ -141,6 +142,7 @@ app.whenReady().then(async () => {
   registerDocumentsHandlers()
   registerRagHandlers()
   registerOllamaHandlers()
+  registerProvidersHandlers()
   registerPersonasHandlers()
   registerSessionsHandlers()
   registerRecapHandlers()

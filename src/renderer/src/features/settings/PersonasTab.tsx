@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, Download, Upload, Check, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Download, Upload, Check, Loader2, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import type { AppSettings, Persona, ResponseLanguage } from '@shared/types'
-import { RESPONSE_LANGUAGES, AI_MODEL_SUGGESTIONS } from '@shared/types'
+import type { AppSettings, LlmProvider, Persona, ResponseLanguage } from '@shared/types'
+import { RESPONSE_LANGUAGES, PROVIDER_FAST_MODELS } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
@@ -161,6 +161,7 @@ export function PersonasTab({ settings, update }: Props) {
               {editing && (
                 <PersonaEditor
                   persona={p}
+                  activeProvider={settings.llmProvider}
                   onChange={async (patch) => {
                     await window.zanban.personas.update(p.id, patch)
                     await refresh()
@@ -187,6 +188,11 @@ export function PersonasTab({ settings, update }: Props) {
 interface EditorProps {
   persona: Persona
   isActive: boolean
+  /** The currently-selected LLM provider. Drives which model IDs the
+   *  defaultModel picker offers — Gateway notation ('vendor/model') is invalid
+   *  for direct SDKs (anthropic/openai/ollama), so we show the active
+   *  provider's own catalogue instead. */
+  activeProvider: LlmProvider
   onChange(patch: Partial<Persona>): Promise<void>
   onDelete(): void
   onActivate(): void
@@ -196,6 +202,7 @@ interface EditorProps {
 function PersonaEditor({
   persona,
   isActive,
+  activeProvider,
   onChange,
   onDelete,
   onActivate,
@@ -204,10 +211,14 @@ function PersonaEditor({
   const { t } = useTranslation()
   const [name, setName] = useState(persona.name)
   const [prompt, setPrompt] = useState(persona.systemPrompt)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const ragUse = persona.ragStrategy?.useRag !== false
   const ragK = persona.ragStrategy?.topK ?? 6
   const model = persona.defaultModel ?? ''
   const language: ResponseLanguage | '' = persona.responseLanguage ?? ''
+  // Models for the active provider — keeps the picker honest so a saved
+  // defaultModel is always a valid id for whoever will actually run it.
+  const modelOptions = PROVIDER_FAST_MODELS[activeProvider] ?? []
 
   // Flush pending name/prompt edits if the editor unmounts (e.g. user clicks
   // another persona or closes the panel) before the input blurred. Without
@@ -245,99 +256,111 @@ function PersonaEditor({
         placeholder={t('settings.personas.editor.prompt_placeholder')}
         className="font-mono text-[12px]"
       />
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[11px] text-muted-foreground">
-            {t('settings.personas.editor.default_model_label')}
-          </label>
-          <Select
-            value={model || '__inherit__'}
-            onValueChange={(v) => {
-              const next = v === '__inherit__' ? '' : v
-              void onChange({ defaultModel: next || undefined })
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__inherit__">
-                {t('settings.personas.editor.inherit_option')}
-              </SelectItem>
-              {AI_MODEL_SUGGESTIONS.fast.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-[11px] text-muted-foreground">
-            {t('settings.personas.editor.response_language_label')}
-          </label>
-          <Select
-            value={language || '__inherit__'}
-            onValueChange={(v) => {
-              const next = v === '__inherit__' ? '' : (v as ResponseLanguage)
-              void onChange({ responseLanguage: next || undefined })
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__inherit__">
-                {t('settings.personas.editor.inherit_option')}
-              </SelectItem>
-              {RESPONSE_LANGUAGES.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-        <div className="flex-1">
-          <div className="text-[12px]">{t('settings.personas.editor.rag_title')}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {t('settings.personas.editor.rag_hint')}
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((o) => !o)}
+        className="flex items-center gap-1.5 self-start text-[11px] font-mono uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ChevronRight className={cn('size-3 transition-transform', advancedOpen && 'rotate-90')} />
+        {t('settings.personas.editor.advanced_label')}
+      </button>
+      {advancedOpen && (
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-muted-foreground">
+                {t('settings.personas.editor.default_model_label')}
+              </label>
+              <Select
+                value={model || '__inherit__'}
+                onValueChange={(v) => {
+                  const next = v === '__inherit__' ? '' : v
+                  void onChange({ defaultModel: next || undefined })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__inherit__">
+                    {t('settings.personas.editor.inherit_option')}
+                  </SelectItem>
+                  {modelOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">
+                {t('settings.personas.editor.response_language_label')}
+              </label>
+              <Select
+                value={language || '__inherit__'}
+                onValueChange={(v) => {
+                  const next = v === '__inherit__' ? '' : (v as ResponseLanguage)
+                  void onChange({ responseLanguage: next || undefined })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__inherit__">
+                    {t('settings.personas.editor.inherit_option')}
+                  </SelectItem>
+                  {RESPONSE_LANGUAGES.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <div className="flex-1">
+              <div className="text-[12px]">{t('settings.personas.editor.rag_title')}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {t('settings.personas.editor.rag_hint')}
+              </div>
+            </div>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={ragK}
+              disabled={!ragUse}
+              onChange={(e) => {
+                const v = Math.max(1, Math.min(20, Number(e.target.value) || 6))
+                void onChange({
+                  ragStrategy: {
+                    useRag: ragUse,
+                    topK: v,
+                    distanceThreshold: persona.ragStrategy?.distanceThreshold ?? 1.2
+                  }
+                })
+              }}
+              className="w-14 rounded border border-white/[0.08] bg-transparent px-2 py-1 text-[12px]"
+              aria-label={t('settings.personas.editor.rag_topk_aria')}
+            />
+            <Switch
+              checked={ragUse}
+              onCheckedChange={(v) =>
+                void onChange({
+                  ragStrategy: {
+                    useRag: v,
+                    topK: ragK,
+                    distanceThreshold: persona.ragStrategy?.distanceThreshold ?? 1.2
+                  }
+                })
+              }
+            />
           </div>
         </div>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          value={ragK}
-          disabled={!ragUse}
-          onChange={(e) => {
-            const v = Math.max(1, Math.min(20, Number(e.target.value) || 6))
-            void onChange({
-              ragStrategy: {
-                useRag: ragUse,
-                topK: v,
-                distanceThreshold: persona.ragStrategy?.distanceThreshold ?? 1.2
-              }
-            })
-          }}
-          className="w-14 rounded border border-white/[0.08] bg-transparent px-2 py-1 text-[12px]"
-          aria-label={t('settings.personas.editor.rag_topk_aria')}
-        />
-        <Switch
-          checked={ragUse}
-          onCheckedChange={(v) =>
-            void onChange({
-              ragStrategy: {
-                useRag: v,
-                topK: ragK,
-                distanceThreshold: persona.ragStrategy?.distanceThreshold ?? 1.2
-              }
-            })
-          }
-        />
-      </div>
+      )}
       <div className="flex items-center justify-between gap-2 pt-1">
         {isActive ? (
           <Button variant="ghost" size="sm" onClick={onClearActive}>

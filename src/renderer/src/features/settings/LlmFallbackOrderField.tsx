@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { LLM_PROVIDERS } from './ProvidersTab'
+import { autoFallbackOrder } from './fallbackOrder'
 import { cn } from '@renderer/lib/utils'
 
 interface Props {
@@ -50,13 +51,32 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
 
   const candidates = LLM_PROVIDERS.filter((p) => p.value !== active && !order.includes(p.value))
 
+  // One-click "Auto": fill the chain with every provider that currently has a
+  // key, in a sensible order. Gated behind an explicit click so we never
+  // silently mutate the user's fallback list.
+  const auto = autoFallbackOrder(settings)
+  const canAuto = auto.length > 0 && auto.join(',') !== order.join(',')
+
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-      <div className="mb-3">
-        <div className="text-[14px] font-medium">{t('settings.providers.fallback_title')}</div>
-        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-          {t('settings.providers.fallback_hint')}
-        </p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[14px] font-medium">{t('settings.providers.fallback_title')}</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+            {t('settings.providers.fallback_hint')}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 shrink-0 gap-1.5 px-2.5 text-[11px]"
+          disabled={!canAuto}
+          onClick={() => set(auto)}
+          title={t('settings.providers.fallback_auto_hint')}
+        >
+          <Sparkles className="size-3" />
+          {t('settings.providers.fallback_auto')}
+        </Button>
       </div>
 
       {order.length === 0 ? (

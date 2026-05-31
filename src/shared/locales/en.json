@@ -246,7 +246,17 @@
           "name": "Local Whisper",
           "description": "On-device — no key needed. Whisper-tiny via @xenova/transformers."
         }
-      }
+      },
+      "test_connection": "Test",
+      "test_ok": "Connection verified",
+      "test_failed": "Failed: {{error}}",
+      "fallback_auto": "Auto",
+      "fallback_auto_hint": "Fill with every provider that has a key, in a sensible order",
+      "ollama_recommended_label": "Recommended models",
+      "ollama_pull_title": "Download {{name}}",
+      "ollama_installed_title": "Already installed",
+      "ollama_pull_failed": "Could not pull {{name}}",
+      "ollama_privacy_no_models": "Privacy Mode uses Ollama, but no models are installed. Pull one below or the assistant will fail on the first prompt."
     },
     "personas": {
       "title": "Personas",
@@ -275,7 +285,8 @@
         "rag_topk_aria": "RAG top-K",
         "stop_using": "Stop using this persona",
         "activate": "Activate",
-        "delete": "Delete"
+        "delete": "Delete",
+        "advanced_label": "Advanced"
       }
     },
     "documents": {
@@ -344,7 +355,8 @@
       "custom_id_placeholder": "custom id — empty = {{model}}",
       "reset_to_default": "Reset to default",
       "default_chip": "default",
-      "reset_to_defaults": "Reset to defaults"
+      "reset_to_defaults": "Reset to defaults",
+      "advanced_overrides_label": "Advanced model overrides"
     },
     "audio": {
       "capture_title": "audio capture",
@@ -462,7 +474,8 @@
       "provider": "Provider",
       "keys": "Keys",
       "hotkeys": "Hotkeys",
-      "done": "Done"
+      "done": "Done",
+      "persona": "Persona"
     },
     "language": {
       "title": "Welcome to Zanban",
@@ -582,6 +595,12 @@
     "done": {
       "title": "You're set",
       "body": "Hit <0>Start session</0> in the dashboard header to begin recording. The overlay floats on top of your call and is invisible to screen-share by default. Stop by Settings any time to swap providers, edit hotkeys, or re-run this wizard."
+    },
+    "persona": {
+      "title": "What do you do?",
+      "body": "Pick a role so the assistant answers in the right voice. You can change or fine-tune this later in Settings.",
+      "language_label": "Response language",
+      "skip": "Skip"
     }
   },
   "errors": {

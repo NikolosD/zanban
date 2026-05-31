@@ -9,8 +9,10 @@ const STYLES: Record<ProviderDotStatus, string> = {
   error: 'bg-red-500 shadow-[0_0_0_2px_oklch(0.6_0.2_25/0.25)]'
 }
 
+// "ok" means the credential is configured (key string present) — NOT that it
+// was verified with a live call. Use the per-card "Test" button to verify.
 const TITLES: Record<ProviderDotStatus, string> = {
-  ok: 'Ready',
+  ok: 'Configured — use Test to verify',
   missing: 'Not configured',
   unknown: 'Status unknown',
   error: 'Last attempt failed'

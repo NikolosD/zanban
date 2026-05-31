@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Lock, RefreshCw } from 'lucide-react'
+import {
+  Lock,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Plug,
+  Download,
+  AlertTriangle
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
+import { PROVIDER_FAST_MODELS } from '@shared/types'
 import { Textarea } from '@renderer/components/ui/textarea'
-import type { OllamaHealth as OllamaHealthType } from '@shared/api'
+import type { OllamaHealth as OllamaHealthType, ProviderTestResult } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
@@ -82,13 +92,23 @@ export function ProvidersTab({ settings, update }: Props) {
 
   const togglePrivacy = (v: boolean) => {
     if (v) {
+      // Snapshot the current (custom) provider picks so disabling Privacy Mode
+      // restores them rather than clobbering with the cloud defaults.
+      update('privacyModeSnapshot', {
+        llmProvider: settings.llmProvider,
+        sttProvider: settings.sttProvider
+      })
       update('privacyMode', true)
       update('llmProvider', 'ollama')
       update('sttProvider', 'local-whisper')
     } else {
       update('privacyMode', false)
-      update('llmProvider', 'vercel-gateway')
-      update('sttProvider', 'deepgram')
+      // Restore the pre-privacy picks when we have a snapshot; otherwise fall
+      // back to the cloud defaults (fresh install / never toggled before).
+      const snap = settings.privacyModeSnapshot
+      update('llmProvider', snap?.llmProvider ?? 'vercel-gateway')
+      update('sttProvider', snap?.sttProvider ?? 'deepgram')
+      update('privacyModeSnapshot', null)
     }
   }
 
@@ -255,6 +275,160 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
   )
 }
 
+/**
+ * Real "Test connection" affordance. Runs a cheap live probe through the
+ * provider abstraction (`providers.testConnection`) and reports verified /
+ * failed with the provider's own error text — distinct from the
+ * config-presence dot, which only knows whether a key string is set.
+ */
+function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; disabled?: boolean }) {
+  const { t } = useTranslation()
+  const [state, setState] = useState<'idle' | 'testing'>('idle')
+  const [result, setResult] = useState<ProviderTestResult | null>(null)
+
+  async function run() {
+    setState('testing')
+    setResult(null)
+    try {
+      const res = await window.zanban.providers.testConnection(provider)
+      setResult(res)
+    } catch (err) {
+      setResult({ ok: false, message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setState('idle')
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 px-2.5 text-[11px]"
+        disabled={disabled || state === 'testing'}
+        onClick={() => void run()}
+      >
+        {state === 'testing' ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <Plug className="size-3" />
+        )}
+        {t('settings.providers.test_connection')}
+      </Button>
+      {result && (
+        <span
+          className={cn(
+            'flex min-w-0 items-center gap-1 text-[11px]',
+            result.ok ? 'text-accent' : 'text-amber-400'
+          )}
+        >
+          {result.ok ? (
+            <CheckCircle2 className="size-3 shrink-0" />
+          ) : (
+            <XCircle className="size-3 shrink-0" />
+          )}
+          <span className="truncate">
+            {result.ok
+              ? (result.message ?? t('settings.providers.test_ok'))
+              : t('settings.providers.test_failed', { error: result.message ?? '' })}
+          </span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Recommended models offered for one-click pull. A small, sane default set —
+// the user can still pull anything via `ollama pull` in a terminal.
+const OLLAMA_RECOMMENDED = PROVIDER_FAST_MODELS.ollama.slice(0, 4)
+
+/**
+ * Ollama model manager. Lists installed models from the health probe and lets
+ * the user pull recommended ones with a busy state (the `ollama.pull` IPC was
+ * registered but never called from the renderer before this). Warns when
+ * Privacy Mode is on with Ollama selected but no models are installed — that
+ * combination silently fails on the first prompt.
+ */
+function OllamaModelManager({
+  ollama,
+  onRefresh,
+  privacyMode
+}: {
+  ollama: OllamaHealthType | null
+  onRefresh(): void
+  privacyMode: boolean
+}) {
+  const { t } = useTranslation()
+  const [pulling, setPulling] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const installed = new Set(ollama?.models ?? [])
+  const reachable = ollama?.running ?? false
+  const noModels = reachable && (ollama?.models.length ?? 0) === 0
+
+  async function pull(name: string) {
+    setPulling(name)
+    setError(null)
+    try {
+      const ok = await window.zanban.ollama.pull(name)
+      if (!ok) setError(t('settings.providers.ollama_pull_failed', { name }))
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPulling(null)
+    }
+  }
+
+  if (!reachable) return null
+
+  return (
+    <div className="flex flex-col gap-2">
+      {privacyMode && noModels && (
+        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
+          <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+          <span>{t('settings.providers.ollama_privacy_no_models')}</span>
+        </div>
+      )}
+      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {t('settings.providers.ollama_recommended_label')}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {OLLAMA_RECOMMENDED.map((name) => {
+          const has = installed.has(name)
+          const busy = pulling === name
+          return (
+            <Button
+              key={name}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 px-2 font-mono text-[11px]"
+              disabled={has || busy || pulling !== null}
+              onClick={() => void pull(name)}
+              title={
+                has
+                  ? t('settings.providers.ollama_installed_title')
+                  : t('settings.providers.ollama_pull_title', { name })
+              }
+            >
+              {busy ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : has ? (
+                <CheckCircle2 className="size-3 text-accent" />
+              ) : (
+                <Download className="size-3" />
+              )}
+              {name}
+            </Button>
+          )
+        })}
+      </div>
+      {error && <div className="text-[11px] text-amber-400">{error}</div>}
+    </div>
+  )
+}
+
 // — — — credential bodies — — —
 
 /**
@@ -302,12 +476,15 @@ function LlmCredentials({
   const field = LLM_KEY_FIELDS[provider]
   if (field) {
     return (
-      <SecretKeyField
-        label={t(`settings.providers.llm.${provider}.key_label`)}
-        placeholder={field.placeholder}
-        value={settings[field.settingsKey] ?? ''}
-        onChange={(v) => update(field.settingsKey, v || null)}
-      />
+      <div className="flex flex-col gap-2">
+        <SecretKeyField
+          label={t(`settings.providers.llm.${provider}.key_label`)}
+          placeholder={field.placeholder}
+          value={settings[field.settingsKey] ?? ''}
+          onChange={(v) => update(field.settingsKey, v || null)}
+        />
+        <ProviderTestButton provider={provider} disabled={!settings[field.settingsKey]} />
+      </div>
     )
   }
   if (provider === 'ollama') {
@@ -352,6 +529,11 @@ function LlmCredentials({
               t('settings.providers.ollama_more_models', { count: ollama.models.length - 5 })}
           </div>
         )}
+        <OllamaModelManager
+          ollama={ollama}
+          onRefresh={onRefreshOllama}
+          privacyMode={settings.privacyMode}
+        />
       </div>
     )
   }

@@ -246,7 +246,17 @@
           "name": "Локальный Whisper",
           "description": "На устройстве — ключ не нужен. Whisper-tiny через @xenova/transformers."
         }
-      }
+      },
+      "test_connection": "Тест",
+      "test_ok": "Соединение подтверждено",
+      "test_failed": "Ошибка: {{error}}",
+      "fallback_auto": "Авто",
+      "fallback_auto_hint": "Заполнить всеми провайдерами с ключом в разумном порядке",
+      "ollama_recommended_label": "Рекомендуемые модели",
+      "ollama_pull_title": "Скачать {{name}}",
+      "ollama_installed_title": "Уже установлена",
+      "ollama_pull_failed": "Не удалось скачать {{name}}",
+      "ollama_privacy_no_models": "Режим конфиденциальности использует Ollama, но модели не установлены. Скачайте одну ниже, иначе ассистент не ответит на первый запрос."
     },
     "personas": {
       "title": "Персоны",
@@ -275,7 +285,8 @@
         "rag_topk_aria": "RAG top-K",
         "stop_using": "Перестать использовать эту персону",
         "activate": "Активировать",
-        "delete": "Удалить"
+        "delete": "Удалить",
+        "advanced_label": "Дополнительно"
       }
     },
     "documents": {
@@ -344,7 +355,8 @@
       "custom_id_placeholder": "свой id — пусто = {{model}}",
       "reset_to_default": "Сбросить к default",
       "default_chip": "default",
-      "reset_to_defaults": "Сбросить к default"
+      "reset_to_defaults": "Сбросить к default",
+      "advanced_overrides_label": "Расширенные настройки моделей"
     },
     "audio": {
       "capture_title": "запись звука",
@@ -462,7 +474,8 @@
       "provider": "Провайдер",
       "keys": "Ключи",
       "hotkeys": "Клавиши",
-      "done": "Готово"
+      "done": "Готово",
+      "persona": "Персона"
     },
     "language": {
       "title": "Добро пожаловать в Zanban",
@@ -582,6 +595,12 @@
     "done": {
       "title": "Готово",
       "body": "Нажмите <0>Начать сессию</0> в шапке дашборда, чтобы записать встречу. Overlay плавает поверх звонка и по умолчанию невидим для демонстрации экрана. Заходите в Настройки, чтобы сменить провайдера, поправить горячие клавиши или запустить этот мастер снова."
+    },
+    "persona": {
+      "title": "Чем вы занимаетесь?",
+      "body": "Выберите роль, чтобы ассистент отвечал в нужном стиле. Это можно изменить позже в настройках.",
+      "language_label": "Язык ответов",
+      "skip": "Пропустить"
     }
   },
   "errors": {

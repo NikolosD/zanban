@@ -89,6 +89,9 @@ const api: ZanbanApi = {
     importJson: (json) => ipcRenderer.invoke(IPC.personas.importJson, json),
     exportJson: (ids) => ipcRenderer.invoke(IPC.personas.exportJson, ids)
   },
+  providers: {
+    testConnection: (id) => ipcRenderer.invoke(IPC.providers.testConnection, id)
+  },
   ollama: {
     health: () => ipcRenderer.invoke(IPC.ollama.health),
     pull: (name) => ipcRenderer.invoke(IPC.ollama.pull, name)
