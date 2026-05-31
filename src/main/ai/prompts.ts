@@ -63,21 +63,26 @@ function uiLocaleName(uiLocale: 'en' | 'ru'): string {
   return uiLocale === 'ru' ? 'Russian (Русский)' : 'English'
 }
 
+const LANGUAGE_NAMES: Record<Exclude<ResponseLanguage, 'auto'>, string> = {
+  en: 'English',
+  ru: 'Russian (Русский)',
+  es: 'Spanish (Español)',
+  de: 'German (Deutsch)',
+  fr: 'French (Français)',
+  it: 'Italian (Italiano)',
+  pt: 'Portuguese (Português)',
+  ja: 'Japanese (日本語)',
+  ko: 'Korean (한국어)',
+  zh: 'Chinese (中文)'
+}
+
+function languageName(language: Exclude<ResponseLanguage, 'auto'>): string {
+  return LANGUAGE_NAMES[language]
+}
+
 function languageDirective(language?: ResponseLanguage): string | null {
   if (!language || language === 'auto') return null
-  const name: Record<Exclude<ResponseLanguage, 'auto'>, string> = {
-    en: 'English',
-    ru: 'Russian (Русский)',
-    es: 'Spanish (Español)',
-    de: 'German (Deutsch)',
-    fr: 'French (Français)',
-    it: 'Italian (Italiano)',
-    pt: 'Portuguese (Português)',
-    ja: 'Japanese (日本語)',
-    ko: 'Korean (한국어)',
-    zh: 'Chinese (中文)'
-  }
-  return `Forced response language: write the answer in ${name[language]}, even if the question or screenshot is in another language. Keep code, code identifiers, error messages, and quoted source verbatim.`
+  return `Forced response language: write the answer in ${languageName(language)}, even if the question or screenshot is in another language. Keep code, code identifiers, error messages, and quoted source verbatim.`
 }
 
 export interface BuildPromptArgs {
@@ -96,6 +101,12 @@ export interface BuildPromptArgs {
    * fragments make it into the prompt.
    */
   retrievedHistory?: string
+  /**
+   * Forced answer language. When set to a specific code (not 'auto'), a final
+   * "write in <language>" line is appended so recency reinforces the system
+   * directive — otherwise an English screenshot's content tends to win.
+   */
+  responseLanguage?: ResponseLanguage
 }
 
 export function buildUserPrompt(args: BuildPromptArgs): string {
@@ -124,5 +135,14 @@ export function buildUserPrompt(args: BuildPromptArgs): string {
 
   const retrievedBlock = args.retrievedHistory ?? ''
 
-  return `<recent_transcript>\n${transcript}\n</recent_transcript>${contextBlock}${retrievedBlock}${ocrBlock}${exchangeBlock}\n\n<user_request>\n${args.userPrompt}\n</user_request>`
+  // Recency anchor: when a response language is forced, repeat it as the LAST
+  // thing the model reads. The system directive alone was getting overridden by
+  // an English screenshot's content (the model mirrors what it sees); a final
+  // instruction wins on recency. 'auto' adds nothing (keeps matching context).
+  const langReminder =
+    args.responseLanguage && args.responseLanguage !== 'auto'
+      ? `\n\nIMPORTANT: Write your entire answer in ${languageName(args.responseLanguage)}. Keep code, identifiers, error messages, and quoted text verbatim.`
+      : ''
+
+  return `<recent_transcript>\n${transcript}\n</recent_transcript>${contextBlock}${retrievedBlock}${ocrBlock}${exchangeBlock}\n\n<user_request>\n${args.userPrompt}\n</user_request>${langReminder}`
 }

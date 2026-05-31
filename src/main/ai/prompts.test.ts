@@ -190,4 +190,28 @@ describe('buildUserPrompt', () => {
     expect(out).toContain('<retrieved_context>')
     expect(out).toContain('resume snippet')
   })
+
+  it('appends a final response-language reminder (recency anchor) when forced', () => {
+    const out = buildUserPrompt({
+      userPrompt: 'go',
+      meetingContext: '',
+      contextSeconds: 60,
+      segments: [],
+      responseLanguage: 'ru'
+    })
+    expect(out).toContain('Write your entire answer in Russian')
+    // Must be the LAST thing the model reads, after the user request.
+    expect(out.indexOf('Write your entire answer')).toBeGreaterThan(out.indexOf('</user_request>'))
+  })
+
+  it('adds no language reminder on auto', () => {
+    const out = buildUserPrompt({
+      userPrompt: 'go',
+      meetingContext: '',
+      contextSeconds: 60,
+      segments: [],
+      responseLanguage: 'auto'
+    })
+    expect(out).not.toContain('Write your entire answer')
+  })
 })

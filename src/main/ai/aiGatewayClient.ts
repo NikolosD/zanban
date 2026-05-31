@@ -162,7 +162,12 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // single string, so callers don't need to know which one came in.
       const activePersona = settings.activePersonaId ? getPersona(settings.activePersonaId) : null
       const personaText = activePersona?.systemPrompt ?? settings.assistantPersona
-      const responseLanguage = activePersona?.responseLanguage ?? settings.responseLanguage
+      // A persona only overrides the answer language when it pins a SPECIFIC
+      // language. 'auto' (or unset) must inherit the global setting — otherwise
+      // a persona left on 'auto' would silently cancel the user's forced choice.
+      const personaLang = activePersona?.responseLanguage
+      const responseLanguage =
+        personaLang && personaLang !== 'auto' ? personaLang : settings.responseLanguage
 
       // RAG: per-persona tuning. useRag === false skips retrieval entirely
       // (handy for brainstorm-style personas that benefit from a clean slate).
@@ -189,7 +194,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         contextSeconds: opts.contextSeconds ?? settings.contextSeconds,
         exchanges: getExchanges(),
         ocrText: opts.ocrText,
-        retrievedHistory: retrieval.prompt + webSearchBlock
+        retrievedHistory: retrieval.prompt + webSearchBlock,
+        responseLanguage
       })
 
       const hasImage = !!opts.imageDataUrl
