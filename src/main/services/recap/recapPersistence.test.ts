@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readRecap, writeRecap, deleteRecap } from './recapPersistence.js'
+import { readRecap, writeRecap, deleteRecap, listRecapIds } from './recapPersistence.js'
 import type { RecapPayload } from './recapSchema.js'
 
 let dir: string
@@ -36,16 +36,21 @@ describe('recapPersistence', () => {
     expect(await readRecap(dir, 'no-such-id')).toBeNull()
   })
 
-  it('returns null and removes file when JSON is corrupt', async () => {
-    await writeFile(join(dir, 'bad.recap.json'), '{ not json')
+  it('returns null but KEEPS the file when JSON is corrupt (soft-degrade)', async () => {
+    const badPath = join(dir, 'bad.recap.json')
+    await writeFile(badPath, '{ not json')
     expect(await readRecap(dir, 'bad')).toBeNull()
-    // file should be cleaned up so the UI shows a clean empty state
-    expect(await readRecap(dir, 'bad')).toBeNull()
+    // Soft-degrade: the file must survive so the user's data is never destroyed
+    // by a transient parse/encoding glitch.
+    expect(await readFile(badPath, 'utf8')).toBe('{ not json')
   })
 
-  it('returns null when payload fails schema validation', async () => {
-    await writeFile(join(dir, 'bad2.recap.json'), JSON.stringify({ tldr: '' }))
+  it('returns null but KEEPS the file when payload fails schema validation', async () => {
+    const badPath = join(dir, 'bad2.recap.json')
+    const contents = JSON.stringify({ tldr: '' })
+    await writeFile(badPath, contents)
     expect(await readRecap(dir, 'bad2')).toBeNull()
+    expect(await readFile(badPath, 'utf8')).toBe(contents)
   })
 
   it('delete is idempotent', async () => {
@@ -59,6 +64,21 @@ describe('recapPersistence', () => {
   it('rejects invalid session ids', async () => {
     await expect(writeRecap(dir, '../etc', sample)).rejects.toThrow(/invalid session id/i)
     await expect(readRecap(dir, '../etc')).rejects.toThrow(/invalid session id/i)
+  })
+
+  it('listRecapIds returns ids for recap files only', async () => {
+    expect(await listRecapIds(dir)).toEqual([])
+    await writeRecap(dir, 'sessA', sample)
+    await writeRecap(dir, 'sessB', sample)
+    // Decoy non-recap files must be ignored.
+    await writeFile(join(dir, 'sessA.json'), '{}')
+    await writeFile(join(dir, 'notes.txt'), 'x')
+    const ids = await listRecapIds(dir)
+    expect(ids.sort()).toEqual(['sessA', 'sessB'])
+  })
+
+  it('listRecapIds returns [] for a missing directory', async () => {
+    expect(await listRecapIds(join(dir, 'does-not-exist'))).toEqual([])
   })
 
   it('atomic write leaves no .tmp file behind on success', async () => {

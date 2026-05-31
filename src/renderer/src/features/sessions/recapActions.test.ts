@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { formatRecapAsMarkdown, formatFollowUpAsPlainText } from './recapActions'
+import {
+  buildFollowUpMailto,
+  formatRecapAsMarkdown,
+  formatFollowUpAsPlainText
+} from './recapActions'
 import type { RecapPayload } from '@shared/recap-types'
 
 const recap: RecapPayload = {
@@ -55,5 +59,24 @@ describe('formatFollowUpAsPlainText', () => {
       body: '**Bold** and *italic* with [link](https://x)'
     })
     expect(out).toBe('Subject: Hello\n\nBold and italic with link')
+  })
+})
+
+describe('buildFollowUpMailto', () => {
+  it('builds a mailto: URL with encoded subject and plain-text body', () => {
+    const url = buildFollowUpMailto({ subject: 'Q3 sync & next steps', body: '**Hi** team' })
+    expect(url.startsWith('mailto:?subject=')).toBe(true)
+    const parsed = new URL(url)
+    expect(parsed.protocol).toBe('mailto:')
+    const params = new URLSearchParams(parsed.search)
+    expect(params.get('subject')).toBe('Q3 sync & next steps')
+    // Body is markdown-stripped before encoding.
+    expect(params.get('body')).toBe('Hi team')
+  })
+
+  it('percent-encodes special characters (no raw newlines/ampersands)', () => {
+    const url = buildFollowUpMailto({ subject: 'A&B', body: 'line1\nline2' })
+    expect(url).toContain('subject=A%26B')
+    expect(url).toContain('body=line1%0Aline2')
   })
 })

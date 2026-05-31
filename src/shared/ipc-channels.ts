@@ -1,7 +1,8 @@
 export const IPC = {
   app: {
     getVersion: 'app:get-version',
-    revealLog: 'app:reveal-log'
+    revealLog: 'app:reveal-log',
+    openExternal: 'app:open-external'
   },
   overlay: {
     show: 'overlay:show',
@@ -50,7 +51,8 @@ export const IPC = {
     revealFolder: 'sessions:reveal-folder',
     delete: 'sessions:delete',
     revealFile: 'sessions:reveal-file',
-    exportMarkdown: 'sessions:export-markdown'
+    exportMarkdown: 'sessions:export-markdown',
+    rename: 'sessions:rename'
   },
   screenshot: {
     capture: 'screenshot:capture',
@@ -95,6 +97,7 @@ export const IPC = {
     generate: 'recap:generate',
     get: 'recap:get',
     delete: 'recap:delete',
-    updated: 'recap:updated'
+    updated: 'recap:updated',
+    listActionItems: 'recap:list-action-items'
   }
 } as const

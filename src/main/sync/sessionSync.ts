@@ -1,9 +1,11 @@
 import { app, type BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile, unlink, copyFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sessionManager } from '../transcription/sessionManager.js'
 import { generateSessionTitle } from '../ai/titleGen.js'
+import { readRecap } from '../services/recap/recapPersistence.js'
+import { renderRecapMarkdown, insertRecapSection } from '../services/recap/recapMarkdown.js'
 import type { TranscriptSegment } from '../../shared/types.js'
 import type {
   SessionDetailPayload,
@@ -333,6 +335,44 @@ export function getSessionMdPath(id: string): string {
   return mdPath(id)
 }
 
+/**
+ * Rename a persisted session. Trims the title; an empty/whitespace title clears
+ * the override so the UI falls back to the generated/default title. Updates the
+ * in-memory record (if loaded) so a live/cached session reflects the new title,
+ * then rewrites both the .json and .md on disk. Returns the resolved title
+ * (null when cleared) or undefined if the session file is missing.
+ */
+export async function renameSessionOnDisk(
+  id: string,
+  title: string
+): Promise<{ ok: boolean; title: string | null }> {
+  if (!isValidSessionId(id)) return { ok: false, title: null }
+  await ensureDir()
+  const trimmed = title.trim()
+  const nextTitle = trimmed.length > 0 ? trimmed.slice(0, 200) : null
+
+  // Prefer the in-memory record (live/cached) so we don't clobber unflushed
+  // segments; otherwise hydrate from disk. We read the json directly rather
+  // than via tryLoadRecord() because that helper resets endedAt (for resume) —
+  // a rename must preserve whether the session is finished.
+  let rec = sessions.get(id)
+  if (!rec) {
+    let loaded: SessionRecord
+    try {
+      loaded = JSON.parse(readFileSync(jsonPath(id), 'utf8')) as SessionRecord
+    } catch {
+      return { ok: false, title: null }
+    }
+    rec = loaded
+    // Don't cache an inactive record under the live map — that could resurrect
+    // a stale record on a later resume. Only persist; leave the map untouched
+    // for finished sessions.
+  }
+  rec.title = nextTitle
+  await serialize(() => persist(rec!))
+  return { ok: true, title: nextTitle }
+}
+
 export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }> {
   if (!isValidSessionId(id)) return { ok: false }
   await ensureDir()
@@ -355,7 +395,16 @@ export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }
 
 export async function copySessionMarkdown(id: string, dest: string): Promise<void> {
   if (!isValidSessionId(id)) throw new Error('invalid session id')
-  await copyFile(mdPath(id), dest)
+  let md = await readFile(mdPath(id), 'utf8')
+  // Inline the structured recap (if any) so a markdown export is one full
+  // document — recap section above the transcript. Pulled from the recap
+  // sidecar at export time rather than baked into the persisted .md (which is
+  // written on the hot flush path before the recap is generated).
+  const recap = await readRecap(sessionsDir(), id).catch(() => null)
+  if (recap) {
+    md = insertRecapSection(md, renderRecapMarkdown(recap))
+  }
+  await writeFile(dest, md, 'utf8')
 }
 
 export function shutdownSync(): void {

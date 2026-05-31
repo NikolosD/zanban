@@ -10,6 +10,7 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 
 const api: ZanbanApi = {
   getVersion: () => ipcRenderer.invoke(IPC.app.getVersion),
+  openExternal: (url) => ipcRenderer.invoke(IPC.app.openExternal, url),
   overlay: {
     show: () => ipcRenderer.invoke(IPC.overlay.show),
     hide: () => ipcRenderer.invoke(IPC.overlay.hide),
@@ -59,7 +60,8 @@ const api: ZanbanApi = {
     revealFolder: () => ipcRenderer.invoke(IPC.sessions.revealFolder),
     delete: (id) => ipcRenderer.invoke(IPC.sessions.delete, id),
     revealFile: (id) => ipcRenderer.invoke(IPC.sessions.revealFile, id),
-    exportMarkdown: (id) => ipcRenderer.invoke(IPC.sessions.exportMarkdown, id)
+    exportMarkdown: (id) => ipcRenderer.invoke(IPC.sessions.exportMarkdown, id),
+    rename: (id, title) => ipcRenderer.invoke(IPC.sessions.rename, id, title)
   },
   screenshot: {
     capture: () => ipcRenderer.invoke(IPC.screenshot.capture),
@@ -108,7 +110,8 @@ const api: ZanbanApi = {
     generate: (sessionId, options) => ipcRenderer.invoke(IPC.recap.generate, sessionId, options),
     get: (sessionId) => ipcRenderer.invoke(IPC.recap.get, sessionId),
     delete: (sessionId) => ipcRenderer.invoke(IPC.recap.delete, sessionId),
-    onUpdated: (cb) => on<string>(IPC.recap.updated, cb)
+    onUpdated: (cb) => on<string>(IPC.recap.updated, cb),
+    listActionItems: () => ipcRenderer.invoke(IPC.recap.listActionItems)
   }
 }
 

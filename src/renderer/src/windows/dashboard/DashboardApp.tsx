@@ -13,6 +13,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { SessionDetail } from '@renderer/features/sessions/SessionDetail'
+import { GlobalActionItems } from '@renderer/features/sessions/GlobalActionItems'
 import { Wordmark } from '@renderer/components/brand'
 import {
   DropdownMenu,
@@ -139,6 +140,9 @@ export function DashboardApp() {
             setSettingsOpen(true)
           }}
         />
+        <div className="mt-10">
+          <GlobalActionItems onSelect={setSelected} />
+        </div>
         <div className="mt-10">
           <MeetingsList
             onSelect={setSelected}

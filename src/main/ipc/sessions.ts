@@ -7,7 +7,8 @@ import {
   getSessionsDir,
   isValidSessionId,
   listSessionsFromDisk,
-  readSessionFromDisk
+  readSessionFromDisk,
+  renameSessionOnDisk
 } from '../sync/sessionSync.js'
 import { deleteSession as ragDeleteSession } from '../rag/index.js'
 
@@ -33,6 +34,10 @@ export function registerSessionsHandlers(): void {
   ipcMain.handle(IPC.sessions.revealFile, (_e, id: string) => {
     if (!isValidSessionId(id)) return
     shell.showItemInFolder(getSessionMdPath(id))
+  })
+  ipcMain.handle(IPC.sessions.rename, async (_e, id: string, title: unknown) => {
+    if (!isValidSessionId(id) || typeof title !== 'string') return { ok: false, title: null }
+    return renameSessionOnDisk(id, title)
   })
   ipcMain.handle(IPC.sessions.exportMarkdown, async (e, id: string) => {
     if (!isValidSessionId(id)) return null

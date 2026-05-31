@@ -23,6 +23,23 @@ export interface SessionExportPayload {
     | { kind: 'qa'; question: string; answer: string; ts: number }
     | { kind: 'note'; text: string; ts: number }
   >
+  /**
+   * Structured post-meeting recap, rendered as its own section at the top of
+   * the export (above the timeline). Absent when no recap has been generated.
+   * Pulled from the persisted recap file (recap.get) at export-assembly time so
+   * one Export click produces a full document — TL;DR, action items, decisions,
+   * open questions, and the follow-up draft.
+   */
+  recap?: SessionExportRecap
+}
+
+/** Flattened recap shape for exports — mirrors RecapPayload's content fields. */
+export interface SessionExportRecap {
+  tldr: string
+  decisions: string[]
+  actionItems: Array<{ text: string; owner: 'you' | 'them' | 'unknown'; dueHint?: string }>
+  openQuestions: string[]
+  followUp: { subject: string; body: string } | null
 }
 
 export interface TranscriptSegment {

@@ -57,4 +57,6 @@ export function registerRecapHandlers(): void {
     if (!isValidSessionId(sessionId)) return
     await svc.delete(sessionId)
   })
+
+  ipcMain.handle(IPC.recap.listActionItems, () => svc.listMyActionItems())
 }

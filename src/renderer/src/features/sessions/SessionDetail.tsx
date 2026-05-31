@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Loader2, Play, Download } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, ArrowRight, Loader2, Play, Download, Pencil } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
@@ -13,6 +13,7 @@ import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import type { SessionDetailPayload, StoredSegment, StoredExchange } from '@shared/api'
 import { RecapTab } from './RecapTab'
 import type { SessionExportPayload } from '@shared/types'
+import type { RecapPayload } from '@shared/recap-types'
 import { toast } from 'sonner'
 
 type TabId = 'recap' | 'transcript' | 'usage'
@@ -89,12 +90,12 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
         </div>
       </div>
 
-      {/* Title */}
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {data.title || formatFallbackTitle(started)}
-        </h1>
-      </div>
+      {/* Title (inline-editable) */}
+      <EditableTitle
+        sessionId={data.id}
+        title={data.title}
+        fallback={formatFallbackTitle(started)}
+      />
 
       {/* Tabs row */}
       <div className="flex items-center justify-between gap-3">
@@ -110,6 +111,104 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
 
       {/* Bottom action bar */}
       <BottomBar sessionId={data.id} />
+    </div>
+  )
+}
+
+function EditableTitle({
+  sessionId,
+  title,
+  fallback
+}: {
+  sessionId: string
+  title: string | null
+  fallback: string
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title ?? '')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Re-seed the draft whenever the underlying title changes (e.g. after a
+  // regenerate or switching sessions) and we're not mid-edit.
+  useEffect(() => {
+    if (!editing) setDraft(title ?? '')
+  }, [title, editing])
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  async function commit() {
+    const next = draft.trim()
+    setSaving(true)
+    try {
+      const res = await window.zanban.sessions.rename(sessionId, next)
+      if (res.ok) {
+        await qc.invalidateQueries({ queryKey: ['session-detail-local', sessionId] })
+        await qc.invalidateQueries({ queryKey: ['sessions-local'] })
+        setEditing(false)
+      } else {
+        toast.error(t('session_detail.rename_failed'))
+      }
+    } catch (err) {
+      toast.error(t('session_detail.rename_failed'), {
+        description: err instanceof Error ? err.message : String(err)
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          value={draft}
+          autoFocus
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              void commit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              setDraft(title ?? '')
+              setEditing(false)
+            }
+          }}
+          onBlur={() => void commit()}
+          placeholder={fallback}
+          aria-label={t('session_detail.rename_label')}
+          className="w-full bg-transparent text-3xl font-semibold tracking-tight text-foreground outline-none border-b border-white/15 focus:border-white/40"
+        />
+        {saving && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+      </div>
+    )
+  }
+
+  return (
+    <div className="group flex items-center gap-2">
+      <h1
+        className="text-3xl font-semibold tracking-tight cursor-text"
+        onDoubleClick={() => setEditing(true)}
+        title={t('session_detail.rename_label')}
+      >
+        {title || fallback}
+      </h1>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={t('session_detail.rename_label')}
+        title={t('session_detail.rename_label')}
+        className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+      >
+        <Pencil className="size-4" />
+      </button>
     </div>
   )
 }
@@ -144,7 +243,11 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
   async function exportPdf() {
     setBusy(true)
     try {
-      const payload = buildExportPayload(session)
+      // Pull the persisted recap (if any) so the export is one full document —
+      // structured recap on top, the timeline below. recap.get returns null
+      // when no recap was generated, in which case the section is simply omitted.
+      const recap = await window.zanban.recap.get(session.id).catch(() => null)
+      const payload = buildExportPayload(session, recap)
       const path = await window.zanban.documents.exportSessionPdf(payload)
       if (path) toast.success(t('session_detail.exported_toast'), { description: path })
     } catch (err) {
@@ -170,7 +273,10 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
   )
 }
 
-function buildExportPayload(session: SessionDetailPayload): SessionExportPayload {
+function buildExportPayload(
+  session: SessionDetailPayload,
+  recap?: RecapPayload | null
+): SessionExportPayload {
   type Block = SessionExportPayload['blocks'][number]
   const blocks: Block[] = []
 
@@ -195,7 +301,16 @@ function buildExportPayload(session: SessionDetailPayload): SessionExportPayload
   return {
     title: session.title || `Session ${new Date(session.startedAt).toLocaleString()}`,
     startedAt: session.startedAt,
-    blocks
+    blocks,
+    recap: recap
+      ? {
+          tldr: recap.tldr,
+          decisions: recap.decisions,
+          actionItems: recap.actionItems,
+          openQuestions: recap.openQuestions,
+          followUp: recap.followUp
+        }
+      : undefined
   }
 }
 

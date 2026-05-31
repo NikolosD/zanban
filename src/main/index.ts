@@ -154,7 +154,8 @@ app.whenReady().then(async () => {
     getSettings,
     generate: (id) => getRecapService().generate(id, {}),
     trackJob,
-    awaitFinalized: awaitSessionFinalized
+    awaitFinalized: awaitSessionFinalized,
+    getExisting: (id) => getRecapService().get(id)
   })
   sessionManager.onSessionEnd((sessionId) => {
     void autoTrigger.onSessionStopped(sessionId)

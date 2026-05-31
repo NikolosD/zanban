@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Loader2, RotateCcw, Trash2 } from 'lucide-react'
+import { Copy, Loader2, Mail, RotateCcw, Trash2 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
@@ -10,7 +10,14 @@ import { cn } from '@renderer/lib/utils'
 import { PROMPT_VERSION } from '@shared/recap-types'
 import type { SessionDetailPayload } from '@shared/api'
 import type { RecapPayload, RecapResult } from '@shared/recap-types'
-import { formatRecapAsMarkdown, formatFollowUpAsPlainText, recapErrorMessage } from './recapActions'
+import { toast } from 'sonner'
+import {
+  buildFollowUpMailto,
+  formatRecapAsMarkdown,
+  formatFollowUpAsPlainText,
+  recapErrorMessage
+} from './recapActions'
+import { isActionItemChecked, setActionItemChecked } from './actionItemState'
 
 export function RecapTab({ session }: { session: SessionDetailPayload }) {
   const { t } = useTranslation()
@@ -220,7 +227,9 @@ function ActionList({
   return (
     <ul className="flex flex-col gap-1.5">
       {items.map((a, i) => (
-        <ActionItem key={i} sessionId={sessionId} index={i} item={a} />
+        // Stable per-item checked state is keyed by text hash (see actionItemState),
+        // so the React key can stay positional without desyncing the checkbox.
+        <ActionItem key={i} sessionId={sessionId} item={a} />
       ))}
     </ul>
   )
@@ -228,20 +237,20 @@ function ActionList({
 
 function ActionItem({
   sessionId,
-  index,
   item
 }: {
   sessionId: string
-  index: number
   item: { text: string; owner: 'you' | 'them' | 'unknown'; dueHint?: string }
 }) {
-  const storageKey = `recap-checked-${sessionId}-${index}`
-  const [checked, setChecked] = useState<boolean>(() => localStorage.getItem(storageKey) === '1')
+  const [checked, setChecked] = useState<boolean>(() => isActionItemChecked(sessionId, item))
+  // Re-sync when the item's text changes under the same row (regenerate).
+  useEffect(() => {
+    setChecked(isActionItemChecked(sessionId, item))
+  }, [sessionId, item.text])
   function toggle() {
     const next = !checked
     setChecked(next)
-    if (next) localStorage.setItem(storageKey, '1')
-    else localStorage.removeItem(storageKey)
+    setActionItemChecked(sessionId, item, next)
   }
   const ownerLabel = item.owner === 'you' ? 'You' : item.owner === 'them' ? 'Them' : '?'
   const ownerColor =
@@ -296,6 +305,16 @@ function FollowUpSection({ followUp }: { followUp: { subject: string; body: stri
               variant="ghost"
               className="gap-1.5"
               onClick={() => {
+                void openInEmail(followUp, t('session_detail.recap.open_email_failed'))
+              }}
+            >
+              <Mail className="size-3.5" /> {t('session_detail.recap.open_email')}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5"
+              onClick={() => {
                 void copyToClipboard(
                   `Subject: ${followUp.subject}\n\n${followUp.body}`,
                   t('common.copied')
@@ -333,6 +352,14 @@ function RecapSkeleton() {
       </div>
     </div>
   )
+}
+
+async function openInEmail(
+  followUp: { subject: string; body: string },
+  failMessage: string
+): Promise<void> {
+  const ok = await window.zanban.openExternal(buildFollowUpMailto(followUp)).catch(() => false)
+  if (!ok) toast.error(failMessage)
 }
 
 function relativeAge(generatedAt: number): string {

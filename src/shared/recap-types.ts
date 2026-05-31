@@ -54,3 +54,17 @@ export type RecapResult =
       message: string
       partial?: RecapPayload
     }
+
+/**
+ * One "owner: you" action item aggregated across every session's recap, for the
+ * global Action Items panel. The renderer filters out items the user has ticked
+ * off (checked state lives in localStorage, keyed by the same text hash D5 uses)
+ * and links each row back to its source session.
+ */
+export interface GlobalActionItem {
+  sessionId: string
+  sessionTitle: string | null
+  sessionStartedAt: number
+  text: string
+  dueHint?: string
+}

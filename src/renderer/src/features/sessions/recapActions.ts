@@ -40,6 +40,17 @@ export function formatFollowUpAsPlainText(followUp: { subject: string; body: str
   return `Subject: ${followUp.subject}\n\n${body}`
 }
 
+/**
+ * Build a `mailto:` URL for the follow-up draft so one click opens the OS mail
+ * client with subject + body prefilled. Body is plain-texted (markdown stripped)
+ * and both fields are percent-encoded. No recipient — the user adds that.
+ */
+export function buildFollowUpMailto(followUp: { subject: string; body: string }): string {
+  const subject = encodeURIComponent(followUp.subject)
+  const body = encodeURIComponent(stripMarkdown(followUp.body))
+  return `mailto:?subject=${subject}&body=${body}`
+}
+
 function stripMarkdown(s: string): string {
   return s
     .replace(/\*\*(.+?)\*\*/g, '$1')

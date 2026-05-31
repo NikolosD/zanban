@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell } from 'electron'
 import { writeFile } from 'node:fs/promises'
-import type { SessionExportPayload } from '../../shared/types.js'
+import type { SessionExportPayload, SessionExportRecap } from '../../shared/types.js'
 
 /**
  * Export a session as PDF.
@@ -50,8 +50,54 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
+function renderRecapHtml(recap: SessionExportRecap): string {
+  const sections: string[] = []
+  sections.push(
+    `<div class="recap-block"><div class="recap-label">TL;DR</div><div class="body">${escapeHtml(
+      recap.tldr
+    )}</div></div>`
+  )
+  if (recap.actionItems.length > 0) {
+    const items = recap.actionItems
+      .map((a) => {
+        const owner = a.owner === 'you' ? 'You' : a.owner === 'them' ? 'Them' : '?'
+        const due = a.dueHint ? ` — ${escapeHtml(a.dueHint)}` : ''
+        return `<li><strong>(${owner})</strong> ${escapeHtml(a.text)}${due}</li>`
+      })
+      .join('')
+    sections.push(
+      `<div class="recap-block"><div class="recap-label">Action items</div><ul>${items}</ul></div>`
+    )
+  }
+  if (recap.decisions.length > 0) {
+    const items = recap.decisions.map((d) => `<li>${escapeHtml(d)}</li>`).join('')
+    sections.push(
+      `<div class="recap-block"><div class="recap-label">Decisions</div><ul>${items}</ul></div>`
+    )
+  }
+  if (recap.openQuestions.length > 0) {
+    const items = recap.openQuestions.map((q) => `<li>${escapeHtml(q)}</li>`).join('')
+    sections.push(
+      `<div class="recap-block"><div class="recap-label">Open questions</div><ul>${items}</ul></div>`
+    )
+  }
+  if (recap.followUp) {
+    sections.push(
+      `<div class="recap-block"><div class="recap-label">Follow-up</div>
+        <div class="body"><strong>Subject:</strong> ${escapeHtml(recap.followUp.subject)}</div>
+        <div class="body">${escapeHtml(recap.followUp.body)}</div>
+      </div>`
+    )
+  }
+  return `<section class="recap">
+    <h2>Recap</h2>
+    ${sections.join('\n')}
+  </section>`
+}
+
 function renderHtml(payload: SessionExportPayload): string {
   const dateStr = new Date(payload.startedAt).toLocaleString()
+  const recapHtml = payload.recap ? renderRecapHtml(payload.recap) : ''
   const blocks = payload.blocks
     .map((b) => {
       const ts = new Date(b.ts).toLocaleTimeString()
@@ -92,16 +138,23 @@ function renderHtml(payload: SessionExportPayload): string {
     padding: 24px 28px;
   }
   h1 { font-size: 20pt; margin: 0 0 4px; }
+  h2 { font-size: 14pt; margin: 0 0 8px; }
   .date { font-size: 9pt; color: #666; margin-bottom: 18px; }
   .block { margin-bottom: 10px; page-break-inside: avoid; }
   .meta { font-size: 9pt; color: #666; font-weight: 600; }
   .body { white-space: pre-wrap; word-wrap: break-word; margin-top: 2px; }
   .qa .answer { padding-left: 8px; border-left: 2px solid #ddd; }
+  .recap { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid #ddd; }
+  .recap-block { margin-bottom: 10px; page-break-inside: avoid; }
+  .recap-label { font-size: 9pt; color: #666; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .recap ul { margin: 4px 0 0; padding-left: 18px; }
+  .recap li { margin-bottom: 2px; }
 </style>
 </head>
 <body>
   <h1>${escapeHtml(payload.title || 'Untitled session')}</h1>
   <div class="date">${escapeHtml(dateStr)}</div>
+  ${recapHtml}
   ${blocks}
 </body>
 </html>`

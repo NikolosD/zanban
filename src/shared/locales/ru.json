@@ -606,6 +606,12 @@
   "errors": {
     "could_not_copy": "Не удалось скопировать"
   },
+  "action_items_panel": {
+    "title_one": "Ваши задачи · 1",
+    "title_few": "Ваши задачи · {{count}}",
+    "title_other": "Ваши задачи · {{count}}",
+    "mark_done": "Отметить выполненной"
+  },
   "session_list": {
     "no_sessions": "Пока нет сессий — они сохраняются локально, когда вы останавливаете запись.",
     "count_one": "{{count}} сессия",
@@ -642,6 +648,8 @@
     "loading": "Загрузка сессии…",
     "back": "Назад",
     "not_found": "Файл сессии не найден.",
+    "rename_label": "Переименовать сессию",
+    "rename_failed": "Не удалось переименовать сессию",
     "tabs": {
       "recap": "Резюме",
       "transcript": "Транскрипт",
@@ -660,6 +668,8 @@
       "decisions": "Решения",
       "open_questions": "Открытые вопросы",
       "follow_up": "Черновик фоллоу-апа",
+      "open_email": "Открыть в почте",
+      "open_email_failed": "Не удалось открыть почтовый клиент",
       "copy_followup_md": "Скопировать",
       "copy_followup_plain": "Скопировать как обычный текст",
       "partial_badge": "частично",

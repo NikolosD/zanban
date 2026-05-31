@@ -606,6 +606,11 @@
   "errors": {
     "could_not_copy": "Could not copy"
   },
+  "action_items_panel": {
+    "title_one": "Your action items · 1",
+    "title_other": "Your action items · {{count}}",
+    "mark_done": "Mark done"
+  },
   "session_list": {
     "no_sessions": "No sessions yet — sessions are saved locally when you stop a recording.",
     "count_one": "{{count}} session",
@@ -641,6 +646,8 @@
     "loading": "Loading session…",
     "back": "Back",
     "not_found": "Session file not found.",
+    "rename_label": "Rename session",
+    "rename_failed": "Could not rename session",
     "tabs": {
       "recap": "Recap",
       "transcript": "Transcript",
@@ -659,6 +666,8 @@
       "decisions": "Decisions",
       "open_questions": "Open questions",
       "follow_up": "Follow-up draft",
+      "open_email": "Open in email",
+      "open_email_failed": "Could not open your email client",
       "copy_followup_md": "Copy",
       "copy_followup_plain": "Copy as plain text",
       "partial_badge": "partial",

@@ -14,7 +14,7 @@ import type {
   TranscriptSegment,
   TranscriptionStatus
 } from './types.js'
-import type { RecapOptions, RecapPayload, RecapResult } from './recap-types.js'
+import type { GlobalActionItem, RecapOptions, RecapPayload, RecapResult } from './recap-types.js'
 
 export interface SessionListItem {
   id: string
@@ -49,6 +49,9 @@ export interface SessionDetailPayload {
 
 export interface ZanbanApi {
   getVersion(): Promise<string>
+  /** Open a URL in the OS default handler (mailto:, http:, https: only).
+   *  Returns false if the scheme is rejected or the URL is malformed. */
+  openExternal(url: string): Promise<boolean>
   overlay: {
     show(): Promise<void>
     hide(): Promise<void>
@@ -109,6 +112,10 @@ export interface ZanbanApi {
     revealFile(id: string): Promise<void>
     /** Prompt a save-as dialog for the session's markdown export; returns the chosen path or null on cancel. */
     exportMarkdown(id: string): Promise<string | null>
+    /** Rename a session on disk (json + md). Empty/whitespace title clears the
+     *  override and falls back to the generated/default. Returns the resolved
+     *  title (null when cleared). */
+    rename(id: string, title: string): Promise<{ ok: boolean; title: string | null }>
   }
   screenshot: {
     capture(): Promise<string | null>
@@ -157,6 +164,9 @@ export interface ZanbanApi {
     get(sessionId: string): Promise<RecapPayload | null>
     delete(sessionId: string): Promise<void>
     onUpdated(cb: (sessionId: string) => void): () => void
+    /** Aggregate "owner: you" action items across every session's recap, newest
+     *  session first. Renderer filters out items the user has ticked off. */
+    listActionItems(): Promise<GlobalActionItem[]>
   }
 }
 

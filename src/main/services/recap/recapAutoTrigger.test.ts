@@ -35,6 +35,46 @@ describe('recapAutoTrigger', () => {
     await expect(trigger.onSessionStopped('sess1')).resolves.toBeUndefined()
   })
 
+  it('skips generation when a complete recap already exists', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true })
+    const getExisting = vi.fn().mockResolvedValue({ tldr: 'done', partial: undefined })
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate,
+      trackJob: async (_id, _t, _k, fn) => fn(),
+      getExisting
+    })
+    await trigger.onSessionStopped('sess1')
+    expect(getExisting).toHaveBeenCalledWith('sess1')
+    expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('regenerates when only a partial recap exists', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true })
+    const getExisting = vi.fn().mockResolvedValue({ tldr: 'partial', partial: true })
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate,
+      trackJob: async (_id, _t, _k, fn) => fn(),
+      getExisting
+    })
+    await trigger.onSessionStopped('sess1')
+    expect(generate).toHaveBeenCalledWith('sess1', {})
+  })
+
+  it('generates when no recap exists yet', async () => {
+    const generate = vi.fn().mockResolvedValue({ ok: true })
+    const getExisting = vi.fn().mockResolvedValue(null)
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate,
+      trackJob: async (_id, _t, _k, fn) => fn(),
+      getExisting
+    })
+    await trigger.onSessionStopped('sess1')
+    expect(generate).toHaveBeenCalledWith('sess1', {})
+  })
+
   it('awaits awaitFinalized before calling trackJob when provided', async () => {
     const order: string[] = []
     let resolveFinalized!: () => void
