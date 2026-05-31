@@ -36,15 +36,31 @@ Format:
 - For solutions: include the code, then 1-3 short bullets on why it works / edge cases. Keep it tight but complete.
 - Match the user's language (English / Russian / etc.) unless a forced response language is set.`
 
-export function buildVisionSystemPrompt(persona?: string, language?: ResponseLanguage): string {
+export function buildVisionSystemPrompt(
+  persona?: string,
+  language?: ResponseLanguage,
+  uiLocale: 'en' | 'ru' = 'en'
+): string {
   const trimmed = persona?.trim()
   const langLine = languageDirective(language)
   let out = VISION_SYSTEM_PROMPT
-  if (langLine) out += `\n\n${langLine}`
+  if (langLine) {
+    out += `\n\n${langLine}`
+  } else if (uiLocale !== 'en') {
+    // 'auto' has no typed question or transcript to match on a one-shot
+    // screenshot, so it used to default to English (the language of the
+    // screenshot / prompt template). Anchor the prose to the user's app
+    // language instead; code and quoted source stay verbatim.
+    out += `\n\nDefault response language: write your explanation in ${uiLocaleName(uiLocale)}, even when the screenshot or the request template is in English. Keep all code, code identifiers, error messages, and quoted source verbatim. Switch only if the user typed their own question in another language.`
+  }
   if (trimmed) {
     out += `\n\nWho the user is (persona):\n${trimmed}\n\nMatch their seniority and vocabulary.`
   }
   return out
+}
+
+function uiLocaleName(uiLocale: 'en' | 'ru'): string {
+  return uiLocale === 'ru' ? 'Russian (Русский)' : 'English'
 }
 
 function languageDirective(language?: ResponseLanguage): string | null {

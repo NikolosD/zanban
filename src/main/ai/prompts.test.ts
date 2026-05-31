@@ -68,6 +68,19 @@ describe('buildVisionSystemPrompt', () => {
     expect(out).toContain('Forced response language: write the answer in French')
     expect(out).toContain('I am a frontend engineer')
   })
+
+  it('anchors auto-language prose to a non-English UI locale (one-shot screenshot)', () => {
+    const out = buildVisionSystemPrompt(undefined, 'auto' as ResponseLanguage, 'ru')
+    expect(out).toContain('Default response language')
+    expect(out).toContain('Russian')
+    expect(out).not.toContain('Forced response language')
+  })
+
+  it('leaves the English UI locale on the default behavior (no extra directive)', () => {
+    expect(buildVisionSystemPrompt(undefined, 'auto' as ResponseLanguage, 'en')).toBe(
+      buildVisionSystemPrompt()
+    )
+  })
 })
 
 describe('buildUserPrompt', () => {

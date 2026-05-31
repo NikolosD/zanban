@@ -264,7 +264,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           const stream = streamWithFallback(providers, {
             model: overrideModel,
             system: hasImage
-              ? buildVisionSystemPrompt(personaText, responseLanguage)
+              ? buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale)
               : buildSystemPrompt(personaText, responseLanguage),
             prompt: userPrompt,
             temperature: hasImage ? 0.3 : 0.4,
@@ -354,7 +354,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             // Vision answers (code solutions, error diagnoses) need more room
             // than the brevity-capped text answers — coding-kata solutions
             // alone routinely run 200-400 tokens.
-            system: buildVisionSystemPrompt(personaText, responseLanguage),
+            system: buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale),
             messages: [
               {
                 role: 'user' as const,
