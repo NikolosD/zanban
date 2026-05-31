@@ -1,6 +1,8 @@
 // Tiny pub-sub for live mic peak level (0..1). The worklet is busy producing
-// chunks for Deepgram; this module taps the same MediaStream via an
-// AnalyserNode in a separate AudioContext so it's independent.
+// chunks for the STT provider; this module taps the SAME AudioContext + source
+// node via an AnalyserNode. It deliberately does NOT open its own AudioContext:
+// two contexts at different sample rates on one mic device caused silent
+// capture on some Windows drivers — see [[mic-missing-from-saved-transcript]].
 
 type Listener = (level: number) => void
 
@@ -20,10 +22,7 @@ let raf = 0
 let analyser: AnalyserNode | null = null
 let timeData: Uint8Array | null = null
 
-export function attachAnalyser(stream: MediaStream): () => void {
-  // Use a fresh AudioContext to avoid stepping on the worklet's context.
-  const ctx = new AudioContext()
-  const source = ctx.createMediaStreamSource(stream)
+export function attachAnalyser(ctx: AudioContext, source: AudioNode): () => void {
   const a = ctx.createAnalyser()
   a.fftSize = 1024
   source.connect(a)
@@ -48,9 +47,9 @@ export function attachAnalyser(stream: MediaStream): () => void {
   return () => {
     cancelAnimationFrame(raf)
     try {
-      source.disconnect()
+      // Only disconnect our analyser tap — the shared ctx + source are owned by
+      // the capture pipeline and must stay alive for the worklet.
       a.disconnect()
-      void ctx.close()
     } catch {
       /* ignore */
     }

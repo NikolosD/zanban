@@ -1,4 +1,5 @@
 import type { AudioChannel } from '@shared/types'
+import { VAD_HANGOVER_BATCHES } from '@shared/audio'
 import { attachAnalyser } from './level'
 
 const WORKLET_URL = '/audio/pcm-worklet.js'
@@ -20,6 +21,12 @@ function getContext(): Promise<AudioContext> {
   workletReady = (async () => {
     const ctx = new AudioContext({ sampleRate: 16000 })
     await ctx.audioWorklet.addModule(WORKLET_URL)
+    // Auto-resume if the OS suspends the context (laptop sleep, audio device
+    // switch) — otherwise the singleton context goes silent mid-session and
+    // capture only recovers on a full app restart.
+    ctx.addEventListener('statechange', () => {
+      if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
+    })
     return ctx
   })()
   return workletReady
@@ -29,14 +36,18 @@ export async function startCapture({ channel, stream, vad }: StartArgs): Promise
   const ctx = await getContext()
   if (ctx.state === 'suspended') await ctx.resume()
 
-  const detachAnalyser = channel === 'mic' ? attachAnalyser(stream) : () => {}
   const source = ctx.createMediaStreamSource(stream)
   const node = new AudioWorkletNode(ctx, 'pcm-worklet')
+  // Tap the SAME 16kHz context+source for the live level meter. Opening a
+  // second AudioContext (different sampleRate) on the same device used to cause
+  // silent capture on some Windows drivers — see [[mic-missing-from-saved-transcript]].
+  const detachAnalyser = channel === 'mic' ? attachAnalyser(ctx, source) : () => {}
 
   if (vad) {
     node.port.postMessage({
       vadEnabled: vad.enabled,
-      vadThreshold: vad.threshold
+      vadThreshold: vad.threshold,
+      hangoverBatches: VAD_HANGOVER_BATCHES
     })
   }
 

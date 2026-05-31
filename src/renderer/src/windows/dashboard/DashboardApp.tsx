@@ -35,7 +35,8 @@ import { missingProviderNames } from '@renderer/features/settings/providerStatus
 import {
   startCapturesFromSettings,
   stopCaptures,
-  wireCaptureAutostop
+  wireCaptureAutostop,
+  onCaptureNotice
 } from '@renderer/audio/captureController'
 import { Button } from '@renderer/components/ui/button'
 import {
@@ -525,7 +526,14 @@ function SessionStartButton() {
 
   useEffect(() => {
     const off = wireCaptureAutostop()
-    return () => off()
+    const offNotice = onCaptureNotice((n) => {
+      if (n.kind === 'mic-healed') toast.warning(n.message)
+      else toast.error(n.message)
+    })
+    return () => {
+      off()
+      offNotice()
+    }
   }, [])
 
   const running = session.kind === 'running'

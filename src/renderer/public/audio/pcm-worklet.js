@@ -16,9 +16,12 @@ class PcmWorklet extends AudioWorkletProcessor {
     this.batch = new Int16Array(this.size)
     this.offset = 0
 
-    // VAD config — switched at runtime via port messages.
+    // VAD config — switched at runtime via port messages from micCapture, which
+    // always sends vadThreshold + hangoverBatches. These literals are only a
+    // fallback and MUST mirror src/shared/audio.ts (VAD_DEFAULT_THRESHOLD /
+    // VAD_HANGOVER_BATCHES) — a static worklet module can't import from src/.
     this.vadEnabled = false
-    this.vadThreshold = 0.012 // RMS in [0,1]; ~-38 dBFS
+    this.vadThreshold = 0.005 // RMS in [0,1]; ~-46 dBFS — matches settings default
     this.hangoverBatches = 6 // ~600ms tail kept after last speech batch
     this.hangoverLeft = 0
 

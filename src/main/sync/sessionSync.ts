@@ -25,10 +25,23 @@ interface SessionRecord {
 
 const sessions = new Map<string, SessionRecord>()
 const finalizedWaiters = new Map<string, Promise<void>>()
-let buffer: TranscriptSegment[] = []
+const buffer: TranscriptSegment[] = []
 let timer: NodeJS.Timeout | null = null
 let activeSessionId: string | null = null
 let initialized = false
+
+// Serialize all persistence so the periodic flush and the session-end finalize
+// never write the same files concurrently (last-writer-wins used to clobber the
+// final tail). Every mutation that persists goes through `serialize`.
+let writeChain: Promise<void> = Promise.resolve()
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn, fn)
+  writeChain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
 
 export function awaitSessionFinalized(sessionId: string): Promise<void> {
   return finalizedWaiters.get(sessionId) ?? Promise.resolve()
@@ -96,6 +109,38 @@ function ensureRecord(): SessionRecord | null {
   return sessions.get(state.sessionId) ?? null
 }
 
+/**
+ * Resolve a record by id without depending on the live manager state. Used by
+ * the session-end handler, which runs after the manager has already flipped to
+ * 'idle' (so `ensureRecord()` would bail and lose the buffered tail).
+ */
+function getOrCreateRecord(sessionId: string, startedAt: number): SessionRecord {
+  let rec = sessions.get(sessionId)
+  if (!rec) {
+    const existing = tryLoadRecord(sessionId)
+    rec = existing ?? {
+      id: sessionId,
+      startedAt,
+      endedAt: null,
+      title: null,
+      segments: [],
+      exchanges: []
+    }
+    sessions.set(sessionId, rec)
+  }
+  return rec
+}
+
+/** Move all buffered final segments into `rec`. Returns true if any were added. */
+function drainFinalsInto(rec: SessionRecord): boolean {
+  if (buffer.length === 0) return false
+  const batch = buffer.splice(0, buffer.length).filter((s) => s.isFinal)
+  for (const s of batch) {
+    rec.segments.push({ channel: s.channel, startMs: s.startMs, text: s.text })
+  }
+  return batch.length > 0
+}
+
 function tryLoadRecord(id: string): SessionRecord | null {
   try {
     // Synchronous read because ensureRecord runs on the hot per-segment
@@ -115,41 +160,39 @@ export function registerSyncWindow(_win: BrowserWindow): void {
   initialized = true
 
   sessionManager.onSegment((seg) => {
-    buffer.push(seg)
+    // Only finals are persisted (flush filters isFinal anyway). Buffering finals
+    // only keeps the buffer bounded and lets the session-end handler drain it
+    // even after the manager state has already flipped to 'idle'.
+    if (seg.isFinal) buffer.push(seg)
   })
 
   sessionManager.onSessionEnd((sessionId) => {
-    const rec = sessions.get(sessionId)
-    if (!rec) return
-    const work = (async () => {
-      try {
-        await flush()
-        await finalize(rec)
-      } finally {
-        finalizedWaiters.delete(sessionId)
-      }
-    })()
-    finalizedWaiters.set(sessionId, work)
-    void work
+    // Resolve the record by id (manager state is 'idle' by now) and drain the
+    // 0–4s tail of finals still in the buffer since the last interval flush.
+    const work = serialize(async () => {
+      const rec = getOrCreateRecord(sessionId, Date.now())
+      drainFinalsInto(rec)
+      await finalize(rec)
+    })
+    const tracked = work.finally(() => finalizedWaiters.delete(sessionId))
+    finalizedWaiters.set(sessionId, tracked)
+    void tracked
   })
 
-  timer = setInterval(() => void flush(), FLUSH_INTERVAL_MS)
+  timer = setInterval(() => void serialize(flush), FLUSH_INTERVAL_MS)
 }
 
 async function flush(): Promise<void> {
   if (buffer.length === 0) return
   const rec = ensureRecord()
   if (!rec) {
-    buffer = []
+    // Not running (stopping/idle). Do NOT clear the buffer — the session-end
+    // handler drains these tail segments into the correct record. Clearing here
+    // was silently dropping the last few seconds of finals on every Stop.
     return
   }
-  const batch = buffer.splice(0, buffer.length).filter((s) => s.isFinal)
-  for (const s of batch) {
-    rec.segments.push({ channel: s.channel, startMs: s.startMs, text: s.text })
-  }
-  if (batch.length > 0) {
-    await persist(rec)
-  }
+  const changed = drainFinalsInto(rec)
+  if (changed) await persist(rec)
 }
 
 async function finalize(rec: SessionRecord): Promise<void> {
@@ -164,8 +207,12 @@ async function finalize(rec: SessionRecord): Promise<void> {
     isFinal: true,
     createdAt: rec.startedAt + s.startMs
   }))
-  const title = await generateSessionTitle(titleSegments).catch(() => null)
-  if (title) rec.title = title
+  // Only set a title if there isn't one yet — protects a user rename and avoids
+  // clobbering a good title with a fresh generation on resume+stop.
+  if (!rec.title) {
+    const title = await generateSessionTitle(titleSegments).catch(() => null)
+    if (title) rec.title = title
+  }
   await persist(rec)
 }
 
@@ -177,7 +224,7 @@ export async function recordAiExchange(
   const rec = ensureRecord()
   if (!rec) return
   rec.exchanges.push({ prompt, answer, model, createdAt: Date.now() })
-  await persist(rec)
+  await serialize(() => persist(rec))
 }
 
 async function persist(rec: SessionRecord): Promise<void> {

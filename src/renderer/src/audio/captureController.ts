@@ -5,16 +5,35 @@ interface Handle {
   stop(): void
 }
 
-let mic: Handle | null = null
-let system: Handle | null = null
-let wired = false
-
-export async function startCaptures(args: {
+interface StartArgs {
   micDeviceId?: string | null
   systemEnabled: boolean
   vad?: { enabled: boolean; threshold: number }
-}): Promise<void> {
+}
+
+let mic: Handle | null = null
+let system: Handle | null = null
+let wired = false
+let lastArgs: StartArgs | null = null
+
+export interface CaptureNotice {
+  kind: 'mic-healed' | 'mic-lost'
+  message: string
+}
+const noticeListeners = new Set<(n: CaptureNotice) => void>()
+
+/** Subscribe to capture-health notices (e.g. mic auto-heal). Returns an unsubscribe. */
+export function onCaptureNotice(cb: (n: CaptureNotice) => void): () => void {
+  noticeListeners.add(cb)
+  return () => noticeListeners.delete(cb)
+}
+function emitNotice(n: CaptureNotice): void {
+  for (const cb of noticeListeners) cb(n)
+}
+
+export async function startCaptures(args: StartArgs): Promise<void> {
   if (mic || system) return
+  lastArgs = args
   mic = await startMic(args.micDeviceId, args.vad)
   if (args.systemEnabled) {
     // No VAD on the system channel — see startCapturesFromSettings comment.
@@ -27,6 +46,37 @@ export function stopCaptures(): void {
   system?.stop()
   mic = null
   system = null
+  lastArgs = null
+}
+
+/**
+ * If the active mic session was pinned to a specific device that just
+ * disappeared (unplugged headset / Bluetooth drop), restart capture on the
+ * default device so the session keeps recording instead of going silent.
+ */
+async function healMicIfDeviceLost(): Promise<void> {
+  if (!mic || !lastArgs) return
+  const wantedId = lastArgs.micDeviceId
+  if (!wantedId) return // already on default — nothing pinned to lose
+  let devices: MediaDeviceInfo[]
+  try {
+    devices = await navigator.mediaDevices.enumerateDevices()
+  } catch {
+    return
+  }
+  const stillThere = devices.some((d) => d.kind === 'audioinput' && d.deviceId === wantedId)
+  if (stillThere) return
+  try {
+    mic.stop()
+    mic = await startMic(null, lastArgs.vad)
+    emitNotice({
+      kind: 'mic-healed',
+      message: 'Микрофон отключён — переключился на устройство по умолчанию'
+    })
+  } catch (err) {
+    console.warn('[audio] mic auto-heal failed', err)
+    emitNotice({ kind: 'mic-lost', message: 'Микрофон отключён, переподключиться не удалось' })
+  }
 }
 
 export function captureCount(): number {
@@ -52,7 +102,14 @@ export async function startCapturesFromSettings(settings: AppSettings): Promise<
 export function wireCaptureAutostop(): () => void {
   if (wired) return () => {}
   wired = true
-  return window.zanban.session.onState((state) => {
+  const offState = window.zanban.session.onState((state) => {
     if (state.kind === 'idle') stopCaptures()
   })
+  const onDeviceChange = (): void => void healMicIfDeviceLost()
+  navigator.mediaDevices.addEventListener('devicechange', onDeviceChange)
+  return () => {
+    offState()
+    navigator.mediaDevices.removeEventListener('devicechange', onDeviceChange)
+    wired = false
+  }
 }
