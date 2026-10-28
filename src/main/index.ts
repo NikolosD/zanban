@@ -5,7 +5,6 @@ import {
   BrowserWindow,
   crashReporter,
   desktopCapturer,
-  ipcMain,
   Menu,
   nativeTheme,
   screen,
@@ -18,7 +17,8 @@ import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
-import type { AppSettings, AudioChannel, CaptureNotice } from '../shared/types.js'
+import type { AudioChannel, CaptureNotice } from '../shared/types.js'
+import { redactSettings } from '../shared/settingsBoundary.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
 import { raceTimeout } from './ai/raceTimeout.js'
@@ -44,6 +44,8 @@ import { registerRagHandlers } from './ipc/rag.js'
 import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
 import { registerRecapHandlers, getRecapService } from './ipc/recap.js'
+import { handleIpc, onIpc } from './ipc/guard.js'
+import { settingsPatchSchema } from './ipc/schemas.js'
 import { createAutoTrigger } from './services/recap/recapAutoTrigger.js'
 
 installLogger()
@@ -288,21 +290,21 @@ app.whenReady().then(async () => {
     overlayWindow.show()
     overlayWindow.setContentProtection(stealthOn)
   }
-  ipcMain.handle(IPC.overlay.show, () => showOverlay())
-  ipcMain.handle(IPC.overlay.hide, () => overlayWindow?.hide())
-  ipcMain.handle(IPC.overlay.toggle, () => {
+  handleIpc(IPC.overlay.show, () => showOverlay())
+  handleIpc(IPC.overlay.hide, () => overlayWindow?.hide())
+  handleIpc(IPC.overlay.toggle, () => {
     if (!overlayWindow) return
     if (overlayWindow.isVisible()) overlayWindow.hide()
     else showOverlay()
   })
-  ipcMain.handle(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
+  handleIpc(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
     overlayWindow?.setIgnoreMouseEvents(ignore, { forward: true })
   })
   // Renderer measures the visible glass panel and asks us to resize the
   // window to match. We clamp to the current display's work area so a long
   // streamed answer never drives the window off-screen — anything beyond the
   // cap falls back to the inner pane scrolling.
-  ipcMain.handle(IPC.overlay.setContentHeight, (_e, requested: number) => {
+  handleIpc(IPC.overlay.setContentHeight, (_e, requested: number) => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return
     const bounds = overlayWindow.getBounds()
     const display = screen.getDisplayMatching(bounds)
@@ -323,7 +325,7 @@ app.whenReady().then(async () => {
     applyStealth()
     applyDashboardVisibility()
     // Persist so the next session honors the user's last choice.
-    const next = setSettings({ detectable: !stealthOn })
+    const next = redactSettings(setSettings({ detectable: !stealthOn }))
     // Notify overlay so its UI badge flips without a polling round-trip.
     overlayWindow?.webContents.send(IPC.overlay.stealthChanged, stealthOn)
     // The dashboard's settings panel holds its own copy — keep its toggle in sync.
@@ -332,8 +334,8 @@ app.whenReady().then(async () => {
     }
     return stealthOn
   }
-  ipcMain.handle(IPC.overlay.getStealth, () => stealthOn)
-  ipcMain.handle(IPC.overlay.setStealth, (_e, on: boolean) => setStealth(on))
+  handleIpc(IPC.overlay.getStealth, () => stealthOn)
+  handleIpc(IPC.overlay.setStealth, (_e, on: boolean) => setStealth(on))
 
   function showDashboard(): void {
     if (!mainWindow || mainWindow.isDestroyed()) return
@@ -346,9 +348,9 @@ app.whenReady().then(async () => {
     mainWindow.show()
     mainWindow.focus()
   }
-  ipcMain.handle(IPC.dashboard.show, () => showDashboard())
+  handleIpc(IPC.dashboard.show, () => showDashboard())
 
-  ipcMain.handle(IPC.session.start, async (_e, input?: { resumeId?: string }) => {
+  handleIpc(IPC.session.start, async (_e, input?: { resumeId?: string }) => {
     // A fresh session re-arms the stealth+hideWidget posture: any prior use of
     // the Show Dashboard escape hatch should not leak into the new run.
     dashboardForcedVisible = false
@@ -362,7 +364,7 @@ app.whenReady().then(async () => {
     mainWindow?.hide()
     return result
   })
-  ipcMain.handle(IPC.session.stop, async () => {
+  handleIpc(IPC.session.stop, async () => {
     await sessionManager.stop()
     overlayWindow?.hide()
     if (mainWindow) {
@@ -375,18 +377,21 @@ app.whenReady().then(async () => {
       applyDashboardVisibility()
     }
   })
-  ipcMain.on(IPC.audio.notice, (_e, notice: CaptureNotice) => {
+  onIpc(IPC.audio.notice, (_e, notice: CaptureNotice) => {
     for (const win of [mainWindow, overlayWindow]) {
       if (win && !win.isDestroyed()) win.webContents.send(IPC.audio.notice, notice)
     }
   })
-  ipcMain.on(IPC.audio.chunk, (_e, channel: AudioChannel, buffer: ArrayBuffer) => {
+  onIpc(IPC.audio.chunk, (_e, channel: AudioChannel, buffer: ArrayBuffer) => {
     sessionManager.sendAudio(channel, buffer)
   })
 
-  ipcMain.handle(IPC.settings.get, () => getSettings())
-  ipcMain.handle(IPC.settings.set, (_e, patch: Partial<AppSettings>) => {
-    const next = setSettings(patch)
+  // Every settings exit to a renderer goes through redactSettings — decrypted
+  // keys stay in main.
+  handleIpc(IPC.settings.get, () => redactSettings(getSettings()))
+  handleIpc(IPC.settings.set, (_e, input: unknown) => {
+    const patch = settingsPatchSchema.parse(input)
+    const next = redactSettings(setSettings(patch))
     // Keep the stealth/content-protection cache in sync with settings written
     // from the dashboard, otherwise the user has to toggle in the overlay too.
     if (Object.prototype.hasOwnProperty.call(patch, 'detectable')) {
@@ -596,9 +601,9 @@ app.whenReady().then(async () => {
     registerJobsWindow(chatWin)
   }
 
-  ipcMain.handle(IPC.cropper.open, () => openCropper())
-  ipcMain.handle(IPC.cropper.cancel, () => closeCropper())
-  ipcMain.handle(
+  handleIpc(IPC.cropper.open, () => openCropper())
+  handleIpc(IPC.cropper.cancel, () => closeCropper())
+  handleIpc(
     IPC.cropper.submit,
     (_e, rect: { x: number; y: number; w: number; h: number; dpr: number }) =>
       handleCropperSubmit(rect)

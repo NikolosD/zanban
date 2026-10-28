@@ -29,9 +29,9 @@ export function createOverlayWindow(): BrowserWindow {
     icon: getAppIcon(),
     backgroundColor: '#00000000',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: false
     }
   })

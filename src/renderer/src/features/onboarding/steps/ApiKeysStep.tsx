@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { cn } from '@renderer/lib/utils'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
+import { isRedactedSecret, isValidOllamaHost, redactedSecretMask } from '@shared/settingsBoundary'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
@@ -90,6 +91,8 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
     return init
   })
   const [saving, setSaving] = useState(false)
+  const hostInvalid =
+    llmField.settingsKey === 'ollamaHost' && !isValidOllamaHost(drafts.ollamaHost ?? '')
 
   function setDraft(key: keyof AppSettings, value: string): void {
     setDrafts((d) => ({ ...d, [key as string]: value }))
@@ -136,6 +139,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         labelKey={`onboarding.keys.llm.${llmField.i18n}.label`}
         hintKey={`onboarding.keys.llm.${llmField.i18n}.hint`}
         value={drafts[llmField.settingsKey] ?? ''}
+        invalid={hostInvalid}
         onChange={(v) => setDraft(llmField.settingsKey, v)}
       />
 
@@ -216,7 +220,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         <Button variant="ghost" onClick={goBack} disabled={saving}>
           {t('common.back')}
         </Button>
-        <Button onClick={() => void saveAndNext()} disabled={saving}>
+        <Button onClick={() => void saveAndNext()} disabled={saving || hostInvalid}>
           {saving ? t('common.saving') : t('common.next')}
         </Button>
       </StepFooter>
@@ -229,37 +233,60 @@ function KeyRow({
   labelKey,
   hintKey,
   value,
+  invalid,
   onChange
 }: {
   field: KeyField
   labelKey: string
   hintKey: string
   value: string
+  invalid?: boolean
   onChange: (v: string) => void
 }) {
   const { t } = useTranslation()
+  const id = useId()
+  const hintId = useId()
   const isTextarea = field.shape === 'textarea'
   const isSecret = !isTextarea && field.settingsKey !== 'ollamaHost'
+  // A stored key arrives redacted: show it as configured and let typing
+  // replace it. An untouched marker is written back on Next and main drops it.
+  const configured = isRedactedSecret(value)
+  const shown = configured ? '' : value
+  const placeholder = configured
+    ? t('settings.providers.key_configured', {
+        defaultValue: 'configured · {{mask}}',
+        mask: redactedSecretMask(value)
+      })
+    : field.placeholder
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[12px] text-foreground">{t(labelKey)}</label>
+      <label htmlFor={id} className="text-[12px] text-foreground">
+        {t(labelKey)}
+      </label>
       {isTextarea ? (
         <Textarea
-          value={value}
-          placeholder={field.placeholder}
+          id={id}
+          value={shown}
+          placeholder={placeholder}
+          aria-describedby={hintId}
           onChange={(e) => onChange(e.target.value)}
           className="font-mono text-[11px] min-h-[88px]"
         />
       ) : (
         <Input
+          id={id}
           type={isSecret ? 'password' : 'text'}
-          value={value}
-          placeholder={field.placeholder}
+          value={shown}
+          placeholder={placeholder}
+          aria-describedby={hintId}
+          aria-invalid={invalid}
           onChange={(e) => onChange(e.target.value)}
           className="font-mono text-[12px]"
         />
       )}
-      <div className="text-[11px] text-muted-foreground">{t(hintKey)}</div>
+      <div id={hintId} className="text-[11px] text-muted-foreground">
+        {t(hintKey)}
+      </div>
     </div>
   )
 }

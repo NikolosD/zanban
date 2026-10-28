@@ -23,8 +23,8 @@ export function createChatWindow(stealthOn = true): BrowserWindow {
     frame: process.platform !== 'darwin',
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: true,
       contextIsolation: true,
       // The chat window streams answers; without this Chromium throttles its
       // timers when the window is backgrounded and the stream stalls — same

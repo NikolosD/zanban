@@ -1,17 +1,19 @@
-import { ipcMain } from 'electron'
+import { z } from 'zod'
 import { IPC } from '../../shared/ipc-channels.js'
-import type { AiAskInput } from '../../shared/types.js'
 import { ask as aiAsk, stop as aiStop } from '../ai/aiGatewayClient.js'
 import { suggestFollowUps } from '../ai/llm/followUpLlm.js'
+import { handleIpc } from './guard.js'
+import { aiAskInputSchema, aiFollowUpsInputSchema } from './schemas.js'
 
 export function registerAiHandlers(): void {
-  ipcMain.handle(IPC.ai.ask, (_e, input: AiAskInput) => aiAsk(input))
+  handleIpc(IPC.ai.ask, (_e, input: unknown) => aiAsk(aiAskInputSchema.parse(input)))
   // Abort an in-flight ask() by id. Renderer's Stop button calls this; main
   // finalizes the partial answer cleanly (no error).
-  ipcMain.handle(IPC.ai.stop, (_e, requestId: string) => aiStop(requestId))
+  handleIpc(IPC.ai.stop, (_e, requestId: unknown) => aiStop(z.string().parse(requestId)))
   // Suggest up to 3 short follow-up questions for a completed Q+A turn. Used
   // for the clickable follow-up chips under a finished answer.
-  ipcMain.handle(IPC.ai.followUps, (_e, input: { question: string; answer: string }) =>
-    suggestFollowUps(input.question, input.answer)
-  )
+  handleIpc(IPC.ai.followUps, (_e, input: unknown) => {
+    const { question, answer } = aiFollowUpsInputSchema.parse(input)
+    return suggestFollowUps(question, answer)
+  })
 }

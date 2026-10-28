@@ -1,5 +1,3 @@
-import { createGateway } from '@ai-sdk/gateway'
-import { streamText } from 'ai'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
@@ -137,25 +135,61 @@ export interface AskOptions {
 }
 
 let windows: BrowserWindow[] = []
+// Answer text streamed while a window was hidden, per window and request. The
+// renderer builds an answer by appending its chunks, so a hidden window gets
+// what it missed as one chunk when it is shown or before the request ends.
+const heldChunks = new Map<BrowserWindow, Map<string, string>>()
 
 export function registerAiWindow(win: BrowserWindow): void {
   windows.push(win)
+  const flush = (): void => flushHeldChunks(win)
+  win.on('show', flush)
+  win.on('restore', flush)
   win.on('closed', () => {
     windows = windows.filter((w) => w !== win)
+    heldChunks.delete(win)
   })
 }
 
-function broadcast(channel: string, payload: unknown): void {
+function flushHeldChunks(win: BrowserWindow, onlyRequestId?: string): void {
+  const held = heldChunks.get(win)
+  if (!held) return
+  for (const [requestId, text] of held) {
+    if (onlyRequestId !== undefined && requestId !== onlyRequestId) continue
+    win.webContents.send(IPC.ai.chunk, { requestId, text })
+    held.delete(requestId)
+  }
+  if (held.size === 0) heldChunks.delete(win)
+}
+
+function broadcast<P extends { requestId: string }>(channel: string, payload: P): void {
   for (const w of windows) {
-    if (!w.isDestroyed()) w.webContents.send(channel, payload)
+    if (w.isDestroyed()) continue
+    flushHeldChunks(w, payload.requestId)
+    w.webContents.send(channel, payload)
   }
 }
 
-function gateway() {
+function broadcastChunk(requestId: string, text: string): void {
+  for (const w of windows) {
+    if (w.isDestroyed()) continue
+    if (w.isVisible() && !w.isMinimized()) {
+      flushHeldChunks(w, requestId)
+      w.webContents.send(IPC.ai.chunk, { requestId, text })
+      continue
+    }
+    const held = heldChunks.get(w) ?? new Map<string, string>()
+    held.set(requestId, (held.get(requestId) ?? '') + text)
+    heldChunks.set(w, held)
+  }
+}
+
+async function gateway() {
   const settings = getSettings()
   if (!settings.vercelApiKey) {
     throw new Error('Vercel AI Gateway key not configured. Open Settings.')
   }
+  const { createGateway } = await import('@ai-sdk/gateway')
   return createGateway({ apiKey: settings.vercelApiKey })
 }
 
@@ -259,6 +293,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // to load on first use).
       const searchQuery = retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
       const ragStrategy = activePersona?.ragStrategy
+      const liveCall = sessionManager.getState()
       const noRetrieval: RetrievalResult = { prompt: '', sources: [] }
       const retrievalTask =
         ragStrategy?.useRag === false || !searchQuery.trim()
@@ -266,7 +301,11 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           : raceTimeout(
               retrieve(searchQuery, {
                 topK: ragStrategy?.topK,
-                distanceThreshold: ragStrategy?.distanceThreshold
+                distanceThreshold: ragStrategy?.distanceThreshold,
+                // This call's recent chunks duplicate the transcript window below.
+                currentSessionId: liveCall.kind === 'running' ? liveCall.sessionId : undefined,
+                transcriptWindowStart:
+                  Date.now() - (opts.contextSeconds ?? settings.contextSeconds) * 1000
               }).catch((err: unknown) => {
                 console.warn('[ai] retrieval failed', err)
                 return noRetrieval
@@ -411,7 +450,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
               )
             } else {
               fullAnswer += ev.text
-              broadcast(IPC.ai.chunk, { requestId, text: ev.text })
+              broadcastChunk(requestId, ev.text)
             }
             next = await stream.next()
           }
@@ -464,7 +503,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           'No LLM provider configured. Set a provider key in Settings (Anthropic, OpenAI, Gemini, Groq, Ollama, or Vercel AI Gateway).'
         )
       }
-      const gw = gateway()
+      const gw = await gateway()
+      const { streamText } = await import('ai')
 
       const streamArgs = hasImage
         ? {
@@ -507,7 +547,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           if (part.type === 'text-delta') {
             if (part.text) {
               fullAnswer += part.text
-              broadcast(IPC.ai.chunk, { requestId, text: part.text })
+              broadcastChunk(requestId, part.text)
             }
           } else if (part.type === 'error') {
             throw part.error instanceof Error

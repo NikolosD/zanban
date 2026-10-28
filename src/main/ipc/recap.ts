@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { IPC } from '../../shared/ipc-channels.js'
 import { isValidSessionId, readSessionFromDisk } from '../sync/sessionSync.js'
@@ -7,6 +7,7 @@ import { generateRecap as llmGenerateRecap } from '../ai/llm/recapLlm.js'
 import { createRecapService, type RecapService } from '../services/recap/recapService.js'
 import type { RecapOptions } from '../services/recap/recapSchema.js'
 import { indexRecap, deleteRecap } from '../rag/index.js'
+import { handleIpc } from './guard.js'
 
 let service: RecapService | null = null
 let registered = false
@@ -57,22 +58,22 @@ export function registerRecapHandlers(): void {
   registered = true
   const svc = getRecapService()
 
-  ipcMain.handle(IPC.recap.generate, async (_e, sessionId: unknown, options?: unknown) => {
+  handleIpc(IPC.recap.generate, async (_e, sessionId: unknown, options?: unknown) => {
     if (!isValidSessionId(sessionId)) {
       return { ok: false, code: 'no_transcript', message: 'Invalid session id.' }
     }
     return svc.generate(sessionId, (options ?? {}) as RecapOptions)
   })
 
-  ipcMain.handle(IPC.recap.get, async (_e, sessionId: unknown) => {
+  handleIpc(IPC.recap.get, async (_e, sessionId: unknown) => {
     if (!isValidSessionId(sessionId)) return null
     return svc.get(sessionId)
   })
 
-  ipcMain.handle(IPC.recap.delete, async (_e, sessionId: unknown) => {
+  handleIpc(IPC.recap.delete, async (_e, sessionId: unknown) => {
     if (!isValidSessionId(sessionId)) return
     await svc.delete(sessionId)
   })
 
-  ipcMain.handle(IPC.recap.listActionItems, () => svc.listMyActionItems())
+  handleIpc(IPC.recap.listActionItems, () => svc.listMyActionItems())
 }

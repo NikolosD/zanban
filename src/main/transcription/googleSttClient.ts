@@ -1,4 +1,4 @@
-import { v2 } from '@google-cloud/speech'
+import type { v2 } from '@google-cloud/speech'
 import { randomUUID } from 'node:crypto'
 import type { Duplex } from 'node:stream'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
@@ -188,6 +188,8 @@ export class GoogleSttChannel {
     this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
 
     try {
+      const { v2 } = await import('@google-cloud/speech')
+      if (this.closed) return
       this.releaseClient()
       this.client = new v2.SpeechClient(clientOpts)
 

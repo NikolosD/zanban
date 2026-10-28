@@ -43,7 +43,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: { index: resolve('src/preload/index.ts') }
+        input: { index: resolve('src/preload/index.ts') },
+        // Sandboxed preloads run as classic scripts with a shimmed require(), so
+        // they must be a single CommonJS file.
+        output: { format: 'cjs', entryFileNames: '[name].cjs' }
       }
     }
   },
@@ -72,6 +75,9 @@ export default defineConfig({
         : [])
     ],
     build: {
+      // electron-vite leaves renderer bundles unminified by default, which roughly
+      // doubles what every window parses at startup.
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           dashboard: resolve('src/renderer/index.html'),

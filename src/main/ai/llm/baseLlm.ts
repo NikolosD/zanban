@@ -1,5 +1,3 @@
-import { createGateway } from '@ai-sdk/gateway'
-import { generateText } from 'ai'
 import type { AiRole } from '../../../shared/types.js'
 import { getSettings } from '../../settings.js'
 import { modelFor } from '../models.js'
@@ -16,11 +14,12 @@ export interface OneShotArgs {
   signal?: AbortSignal
 }
 
-function gateway() {
+async function gateway() {
   const settings = getSettings()
   if (!settings.vercelApiKey) {
     throw new Error('Vercel AI Gateway key not configured. Open Settings.')
   }
+  const { createGateway } = await import('@ai-sdk/gateway')
   return createGateway({ apiKey: settings.vercelApiKey })
 }
 
@@ -48,7 +47,8 @@ export async function generateOneShot(args: OneShotArgs): Promise<string> {
       signal: args.signal
     })
   }
-  const gw = gateway()
+  const gw = await gateway()
+  const { generateText } = await import('ai')
   const result = await generateText({
     model: gw(modelFor(args.role)),
     system: args.system,

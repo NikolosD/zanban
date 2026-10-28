@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Lock,
   RefreshCw,
@@ -12,12 +12,13 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { PROVIDER_FAST_MODELS } from '@shared/types'
+import { isValidOllamaHost } from '@shared/settingsBoundary'
 import { Textarea } from '@renderer/components/ui/textarea'
 import type { OllamaHealth as OllamaHealthType, ProviderTestResult } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
-import { ProviderCard, SecretKeyField } from './ProviderCard'
+import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
@@ -216,6 +217,7 @@ export function WebSearchCard({ settings, update }: Props) {
         </a>
       </div>
       <SecretKeyField
+        ariaLabel={t('settings.providers.tavily_title')}
         placeholder={t('settings.providers.tavily_placeholder')}
         value={settings.tavilyApiKey ?? ''}
         onChange={(v) => update('tavilyApiKey', v || null)}
@@ -476,6 +478,9 @@ function LlmCredentials({
   onRefreshOllama(): void
 }) {
   const { t } = useTranslation()
+  // Main rejects a malformed host, so only well-formed values (or empty) are
+  // pushed while the user is still typing one.
+  const [hostDraft, setHostDraft] = useState(settings.ollamaHost)
   const field = LLM_KEY_FIELDS[provider]
   if (field) {
     return (
@@ -497,9 +502,14 @@ function LlmCredentials({
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-1">
           <Input
-            value={settings.ollamaHost}
-            onChange={(e) => update('ollamaHost', e.target.value)}
+            value={hostDraft}
+            onChange={(e) => {
+              setHostDraft(e.target.value)
+              if (isValidOllamaHost(e.target.value)) update('ollamaHost', e.target.value)
+            }}
             placeholder={t('settings.providers.ollama_host_placeholder')}
+            aria-label={t('onboarding.keys.llm.ollama.label')}
+            aria-invalid={!isValidOllamaHost(hostDraft)}
             className="flex-1 font-mono text-xs"
           />
           <Button
@@ -568,6 +578,13 @@ function SttCredentials({
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
 }) {
   const { t } = useTranslation()
+  const projectIdId = useId()
+  const serviceAccountId = useId()
+  const serviceAccount = useSecretDraft(
+    settings.googleServiceAccountJson ?? '',
+    (v) => update('googleServiceAccountJson', v || null),
+    '{"type":"service_account",…}'
+  )
   const field = STT_KEY_FIELDS[provider]
   if (field) {
     return (
@@ -582,10 +599,14 @@ function SttCredentials({
     return (
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          <label
+            htmlFor={projectIdId}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+          >
             {t('settings.providers.google_project_id_label')}
           </label>
           <Input
+            id={projectIdId}
             value={settings.googleProjectId ?? ''}
             onChange={(e) => update('googleProjectId', e.target.value || null)}
             placeholder={t('settings.providers.google_project_id_placeholder')}
@@ -593,17 +614,21 @@ function SttCredentials({
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          <label
+            htmlFor={serviceAccountId}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+          >
             {t('settings.providers.google_service_account_label')}{' '}
             <span className="normal-case tracking-normal text-muted-foreground/60">
               {t('settings.providers.google_service_account_optional')}
             </span>
           </label>
           <Textarea
+            id={serviceAccountId}
             rows={4}
-            value={settings.googleServiceAccountJson ?? ''}
-            onChange={(e) => update('googleServiceAccountJson', e.target.value || null)}
-            placeholder='{"type":"service_account",…}'
+            value={serviceAccount.shown}
+            onChange={(e) => serviceAccount.edit(e.target.value)}
+            placeholder={serviceAccount.placeholder}
             className="font-mono text-[11px]"
           />
         </div>

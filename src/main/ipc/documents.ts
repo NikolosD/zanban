@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { stat } from 'node:fs/promises'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   addDoc as addReferenceDoc,
@@ -8,34 +8,42 @@ import {
 } from '../documents/referenceStore.js'
 import { exportSessionPdf } from '../documents/pdfExporter.js'
 import type { SessionExportPayload } from '../../shared/types.js'
+import { handleIpc } from './guard.js'
+import { documentPathSchema, MAX_DOCUMENT_BYTES } from './schemas.js'
 
 export function registerDocumentsHandlers(): void {
-  ipcMain.handle(IPC.documents.list, () => listReferenceDocs())
-  ipcMain.handle(IPC.documents.upload, async (_e, filePaths: string[]) => {
+  handleIpc(IPC.documents.list, () => listReferenceDocs())
+  handleIpc(IPC.documents.upload, async (_e, filePaths: unknown) => {
     if (!Array.isArray(filePaths)) return []
     const added = []
     for (const p of filePaths) {
-      if (typeof p !== 'string' || p.length === 0 || p.length > 4096) {
-        added.push({ error: 'invalid path', path: String(p) })
+      const parsed = documentPathSchema.safeParse(p)
+      if (!parsed.success) {
+        added.push({ error: parsed.error.issues[0]?.message ?? 'invalid path', path: String(p) })
         continue
       }
       try {
-        added.push(await addReferenceDoc(p))
+        const info = await stat(parsed.data)
+        if (!info.isFile() || info.size > MAX_DOCUMENT_BYTES) {
+          added.push({ error: 'not a regular file or larger than 50MB', path: parsed.data })
+          continue
+        }
+        added.push(await addReferenceDoc(parsed.data))
       } catch (err) {
-        added.push({ error: (err as Error).message, path: p })
+        added.push({ error: (err as Error).message, path: parsed.data })
       }
     }
     return added
   })
-  ipcMain.handle(IPC.documents.remove, (_e, id: string) => {
+  handleIpc(IPC.documents.remove, (_e, id: string) => {
     removeReferenceDoc(id)
     return listReferenceDocs()
   })
-  ipcMain.handle(IPC.documents.setActive, (_e, id: string, active: boolean) => {
+  handleIpc(IPC.documents.setActive, (_e, id: string, active: boolean) => {
     setReferenceDocActive(id, active)
     return listReferenceDocs()
   })
-  ipcMain.handle(IPC.documents.exportSessionPdf, (_e, payload: SessionExportPayload) =>
+  handleIpc(IPC.documents.exportSessionPdf, (_e, payload: SessionExportPayload) =>
     exportSessionPdf(payload)
   )
 }

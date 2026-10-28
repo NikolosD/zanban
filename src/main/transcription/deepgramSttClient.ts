@@ -1,4 +1,3 @@
-import { DeepgramClient } from '@deepgram/sdk'
 import { randomUUID } from 'node:crypto'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { LivenessWatchdog } from './livenessWatchdog.js'
@@ -148,6 +147,7 @@ export class DeepgramSttChannel {
     this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
 
     try {
+      const { DeepgramClient } = await import('@deepgram/sdk')
       const client = new DeepgramClient({ apiKey: this.opts.apiKey })
       const language = resolveLanguage(this.opts.language)
       // Nova-3 is the latest streaming model — multilingual, low-latency,
