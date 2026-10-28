@@ -2,7 +2,9 @@ import type { AudioChannel } from '@shared/types'
 import { VAD_HANGOVER_BATCHES } from '@shared/audio'
 import { attachAnalyser } from './level'
 
-const WORKLET_URL = '/audio/pcm-worklet.js'
+// Relative on purpose: packaged builds load pages over file://, where a
+// leading slash resolves to the drive root and addModule fails with AbortError.
+const WORKLET_URL = './audio/pcm-worklet.js'
 
 interface CaptureHandle {
   stop(): void

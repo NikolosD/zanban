@@ -31,7 +31,7 @@ export function DoneStep({ settings, complete, goBack }: StepProps) {
         </div>
       ) : (
         <div className="flex flex-col items-start gap-3">
-          <CheckCircle2 className="size-8 text-primary" />
+          <CheckCircle2 className="size-8 text-success" />
           <div>
             <h2 className="text-lg font-medium tracking-tight">{t('onboarding.done.title')}</h2>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">

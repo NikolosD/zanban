@@ -102,16 +102,18 @@ class TranscriptBuffer {
   private segments: TranscriptSegment[] = []
   private currentSessionId: string | null = null
   constructor() {
-    sessionManager.onSegment((seg) => {
-      // Discard buffered transcripts whenever the running session changes —
-      // otherwise the prompt we send to the model can contain segments from a
-      // previous call, which makes the assistant act like the conversation
-      // continues across sessions.
-      const state = sessionManager.getState()
-      if (state.kind === 'running' && state.sessionId !== this.currentSessionId) {
-        this.currentSessionId = state.sessionId
-        this.segments = []
-      }
+    // Discard buffered transcripts as soon as a session starts — otherwise the
+    // prompt we send to the model can contain segments from a previous call
+    // (an ask in the first seconds of a call, before anyone has spoken), which
+    // makes the assistant act like the conversation continues across sessions.
+    sessionManager.onState((state) => {
+      if (state.kind !== 'running') return
+      this.currentSessionId = state.sessionId
+      this.segments = []
+    })
+    sessionManager.onSegment((seg, sessionId) => {
+      // A straggler from the previous call landing after this one started.
+      if (sessionId !== this.currentSessionId) return
       this.segments.push(seg)
       if (this.segments.length > TRANSCRIPT_BUFFER_LIMIT) {
         this.segments = this.segments.slice(-TRANSCRIPT_BUFFER_LIMIT)

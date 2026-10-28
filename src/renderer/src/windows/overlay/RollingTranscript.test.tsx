@@ -66,7 +66,7 @@ describe('RollingTranscript', () => {
     expect(getByTestId('overlay-rolling-transcript')).toBeTruthy()
   })
 
-  it('renders BOTH mic and system finals (E1: two-channel)', () => {
+  it('shows only the latest line, from either channel', () => {
     makeRunning()
     useTranscript.setState({
       finals: [fSeg('m1', 'mic-line', 'mic'), fSeg('s1', 'system-line', 'system')]
@@ -74,10 +74,10 @@ describe('RollingTranscript', () => {
     const { getByTestId } = render(<RollingTranscript />)
     const el = getByTestId('overlay-rolling-transcript')
     expect(el.textContent).toContain('system-line')
-    expect(el.textContent).toContain('mic-line')
+    expect(el.textContent).not.toContain('mic-line')
   })
 
-  it('appends the live (interim) partial with a cursor', () => {
+  it('shows the live partial as the latest line, without a typing cursor', () => {
     makeRunning()
     useTranscript.setState({
       finals: [fSeg('s1', 'final-text', 'system')],
@@ -85,12 +85,12 @@ describe('RollingTranscript', () => {
     })
     const { getByTestId } = render(<RollingTranscript />)
     const el = getByTestId('overlay-rolling-transcript')
-    expect(el.textContent).toContain('final-text')
     expect(el.textContent).toContain('draft-text')
-    expect(el.textContent).toContain('▍')
+    expect(el.textContent).not.toContain('final-text')
+    expect(el.textContent).not.toContain('▍')
   })
 
-  it('renders per-channel capture-health dots', () => {
+  it('shows a health dot only for a channel with a capture error', () => {
     makeRunning()
     useTranscript.setState({
       status: {
@@ -99,20 +99,18 @@ describe('RollingTranscript', () => {
       }
     })
     const { container } = render(<RollingTranscript />)
-    const micDot = container.querySelector('[data-channel="mic"]')
+    expect(container.querySelector('[data-channel="mic"]')).toBeNull()
     const sysDot = container.querySelector('[data-channel="system"]')
-    expect(micDot).toBeTruthy()
     expect(sysDot?.getAttribute('data-state')).toBe('error')
   })
 
-  it('marks a channel as speaking right after a final lands', () => {
+  it('shows no health dots while capture is healthy and speech flows', () => {
     makeRunning()
     useTranscript.setState({
       finals: [fSeg('s1', 'hello', 'system')],
       status: { mic: null, system: { kind: 'open', channel: 'system' } }
     })
     const { container } = render(<RollingTranscript />)
-    const sysDot = container.querySelector('[data-channel="system"]')
-    expect(sysDot?.getAttribute('data-state')).toBe('speaking')
+    expect(container.querySelector('[data-channel]')).toBeNull()
   })
 })

@@ -6,8 +6,10 @@ import {
   RealtimeEvents,
   type RealtimeConnection
 } from '@elevenlabs/elevenlabs-js'
+import type WebSocket from 'ws'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { pcm16ToBase64 } from './pcmUtils.js'
+import { LivenessWatchdog } from './livenessWatchdog.js'
 
 export interface ElevenLabsSttOptions {
   apiKey: string
@@ -35,6 +37,7 @@ export class ElevenLabsSttChannel {
   private retries = 0
   private retryTimer: NodeJS.Timeout | null = null
   private reconnectScheduled = false
+  private watchdog: LivenessWatchdog | null = null
   // Audio that arrived before the socket finished opening — replayed on open
   // so the first words of speech aren't swallowed during connect/reconnect.
   private pending: Int16Array[] = []
@@ -68,23 +71,37 @@ export class ElevenLabsSttChannel {
 
   close(): void {
     this.closed = true
-    this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
     this.reconnectScheduled = false
+    this.dropConnection()
+    this.pending = []
+    this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+  }
+
+  private dropConnection(): void {
+    const conn = this.connection
+    this.connection = null
+    this.ready = false
+    this.watchdog?.stop()
+    this.watchdog = null
     try {
-      this.connection?.close()
+      conn?.close()
     } catch {
       /* ignore */
     }
-    this.connection = null
-    this.pending = []
-    this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+  }
+
+  private restart(): void {
+    this.dropConnection()
+    this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
+    this.scheduleReconnect()
   }
 
   private pushAudio(samples: Int16Array): void {
     try {
       this.connection?.send({ audioBase64: pcm16ToBase64(samples) })
+      this.watchdog?.noteSent()
     } catch (err) {
       console.warn(`[elevenlabs:${this.opts.channel}] send failed`, err)
     }
@@ -114,24 +131,44 @@ export class ElevenLabsSttChannel {
       console.log(`[elevenlabs:${this.opts.channel}] open (model=${MODEL_ID})`)
       this.opts.onStatus({ kind: 'open', channel: this.opts.channel })
 
+      // Server VAD sends nothing while the line is quiet, so pongs are what
+      // tell a silent stretch apart from a dead socket. The SDK keeps its ws
+      // socket private, hence the reach-in.
+      const socket = (conn as unknown as { websocket: WebSocket | null }).websocket
+      socket?.on('pong', () => {
+        if (this.connection === conn) this.watchdog?.noteHeard()
+      })
+      this.watchdog = new LivenessWatchdog(
+        () => {
+          console.warn(`[elevenlabs:${this.opts.channel}] server stopped answering — reconnecting`)
+          this.restart()
+        },
+        () => socket?.ping()
+      )
+      this.watchdog.start()
+
       conn.on(RealtimeEvents.PARTIAL_TRANSCRIPT, (msg) => {
+        if (this.connection === conn) this.watchdog?.noteHeard()
         this.emit(msg.text, false)
       })
       conn.on(RealtimeEvents.COMMITTED_TRANSCRIPT, (msg) => {
+        if (this.connection === conn) this.watchdog?.noteHeard()
         this.emit(msg.text, true)
         this.committedMs = this.offsetMs
       })
       conn.on(RealtimeEvents.ERROR, (err) => {
+        if (this.connection !== conn) return
         const message = err instanceof Error ? err.message : (err?.error ?? 'unknown error')
         console.error(`[elevenlabs:${this.opts.channel}] error`, message)
         this.opts.onStatus({ kind: 'error', channel: this.opts.channel, message })
-        this.ready = false
-        if (!this.closed) this.scheduleReconnect()
+        this.dropConnection()
+        this.scheduleReconnect()
       })
       conn.on(RealtimeEvents.CLOSE, () => {
+        if (this.connection !== conn) return
         console.log(`[elevenlabs:${this.opts.channel}] closed`)
-        this.ready = false
-        if (!this.closed) this.scheduleReconnect()
+        // A mid-session drop is a reconnect in progress, not an idle channel.
+        this.restart()
       })
 
       // Replay audio buffered while the socket was opening.

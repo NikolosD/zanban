@@ -1,5 +1,8 @@
-import { startMic, startSystem } from './micCapture'
 import type { AppSettings } from '@shared/types'
+import { startMic, startSystem } from './micCapture'
+import { watchMicSilence } from './level'
+
+const MIC_SILENCE_MS = 6_000
 
 interface Handle {
   stop(): void
@@ -19,21 +22,7 @@ let lastArgs: StartArgs | null = null
 // stopped compares generations and releases its device instead of leaking it.
 let generation = 0
 let healing = false
-
-export interface CaptureNotice {
-  kind: 'mic-healed' | 'mic-lost'
-  message: string
-}
-const noticeListeners = new Set<(n: CaptureNotice) => void>()
-
-/** Subscribe to capture-health notices (e.g. mic auto-heal). Returns an unsubscribe. */
-export function onCaptureNotice(cb: (n: CaptureNotice) => void): () => void {
-  noticeListeners.add(cb)
-  return () => noticeListeners.delete(cb)
-}
-function emitNotice(n: CaptureNotice): void {
-  for (const cb of noticeListeners) cb(n)
-}
+let cancelSilenceWatch: (() => void) | null = null
 
 export async function startCaptures(args: StartArgs): Promise<void> {
   if (lastArgs) return
@@ -46,6 +35,9 @@ export async function startCaptures(args: StartArgs): Promise<void> {
       return
     }
     mic = startedMic
+    cancelSilenceWatch = watchMicSilence(MIC_SILENCE_MS, () => {
+      window.zanban.audio.reportNotice({ kind: 'mic-silent' })
+    })
     if (args.systemEnabled) {
       // No VAD on the system channel — see startCapturesFromSettings comment.
       const startedSystem = await startSystem(undefined)
@@ -54,6 +46,8 @@ export async function startCaptures(args: StartArgs): Promise<void> {
         return
       }
       system = startedSystem
+      // Otherwise the call silently runs without the other side's audio.
+      if (!startedSystem) window.zanban.audio.reportNotice({ kind: 'system-unavailable' })
     }
   } catch (err) {
     if (gen === generation) stopCaptures()
@@ -63,6 +57,8 @@ export async function startCaptures(args: StartArgs): Promise<void> {
 
 export function stopCaptures(): void {
   generation++
+  cancelSilenceWatch?.()
+  cancelSilenceWatch = null
   mic?.stop()
   system?.stop()
   mic = null
@@ -109,13 +105,10 @@ async function healMic(args: StartArgs, wantedId: string, gen: number): Promise<
     mic = healed
     // Now on the default device — later device changes have nothing to heal.
     lastArgs = { ...args, micDeviceId: null }
-    emitNotice({
-      kind: 'mic-healed',
-      message: 'Микрофон отключён — переключился на устройство по умолчанию'
-    })
+    window.zanban.audio.reportNotice({ kind: 'mic-healed' })
   } catch (err) {
     console.warn('[audio] mic auto-heal failed', err)
-    emitNotice({ kind: 'mic-lost', message: 'Микрофон отключён, переподключиться не удалось' })
+    window.zanban.audio.reportNotice({ kind: 'mic-lost' })
   }
 }
 

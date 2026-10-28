@@ -51,7 +51,8 @@ export const IPC = {
     state: 'session:state'
   },
   audio: {
-    chunk: 'audio:chunk'
+    chunk: 'audio:chunk',
+    notice: 'audio:notice'
   },
   transcription: {
     segment: 'transcription:segment',

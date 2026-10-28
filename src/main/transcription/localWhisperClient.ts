@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type {
-  AudioChannel,
-  TranscriptSegment,
-  TranscriptionStatus
-} from '../../shared/types.js'
+import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { trackJob } from '../services/jobsManager.js'
 
 export interface LocalWhisperOptions {
@@ -93,20 +89,24 @@ export class LocalWhisperSttChannel {
   }
 
   close(): void {
-    this.closed = true
     if (this.buf.length > SAMPLE_RATE / 2) {
       // Flush tail (>500 ms) so the last words aren't lost on Stop.
       void this.recognize(this.buf)
     }
     this.buf = new Float32Array(0)
+    this.closed = true
     this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
   }
 
+  // Runs to completion even after close(): in-flight batches and the tail flush
+  // carry the last words of the call, and the session manager files them under
+  // the session they were captured in.
   private async recognize(samples: Float32Array): Promise<void> {
-    const asr = await getAsr()
-    if (!asr || this.closed) return
     const startMs = this.offsetMs
     this.offsetMs += Math.round((samples.length / SAMPLE_RATE) * 1000)
+    const endMs = this.offsetMs
+    const asr = await getAsr()
+    if (!asr) return
     try {
       await trackJob(
         `whisper-local-${randomUUID()}`,
@@ -125,7 +125,7 @@ export class LocalWhisperSttChannel {
             channel: this.opts.channel,
             speaker: this.opts.channel === 'mic' ? 0 : 1,
             startMs,
-            endMs: this.offsetMs,
+            endMs,
             text,
             isFinal: true,
             createdAt: Date.now()

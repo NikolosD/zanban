@@ -58,6 +58,11 @@ function resolveLanguageCodes(lang: string): string[] {
 const STT_LOCATION = 'eu'
 const STT_MODEL = 'chirp_3'
 
+// A stream that stays up this long got past config and auth (those reject
+// within a second or two), so its reconnect budget is restored. Without this a
+// silent channel spends one retry per Google idle/duration timeout and dies.
+const HEALTHY_STREAM_MS = 5_000
+
 interface RecognizeResult {
   isFinal?: boolean | null
   resultEndOffset?: { seconds?: number | string | null; nanos?: number | null } | null
@@ -72,6 +77,7 @@ export class GoogleSttChannel {
   private ready = false
   private retries = 0
   private retryTimer: NodeJS.Timeout | null = null
+  private healthyTimer: NodeJS.Timeout | null = null
   private reconnectScheduled = false
   private droppedCount = 0
   private sentCount = 0
@@ -107,7 +113,6 @@ export class GoogleSttChannel {
 
   close(): void {
     this.closed = true
-    this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
     this.reconnectScheduled = false
@@ -116,8 +121,23 @@ export class GoogleSttChannel {
     } catch {
       /* ignore */
     }
+    this.dropStream()
+    this.releaseClient()
+  }
+
+  private dropStream(): void {
     this.stream = null
+    this.ready = false
+    if (this.healthyTimer) clearTimeout(this.healthyTimer)
+    this.healthyTimer = null
+  }
+
+  // Each SpeechClient owns a gRPC channel that leaks unless closed. Calls
+  // already in flight survive the close, so a stream's tail results still land.
+  private releaseClient(): void {
+    const client = this.client
     this.client = null
+    void client?.close().catch(() => {})
   }
 
   private async connect(): Promise<void> {
@@ -168,6 +188,7 @@ export class GoogleSttChannel {
     this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
 
     try {
+      this.releaseClient()
       this.client = new v2.SpeechClient(clientOpts)
 
       const languageCodes = resolveLanguageCodes(this.opts.language)
@@ -180,6 +201,7 @@ export class GoogleSttChannel {
       this.stream = stream
 
       stream.on('error', (err: Error) => {
+        if (this.stream !== stream) return
         const details = err as unknown as {
           details?: unknown
           statusDetails?: unknown
@@ -201,18 +223,18 @@ export class GoogleSttChannel {
         // "Stream timed out after receiving no more client requests" — that's
         // expected, not a user-facing failure. Same for typical transient
         // network blips that scheduleReconnect handles automatically. We
-        // downgrade these to `closed` so the overlay's transcription-error
-        // banner doesn't flash every five minutes; the next `open` event
-        // restores the running state. Real failures (auth, project mis-config,
-        // exhausted retries) still surface through `kind: 'error'` from the
-        // other code paths in this client.
+        // report these as `connecting` (a reconnect is already on its way) so
+        // the overlay's transcription-error banner doesn't flash every five
+        // minutes; the next `open` event restores the running state. Real
+        // failures (auth, project mis-config, exhausted retries) still surface
+        // through `kind: 'error'`.
         const isTransient =
           /Stream timed out/i.test(err.message) ||
           /ABORTED/i.test(err.message) ||
           /UNAVAILABLE/i.test(err.message) ||
           /CANCELLED/i.test(err.message)
-        if (isTransient && !this.closed) {
-          this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+        if (isTransient) {
+          this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
         } else {
           this.opts.onStatus({
             kind: 'error',
@@ -220,15 +242,17 @@ export class GoogleSttChannel {
             message: err.message
           })
         }
-        this.ready = false
-        if (!this.closed) this.scheduleReconnect()
+        this.dropStream()
+        this.scheduleReconnect()
       })
 
       stream.on('end', () => {
+        if (this.stream !== stream) return
         console.log(`[google-stt:${this.opts.channel}] stream ended`)
-        this.ready = false
-        this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
-        if (!this.closed) this.scheduleReconnect()
+        this.dropStream()
+        // A mid-session end is a reconnect in progress, not an idle channel.
+        this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
+        this.scheduleReconnect()
       })
 
       stream.on('data', (response: { results?: RecognizeResult[] | null }) => {
@@ -284,6 +308,9 @@ export class GoogleSttChannel {
       })
 
       this.ready = true
+      this.healthyTimer = setTimeout(() => {
+        this.retries = 0
+      }, HEALTHY_STREAM_MS)
       const authMode = this.opts.serviceAccountJson?.trim() ? 'service-account' : 'ADC'
       console.log(
         `[google-stt:${this.opts.channel}] stream open (auth=${authMode}, location=${STT_LOCATION}, languageCodes=${languageCodes.join(',')}, model=${STT_MODEL})`

@@ -6,7 +6,7 @@ import type { TranscriptSegment } from '../../shared/types.js'
 // persona store at import time — stub them so only the pure helpers run.
 vi.mock('../settings.js', () => ({ getSettings: () => ({}) }))
 vi.mock('../transcription/sessionManager.js', () => ({
-  sessionManager: { onSegment: () => {}, getState: () => ({ kind: 'idle' }) }
+  sessionManager: { onSegment: () => {}, onState: () => {}, getState: () => ({ kind: 'idle' }) }
 }))
 vi.mock('../rag/index.js', () => ({ retrieve: async () => ({ prompt: '', sources: [] }) }))
 vi.mock('../providers/registry.js', () => ({

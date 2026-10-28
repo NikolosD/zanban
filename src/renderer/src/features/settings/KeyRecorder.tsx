@@ -79,13 +79,13 @@ export function KeyRecorder({
         className={cn(
           'inline-flex min-h-[32px] flex-1 items-center gap-1.5 rounded-md border px-2.5 py-1 text-left transition-colors',
           recording
-            ? 'border-primary/60 bg-primary/10 text-foreground'
+            ? 'border-signal/60 bg-signal/10 text-foreground'
             : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
         )}
       >
         {recording ? (
-          <span className="flex items-center gap-2 font-mono text-[11px] text-primary">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+          <span className="flex items-center gap-2 font-mono text-[11px] text-signal">
+            <span className="size-1.5 animate-pulse rounded-full bg-signal" />
             press keys… (Esc cancel · ⌫ clear)
           </span>
         ) : segments.length > 0 ? (

@@ -136,7 +136,7 @@ export function PersonasTab({ settings, update }: Props) {
               key={p.id}
               className={cn(
                 'rounded-md border bg-white/[0.02]',
-                active ? 'border-emerald-400/40' : 'border-white/[0.06]'
+                active ? 'border-primary/40' : 'border-white/[0.06]'
               )}
             >
               <button
@@ -157,7 +157,7 @@ export function PersonasTab({ settings, update }: Props) {
                     {p.systemPrompt.slice(0, 80) || t('settings.personas.empty_prompt_placeholder')}
                   </div>
                 </div>
-                {active && <Check className="size-4 text-emerald-400" />}
+                {active && <Check className="size-4 text-success" />}
               </button>
               {editing && (
                 <PersonaEditor

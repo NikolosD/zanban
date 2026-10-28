@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Trash2
 } from 'lucide-react'
+import type { CaptureNoticeKind } from '@shared/types'
 import { SessionDetail } from '@renderer/features/sessions/SessionDetail'
 import { GlobalActionItems } from '@renderer/features/sessions/GlobalActionItems'
 import { Wordmark } from '@renderer/components/brand'
@@ -33,11 +34,7 @@ import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/
 import { wireAiIpc } from '@renderer/features/ai/store'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import { missingProviderNames } from '@renderer/features/settings/providerStatus'
-import {
-  stopCaptures,
-  wireCaptureAutostop,
-  onCaptureNotice
-} from '@renderer/audio/captureController'
+import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import {
   resumeSession,
   startSessionWithCapture,
@@ -69,6 +66,13 @@ type SessionListItem = {
   startedAt: number
   endedAt?: number | null
   durationMs?: number | null
+}
+
+const CAPTURE_NOTICE_TOASTS: Record<CaptureNoticeKind, { key: string; error: boolean }> = {
+  'mic-lost': { key: 'capture.mic_lost', error: true },
+  'mic-healed': { key: 'capture.mic_healed', error: false },
+  'mic-silent': { key: 'capture.mic_silent', error: false },
+  'system-unavailable': { key: 'capture.system_unavailable', error: true }
 }
 
 export function DashboardApp() {
@@ -514,7 +518,7 @@ function SearchPill({
                 {/* RAG-hit row: leading vertical accent line stands in for the
                     icon. Keeps the result list quiet so the bottom Ask CTA is
                     the only sparkle on the panel. */}
-                <span className="mt-1 h-3 w-px shrink-0 bg-accent/60" />
+                <span className="mt-1 h-3 w-px shrink-0 bg-border" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[12px] text-muted-foreground">
                     {hit.kind === 'rag' ? hit.snippet : ''}
@@ -542,7 +546,7 @@ function SearchPill({
               highlight === matches.length ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
             )}
           >
-            <Sparkles className="size-3.5 shrink-0 text-primary" />
+            <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
             <div className="flex-1 truncate text-sm">
               {text ? (
                 <>
@@ -583,21 +587,26 @@ function useSessionControl(onOpenSettings: () => void): SessionControl {
 
   useEffect(() => {
     const off = wireCaptureAutostop()
-    const offNotice = onCaptureNotice((n) => {
-      if (n.kind === 'mic-healed') toast.warning(n.message)
-      else toast.error(n.message)
-    })
     // Tray "Start/Stop session" routes here so the renderer's capture pipeline
     // (mic/system audio) runs — the main process can't capture audio itself.
     const offStart = window.zanban.dashboard.onRequestStartSession(() => startRef.current())
     const offStop = window.zanban.dashboard.onRequestStopSession(() => stopRef.current())
     return () => {
       off()
-      offNotice()
       offStart()
       offStop()
     }
   }, [])
+
+  useEffect(
+    () =>
+      window.zanban.audio.onNotice(({ kind }) => {
+        const { key, error } = CAPTURE_NOTICE_TOASTS[kind]
+        if (error) toast.error(t(key))
+        else toast.warning(t(key))
+      }),
+    [t]
+  )
 
   async function start(): Promise<void> {
     setBusy(true)
@@ -651,13 +660,7 @@ function SessionStartButton({ session }: { session: SessionControl }) {
       variant={running ? 'destructive' : 'default'}
       className={cn(
         'shrink-0 gap-2 rounded-full px-4 text-[12px] font-medium',
-        // Idle: coral (signal) — this is the one primary action of the dashboard.
-        // Soft halo signals "press me" without competing with the recording chip
-        // since the recording chip lives in the overlay, not here.
-        !running && [
-          'bg-primary text-primary-foreground hover:bg-primary/90',
-          'shadow-[0_0_0_4px_oklch(0.72_0.18_25/0.12)]'
-        ]
+        !running && 'bg-primary text-primary-foreground hover:bg-primary/90'
       )}
     >
       {busy ? (
@@ -802,7 +805,7 @@ function MeetingRow({
             titles align across rows whether or not a row is recording. */}
         <span className="flex w-2.5 shrink-0 items-center justify-center">
           {isLive && (
-            <span className="size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
+            <span className="size-1.5 rounded-full bg-signal motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
           )}
         </span>
         <button

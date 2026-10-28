@@ -11,7 +11,7 @@ type Database = {
     all<T = unknown>(...params: unknown[]): T[]
   }
   close(): void
-  pragma(s: string): unknown
+  pragma(s: string, opts?: { simple?: boolean }): unknown
 }
 
 let dbInstance: Database | null = null
@@ -54,7 +54,9 @@ function readMeta(db: Database): RagMeta | null {
   // dim/model live in the rag_meta key/value table. A DB created before either
   // existed reports user_version 0 and has no meta rows → treated as a fresh
   // legacy store that needs the schema-version rebuild path.
-  const userVersion = Number(db.pragma('user_version') ?? 0)
+  // `simple` returns the bare value; the default row array made this NaN, which
+  // read as a schema mismatch and wiped the index on every launch.
+  const userVersion = Number(db.pragma('user_version', { simple: true }) ?? 0)
   if (userVersion === 0) return null
   const rows = db.prepare('SELECT key, value FROM rag_meta').all<{ key: string; value: string }>()
   const map = new Map(rows.map((r) => [r.key, r.value]))

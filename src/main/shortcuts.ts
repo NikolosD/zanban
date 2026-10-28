@@ -2,6 +2,7 @@ import { globalShortcut } from 'electron'
 import { getSettings } from './settings.js'
 
 export interface ShortcutHandlers {
+  onToggleSession(): void
   onToggleOverlay(): void
   onAskAi(): void
   onAnswerLast(): void
@@ -31,6 +32,7 @@ export function registerShortcuts(handlers: ShortcutHandlers): ShortcutRegistrat
   unregisterShortcuts()
   const { hotkeys } = getSettings()
   const tries: Array<[keyof AppHotkeys, string | undefined, () => void]> = [
+    ['toggleSession', hotkeys.toggleSession, handlers.onToggleSession],
     ['toggleOverlay', hotkeys.toggleOverlay, handlers.onToggleOverlay],
     ['askAi', hotkeys.askAi, handlers.onAskAi],
     ['answerLast', hotkeys.answerLast, handlers.onAnswerLast],

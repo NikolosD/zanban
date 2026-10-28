@@ -13,7 +13,7 @@ export interface ProviderCardProps {
   name: string
   /** Short subtitle shown under the name. */
   description: string
-  /** Active provider — drawn with sage ring + "active" tag. */
+  /** Active provider — drawn with a stronger border + sage "active" tag. */
   active: boolean
   /** "recommended" or "experimental" or null. */
   badge?: 'recommended' | 'experimental' | 'local' | null
@@ -30,7 +30,7 @@ export interface ProviderCardProps {
 }
 
 const BADGE_STYLES: Record<NonNullable<ProviderCardProps['badge']>, string> = {
-  recommended: 'bg-accent/10 text-accent border-accent/30',
+  recommended: 'bg-success/10 text-success border-success/30',
   experimental: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
   local: 'bg-white/5 text-muted-foreground border-white/10'
 }
@@ -38,7 +38,7 @@ const BADGE_STYLES: Record<NonNullable<ProviderCardProps['badge']>, string> = {
 /**
  * Natively-style provider card. All cards stack vertically, each one shows
  * the provider name, a short blurb, a "get key →" link and (when active)
- * the inline credential editor + a sage check.
+ * the inline credential editor + a sage "active" tag.
  *
  * The whole card is a button that activates the provider — clicking inside
  * the children (input fields) doesn't bubble (we stop propagation on click).
@@ -60,7 +60,7 @@ export function ProviderCard({
         'relative flex flex-col gap-3 rounded-xl border bg-white/[0.02] px-4 py-4',
         'transition-colors',
         active
-          ? 'border-accent/40 bg-accent/[0.04] shadow-[0_0_0_1px_oklch(0.78_0.13_145/0.20)_inset]'
+          ? 'border-primary/40 bg-white/[0.05]'
           : 'border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]'
       )}
     >
@@ -84,7 +84,7 @@ export function ProviderCard({
               </span>
             )}
             {active && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] leading-none text-accent">
+              <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] leading-none text-success">
                 <Check className="size-2.5" />
                 {t('settings.providers.active_badge')}
               </span>

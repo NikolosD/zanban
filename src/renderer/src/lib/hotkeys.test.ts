@@ -8,6 +8,7 @@ describe('hotkeyLabel', () => {
     // in UI" — the bug that surfaced when showDashboard was missing from the
     // old switch.
     const ids = [
+      'toggleSession',
       'toggleOverlay',
       'askAi',
       'answerLast',
@@ -32,6 +33,7 @@ describe('hotkeyLabel', () => {
 describe('hotkeyHint', () => {
   it('returns a non-empty hint for every known hotkey id', () => {
     const ids = [
+      'toggleSession',
       'toggleOverlay',
       'askAi',
       'answerLast',
