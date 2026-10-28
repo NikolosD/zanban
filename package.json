@@ -25,7 +25,7 @@
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
     "release": "electron-vite build && electron-builder --publish always",
-    "postinstall": "electron-rebuild -f -w better-sqlite3 && node scripts/ensure-sqlite-vec.cjs",
+    "postinstall": "node scripts/ensure-sqlite-vec.cjs",
     "prepare": "husky"
   },
   "dependencies": {
@@ -37,10 +37,10 @@
     "@google/genai": "^1.51.0",
     "@xenova/transformers": "^2.17.2",
     "ai": "^6.0.0",
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "^13.0.3",
     "dotenv": "^16.4.7",
     "electron-store": "^10.0.0",
-    "electron-updater": "^6.3.9",
+    "electron-updater": "^6.8.12",
     "groq-sdk": "^1.1.2",
     "mammoth": "^1.12.0",
     "openai": "^6.35.0",
@@ -52,21 +52,21 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "electron",
       "esbuild",
-      "better-sqlite3",
       "sharp",
       "@img/sharp-win32-x64",
       "@img/sharp-darwin-x64",
       "@img/sharp-darwin-arm64",
       "@img/sharp-linux-x64"
     ],
+    "ignoredBuiltDependencies": [
+      "better-sqlite3"
+    ],
     "overrides": {
       "sharp": "^0.34.5"
     }
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.0.0",
     "@tanstack/react-query": "^5.62.0",
@@ -81,8 +81,8 @@
     "@vitejs/plugin-react": "^4.3.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^44.10.0",
+    "electron-builder": "^26.18.1",
     "electron-vite": "^3.0.0",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",

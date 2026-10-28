@@ -3,9 +3,18 @@ productName: Zanban
 directories:
   buildResources: resources
   output: release/${version}
-# We rebuild better-sqlite3 via the postinstall hook (electron-rebuild), so
-# disable electron-builder's own npmRebuild step to avoid double work.
+# better-sqlite3 ships Node-API prebuilds that load in any Electron, and its
+# binding.gyp would otherwise make the rebuild step demand a C++ toolchain.
 npmRebuild: false
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  # grantFileProtocolExtraPrivileges stays on: packaged renderer pages and the
+  # audio worklet load over file://.
 files:
   - out/**
   - resources/**
@@ -25,9 +34,10 @@ files:
   # the .wasm.js copies inline the binary for browsers. Keep every .js/.wasm
   # pair: tesseract.js 7 ignores OEM 1 and picks a non-LSTM core in Node.
   - '!**/node_modules/tesseract.js-core/*.wasm.js'
-  # Native binding is build/Release/better_sqlite3.node; deps/ and src/ are C sources.
+  # better-sqlite3 loads prebuilds/<platform>-<arch>.node; deps/ and src/ are C sources.
   - '!**/node_modules/better-sqlite3/{deps,src}/**'
   - '!**/node_modules/better-sqlite3/binding.gyp'
+  - '!**/node_modules/better-sqlite3/prebuilds/!(${platform}-${arch}.node)'
   # dist/ is a byte-identical copy of the package root build.
   - '!**/node_modules/@elevenlabs/elevenlabs-js/{dist,assets,scripts}/**'
 asarUnpack:
