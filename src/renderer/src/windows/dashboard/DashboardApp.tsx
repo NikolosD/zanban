@@ -6,7 +6,6 @@ import {
   Mic,
   Square,
   Loader2,
-  Play,
   MoreHorizontal,
   Download,
   FolderOpen,
@@ -15,6 +14,7 @@ import {
 import type { CaptureNoticeKind } from '@shared/types'
 import { SessionDetail } from '@renderer/features/sessions/SessionDetail'
 import { GlobalActionItems } from '@renderer/features/sessions/GlobalActionItems'
+import { isActionItemChecked } from '@renderer/features/sessions/actionItemState'
 import { Wordmark } from '@renderer/components/brand'
 import {
   DropdownMenu,
@@ -60,7 +60,7 @@ import { queryKeys } from '@renderer/lib/queryKeys'
 import {
   formatDuration,
   formatFallbackTitle,
-  formatTime,
+  formatRowStamp,
   groupByDay
 } from '@renderer/lib/dateFormat'
 
@@ -89,6 +89,7 @@ export function DashboardApp() {
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('general')
   const [askKey, setAskKey] = useState(0)
   const [onboardingOpen, setOnboardingOpen] = useState(false)
+  const [searchFocusKey, setSearchFocusKey] = useState(0)
   const settings = useSettingsStore((s) => s.settings)
   const queryClient = useQueryClient()
 
@@ -100,7 +101,7 @@ export function DashboardApp() {
   // Lives at the root, not in the header button, so capture auto-stop and the
   // tray Start/Stop listeners stay mounted while a past meeting is open. Start
   // failures that need credentials are STT keys, which sit on the Audio tab.
-  const sessionControl = useSessionControl(() => openSettings('audio'))
+  const sessionControl = useSessionControl(() => openSettings('keys'))
 
   // Open the wizard when settings load and `onboardingCompleted` is still
   // false. We don't reset on subsequent loads — the user can dismiss it and
@@ -130,8 +131,9 @@ export function DashboardApp() {
     })
     // Any recap write (manual, or the auto-recap after a session stops) can
     // add or drop "owner: you" action items.
-    const offRecap = window.zanban.recap.onUpdated(() => {
+    const offRecap = window.zanban.recap.onUpdated((sessionId) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.globalActionItems })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recap(sessionId) })
     })
     // Tray "Settings" opens the dashboard then asks us to surface the dialog.
     const offOpenSettings = window.zanban.dashboard.onOpenSettings(() => {
@@ -168,6 +170,29 @@ export function DashboardApp() {
     }
   }, [queryClient])
 
+  // Ctrl/Cmd+K and "/" jump to the search from anywhere; Esc backs out of a
+  // session. Keys typed into a field or an open dialog/menu stay theirs.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.defaultPrevented) return
+      const target = e.target instanceof HTMLElement ? e.target : null
+      if (target?.closest('[role="dialog"], [role="menu"]')) return
+      const editable =
+        !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      const modK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'
+      const slash = e.key === '/' && !editable && !e.ctrlKey && !e.metaKey && !e.altKey
+      if (modK || slash) {
+        e.preventDefault()
+        setSelected(null)
+        setSearchFocusKey((k) => k + 1)
+      } else if (e.key === 'Escape' && !editable) {
+        setSelected(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {selected ? (
@@ -175,7 +200,7 @@ export function DashboardApp() {
           <SessionDetail
             sessionId={selected}
             onBack={() => setSelected(null)}
-            onOpenSettings={() => openSettings('audio')}
+            onOpenSettings={() => openSettings('keys')}
           />
         </main>
       ) : (
@@ -183,6 +208,7 @@ export function DashboardApp() {
           <Header
             version={version}
             session={sessionControl}
+            searchFocusKey={searchFocusKey}
             onAsk={(question) => {
               setAskPrompt(question || null)
               setAskKey((k) => k + 1)
@@ -251,6 +277,7 @@ export function DashboardApp() {
 function Header({
   version,
   session,
+  searchFocusKey,
   onAsk,
   onSelectSession,
   onOpenSettingsTab,
@@ -258,6 +285,7 @@ function Header({
 }: {
   version: string
   session: SessionControl
+  searchFocusKey: number
   onAsk(question?: string): void
   onSelectSession(id: string): void
   onOpenSettingsTab(tab: SettingsTabId): void
@@ -271,13 +299,14 @@ function Header({
         size={20}
         className="shrink-0 text-foreground"
         suffix={
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
+          <span className="font-mono text-meta tabular-nums text-muted-foreground/70">
             {version ? `v${version}` : '·'}
           </span>
         }
       />
       <SessionStartButton session={session} />
       <SearchPill
+        focusKey={searchFocusKey}
         onAsk={onAsk}
         onSelectSession={onSelectSession}
         onOpenSettingsTab={onOpenSettingsTab}
@@ -289,7 +318,7 @@ function Header({
         <button
           onClick={onSettings}
           aria-label={t('settings.title')}
-          className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          className="font-mono text-small uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
         >
           {t('dashboard.settings')}
         </button>
@@ -315,21 +344,28 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 function SearchPill({
+  focusKey,
   onAsk,
   onSelectSession,
   onOpenSettingsTab
 }: {
+  focusKey: number
   onAsk(question?: string): void
   onSelectSession(id: string): void
   onOpenSettingsTab(tab: SettingsTabId): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const listboxId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const query = text.trim()
   const ragQuery = useDebouncedValue(query, 250)
+
+  useEffect(() => {
+    if (focusKey > 0) inputRef.current?.focus()
+  }, [focusKey])
 
   const { data } = useQuery({
     queryKey: queryKeys.sessions,
@@ -362,10 +398,10 @@ function SearchPill({
           kind: 'rag' as const,
           sessionId: h.sourceId,
           snippet: h.text.slice(0, 140) + (h.text.length > 140 ? '…' : ''),
-          subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString()}`
+          subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString(i18n.language)}`
         }))
     )
-  }, [ragActive, ragResults])
+  }, [ragActive, ragResults, i18n.language])
 
   const sessionHits = useMemo<SearchHit[]>(() => {
     const q = query.toLowerCase()
@@ -376,10 +412,10 @@ function SearchPill({
       .map((s) => ({
         kind: 'session' as const,
         id: s.id,
-        title: s.title || new Date(s.startedAt).toLocaleString(),
-        subtitle: new Date(s.startedAt).toLocaleString()
+        title: s.title || formatFallbackTitle(new Date(s.startedAt), i18n.language),
+        subtitle: formatFallbackTitle(new Date(s.startedAt), i18n.language)
       }))
-  }, [data, query])
+  }, [data, query, i18n.language])
 
   // Labels and keywords come from the active locale so a Russian query finds
   // Russian settings; brand names stay in both keyword lists.
@@ -468,6 +504,7 @@ function SearchPill({
       >
         <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <input
+          ref={inputRef}
           role="combobox"
           aria-label={t('dashboard.search.aria_label')}
           aria-autocomplete="list"
@@ -484,14 +521,14 @@ function SearchPill({
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
           placeholder={t('dashboard.search.placeholder')}
-          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          className="flex-1 bg-transparent text-body text-foreground placeholder:text-muted-foreground outline-none"
         />
         {!text && (
           <kbd
             aria-hidden
-            className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline"
+            className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-meta text-muted-foreground sm:inline"
           >
-            ⏎
+            {open ? '⏎' : '/'}
           </kbd>
         )}
       </div>
@@ -505,9 +542,9 @@ function SearchPill({
           )}
         >
           {text && matches.length === 0 && (
-            <div className="px-3 py-2 text-[12px] text-muted-foreground">
+            <div className="px-3 py-2 text-small text-muted-foreground">
               {t('dashboard.search.no_match_before')}{' '}
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px]">↵</kbd>{' '}
+              <kbd className="rounded bg-white/10 px-1 font-mono text-meta">↵</kbd>{' '}
               {t('dashboard.search.no_match_after')}
             </div>
           )}
@@ -525,8 +562,8 @@ function SearchPill({
                           aria-hidden
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{hit.label}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
+                          <div className="truncate text-body">{hit.label}</div>
+                          <div className="font-mono text-meta text-muted-foreground">
                             {hit.subtitle}
                           </div>
                         </div>
@@ -545,8 +582,8 @@ function SearchPill({
                       <>
                         <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{hit.title}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
+                          <div className="truncate text-body">{hit.title}</div>
+                          <div className="font-mono text-meta text-muted-foreground">
                             {hit.subtitle}
                           </div>
                         </div>
@@ -568,10 +605,10 @@ function SearchPill({
                             bottom Ask CTA is the only sparkle on the panel. */}
                         <span className="mt-1 h-3 w-px shrink-0 bg-border" aria-hidden />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[12px] text-muted-foreground">
+                          <div className="truncate text-small text-muted-foreground">
                             {hit.snippet}
                           </div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
+                          <div className="font-mono text-meta text-muted-foreground">
                             {hit.subtitle}
                           </div>
                         </div>
@@ -585,7 +622,7 @@ function SearchPill({
               matches.length,
               <>
                 <Sparkles className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                <div className="flex-1 truncate text-sm">
+                <div className="flex-1 truncate text-body">
                   {text ? (
                     <>
                       {t('dashboard.search.ask_with_text')}{' '}
@@ -597,7 +634,7 @@ function SearchPill({
                 </div>
                 <kbd
                   aria-hidden
-                  className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                  className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-meta text-muted-foreground"
                 >
                   ⏎
                 </kbd>
@@ -618,7 +655,7 @@ function SearchGroup({ label, children }: { label: string; children: React.React
       <div
         id={labelId}
         role="presentation"
-        className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+        className="px-3 pt-2 pb-1 font-mono text-meta uppercase tracking-wider text-muted-foreground"
       >
         {label}
       </div>
@@ -758,7 +795,7 @@ function SessionStartButton({ session }: { session: SessionControl }) {
       size="default"
       variant={running ? 'destructive' : 'default'}
       className={cn(
-        'shrink-0 gap-2 rounded-full px-4 text-[12px] font-medium',
+        'shrink-0 gap-2 rounded-full px-4 text-body font-medium',
         !running && 'bg-primary text-primary-foreground hover:bg-primary/90'
       )}
     >
@@ -781,7 +818,7 @@ function MeetingsList({
   onSelect(id: string): void
   onOpenSettings(tab?: SettingsTabId): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.sessions,
     queryFn: () => window.zanban.sessions.list(),
@@ -790,20 +827,24 @@ function MeetingsList({
 
   const groups = useMemo(
     () =>
-      groupByDay(data ?? [], {
-        today: t('dashboard.groups.today'),
-        yesterday: t('dashboard.groups.yesterday'),
-        thisWeek: t('dashboard.groups.this_week')
-      }),
-    [data, t]
+      groupByDay(
+        data ?? [],
+        {
+          today: t('dashboard.groups.today'),
+          yesterday: t('dashboard.groups.yesterday'),
+          thisWeek: t('dashboard.groups.this_week')
+        },
+        i18n.language
+      ),
+    [data, t, i18n.language]
   )
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t('dashboard.loading')}</p>
+    return <p className="text-body text-muted-foreground">{t('dashboard.loading')}</p>
   }
   if (error) {
     return (
-      <p className="text-sm text-destructive">
+      <p className="text-body text-destructive">
         {error instanceof Error ? error.message : t('dashboard.load_failed')}
       </p>
     )
@@ -816,7 +857,7 @@ function MeetingsList({
     <div className="flex flex-col gap-12">
       {groups.map((g) => (
         <section key={g.label} className="flex flex-col gap-3">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          <h2 className="font-mono text-meta uppercase tracking-[0.16em] text-muted-foreground">
             {g.label}
           </h2>
           <ul className="flex flex-col">
@@ -847,14 +888,24 @@ function MeetingRow({
   onOpenSettings(): void
   isLast: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const date = new Date(session.startedAt)
   const dur = formatDuration(session.durationMs)
-  const time = formatTime(date)
+  const stamp = formatRowStamp(date, i18n.language)
   const isLive = !session.endedAt
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Shares the detail view's recap cache; recap.onUpdated invalidates it.
+  const { data: recap } = useQuery({
+    queryKey: queryKeys.recap(session.id),
+    queryFn: () => window.zanban.recap.get(session.id),
+    enabled: !isLive,
+    staleTime: Infinity
+  })
+  const openItems = recap
+    ? recap.actionItems.filter((a) => !isActionItemChecked(session.id, a)).length
+    : 0
 
   async function exportMd(): Promise<void> {
     try {
@@ -923,17 +974,32 @@ function MeetingRow({
           onClick={() => onSelect(session.id)}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="truncate text-[13.5px] font-medium text-foreground">
-            {session.title || formatFallbackTitle(date)}
+          {/* The time column already shows when it happened, so an untitled
+              session reads "Untitled" instead of repeating the date. */}
+          <div
+            className={cn(
+              'truncate text-body font-medium',
+              session.title ? 'text-foreground' : 'text-muted-foreground'
+            )}
+          >
+            {session.title || t('dashboard.row.untitled')}
           </div>
+          {recap && (
+            <div className="mt-0.5 flex gap-1.5 text-small text-muted-foreground">
+              <span className="min-w-0 truncate">{firstSentence(recap.tldr)}</span>
+              {openItems > 0 && (
+                <span className="shrink-0">
+                  · {t('dashboard.row.open_items', { count: openItems })}
+                </span>
+              )}
+            </div>
+          )}
         </button>
-        {dur && (
-          <span className="w-12 text-right font-mono text-[11px] tabular-nums text-muted-foreground/80">
-            {dur}
-          </span>
-        )}
-        <span className="w-[68px] text-right font-mono text-[11px] tabular-nums text-muted-foreground/55">
-          {time}
+        <span className="w-12 text-right font-mono text-small tabular-nums text-muted-foreground">
+          {dur}
+        </span>
+        <span className="w-24 text-right font-mono text-small tabular-nums text-muted-foreground">
+          {stamp}
         </span>
         {/* Per UX review: actions are now always visible (muted) and brighten
             on row hover. Hover-only icons trigger phantom interactions with
@@ -941,22 +1007,22 @@ function MeetingRow({
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors"
+            size="sm"
+            className="h-7 px-2 text-small font-normal text-muted-foreground group-hover:text-foreground transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               void resumeSession(session.id, onOpenSettings)
             }}
             title={t('dashboard.session_actions.resume_tooltip')}
           >
-            <Play className="size-3.5" />
+            {t('dashboard.session_actions.resume')}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors data-[state=open]:text-foreground"
+                className="size-7 text-muted-foreground group-hover:text-foreground transition-colors data-[state=open]:text-foreground"
                 onClick={(e) => e.stopPropagation()}
                 aria-label={t('dashboard.session_actions.menu_aria')}
               >
@@ -999,13 +1065,13 @@ function MeetingRow({
       </div>
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-md">
-          <DialogTitle className="text-base font-semibold tracking-tight">
+          <DialogTitle className="text-lead font-semibold tracking-tight">
             {t('dashboard.session_actions.confirm_title')}
           </DialogTitle>
-          <DialogDescription className="text-[13px] text-muted-foreground">
+          <DialogDescription className="text-body text-muted-foreground">
             <Trans
               i18nKey="dashboard.session_actions.confirm_body"
-              values={{ title: session.title || formatFallbackTitle(date) }}
+              values={{ title: session.title || formatFallbackTitle(date, i18n.language) }}
               components={{ 0: <span className="text-foreground" /> }}
             />
           </DialogDescription>
@@ -1014,7 +1080,7 @@ function MeetingRow({
               variant="ghost"
               onClick={() => setConfirmDelete(false)}
               disabled={deleting}
-              className="text-[12px]"
+              className="text-small"
             >
               {t('dashboard.session_actions.cancel')}
             </Button>
@@ -1022,7 +1088,7 @@ function MeetingRow({
               variant="destructive"
               onClick={() => void doDelete()}
               disabled={deleting}
-              className="text-[12px]"
+              className="text-small"
             >
               {deleting ? <Loader2 className="size-3.5 animate-spin" /> : null}
               {t('dashboard.session_actions.confirm_delete')}
@@ -1032,6 +1098,11 @@ function MeetingRow({
       </Dialog>
     </li>
   )
+}
+
+function firstSentence(text: string): string {
+  const trimmed = text.trim()
+  return /^[\s\S]*?[.!?…](?=\s|$)/.exec(trimmed)?.[0] ?? trimmed
 }
 
 function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -1047,27 +1118,27 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <div className="flex flex-col items-start gap-3 border-t border-white/[0.04] py-14">
       <span className="size-1 rounded-full bg-muted-foreground/40" />
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
         {t('dashboard.no_sessions_label')}
       </div>
-      <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+      <p className="max-w-md text-body leading-relaxed text-muted-foreground">
         <Trans
           i18nKey="dashboard.no_sessions_body"
           components={[<span key="0" className="text-foreground" />]}
         />
       </p>
       {apiKeysMissing && (
-        <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-amber-300">
+        <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2">
+          <div className="font-mono text-meta uppercase tracking-wider text-warn">
             {t('dashboard.setup_first')}
           </div>
-          <p className="text-[12px] leading-relaxed text-amber-100/90">
+          <p className="text-small leading-relaxed text-foreground/85">
             {t('dashboard.setup_first_body', { providers: missingProviders.join(', ') })}
           </p>
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 px-2 text-[12px] text-amber-200 hover:bg-amber-500/15 hover:text-amber-100"
+            className="h-7 px-2 text-small text-warn hover:bg-warn/15 hover:text-warn"
             onClick={onOpenSettings}
           >
             {t('common.open_settings')}

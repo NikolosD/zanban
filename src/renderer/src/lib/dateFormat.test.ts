@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDuration, groupByDay, startOfDay } from './dateFormat'
+import { formatDuration, formatRowStamp, groupByDay, startOfDay } from './dateFormat'
 
 describe('formatDuration', () => {
   it('returns null for nullish or sub-second durations', () => {
@@ -54,7 +54,7 @@ describe('groupByDay', () => {
       { startedAt: today - 3 * 86_400_000 }, // 3 days ago — earlier this week
       { startedAt: today - 90 * 86_400_000 } // ~3 months ago — month-year bucket
     ]
-    const groups = groupByDay(items, dayLabels)
+    const groups = groupByDay(items, dayLabels, 'en')
     const labels = groups.map((g) => g.label)
     expect(labels).toContain('Today')
     expect(labels).toContain('Yesterday')
@@ -71,13 +71,38 @@ describe('groupByDay', () => {
       { startedAt: today + 18 * 3600_000 }, // evening
       { startedAt: today + 12 * 3600_000 } // noon
     ]
-    const todayGroup = groupByDay(items, dayLabels).find((g) => g.label === 'Today')
+    const todayGroup = groupByDay(items, dayLabels, 'en').find((g) => g.label === 'Today')
     expect(todayGroup).toBeDefined()
     const stamps = todayGroup!.items.map((i) => i.startedAt)
     expect(stamps).toEqual([...stamps].sort((a, b) => b - a))
   })
 
   it('returns an empty array for empty input', () => {
-    expect(groupByDay([], dayLabels)).toEqual([])
+    expect(groupByDay([], dayLabels, 'en')).toEqual([])
+  })
+
+  it('names older month buckets in the given UI language', () => {
+    const old = [{ startedAt: new Date(2024, 9, 12, 14, 3).getTime() }]
+    expect(groupByDay(old, dayLabels, 'en')[0]?.label).toBe('October 2024')
+    expect(groupByDay(old, dayLabels, 'ru')[0]?.label).toMatch(/^октябрь 2024/)
+  })
+})
+
+describe('formatRowStamp', () => {
+  const now = new Date(2026, 9, 28, 18, 0).getTime() // Wed 2026-10-28
+
+  it('shows only the time for today and yesterday', () => {
+    expect(formatRowStamp(new Date(2026, 9, 28, 14, 3), 'ru', now)).toBe('14:03')
+    expect(formatRowStamp(new Date(2026, 9, 27, 14, 3), 'ru', now)).toBe('14:03')
+  })
+
+  it('prefixes the weekday within the last week', () => {
+    expect(formatRowStamp(new Date(2026, 9, 26, 14, 3), 'ru', now)).toBe('пн 14:03')
+    expect(formatRowStamp(new Date(2026, 9, 26, 14, 3), 'en', now)).toMatch(/^Mon 2:03\sPM$/)
+  })
+
+  it('shows the date for older sessions', () => {
+    expect(formatRowStamp(new Date(2026, 9, 12, 14, 3), 'en', now)).toBe('Oct 12')
+    expect(formatRowStamp(new Date(2026, 9, 12, 14, 3), 'ru', now)).toBe('12 окт.')
   })
 })

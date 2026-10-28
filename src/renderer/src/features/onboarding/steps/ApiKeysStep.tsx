@@ -128,8 +128,8 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.keys.title')}</h2>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <h2 className="text-lead font-medium tracking-tight">{t('onboarding.keys.title')}</h2>
+        <p className="mt-1 text-body leading-relaxed text-muted-foreground">
           {t('onboarding.keys.body')}
         </p>
       </div>
@@ -144,7 +144,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
       />
 
       <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
-        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('onboarding.keys.stt_picker_label')}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -167,19 +167,19 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">{t(`onboarding.keys.stt_options.${opt}.label`)}</span>
+                  <span className="text-body">{t(`onboarding.keys.stt_options.${opt}.label`)}</span>
                   {opt === 'deepgram' && (
-                    <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">
+                    <span className="rounded border border-success/30 bg-success/10 px-1 font-mono text-meta uppercase tracking-wider text-success">
                       {t('onboarding.provider.recommended_badge')}
                     </span>
                   )}
                   {opt === 'local-whisper' && (
-                    <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">
+                    <span className="rounded border border-border px-1 font-mono text-meta uppercase tracking-wider text-muted-foreground">
                       {t('onboarding.provider.no_key_badge')}
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
                   {t(`onboarding.keys.stt_options.${opt}.blurb`)}
                 </div>
               </div>
@@ -200,17 +200,17 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
 
         {stt === 'google' && (
           <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
               {t('onboarding.keys.stt_fields.google_setup_help_title')}
             </div>
-            <pre className="mt-1.5 whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-muted-foreground">
+            <pre className="mt-1.5 whitespace-pre-wrap font-sans text-small leading-relaxed text-muted-foreground">
               {t('onboarding.keys.stt_fields.google_setup_help_body')}
             </pre>
           </div>
         )}
 
         {stt === 'local-whisper' && (
-          <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-small leading-relaxed text-muted-foreground">
             {t('onboarding.keys.stt_fields.local_whisper_note')}
           </div>
         )}
@@ -260,7 +260,7 @@ function KeyRow({
     : field.placeholder
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-[12px] text-foreground">
+      <label htmlFor={id} className="text-body text-foreground">
         {t(labelKey)}
       </label>
       {isTextarea ? (
@@ -270,7 +270,7 @@ function KeyRow({
           placeholder={placeholder}
           aria-describedby={hintId}
           onChange={(e) => onChange(e.target.value)}
-          className="font-mono text-[11px] min-h-[88px]"
+          className="min-h-[88px] font-mono text-small"
         />
       ) : (
         <Input
@@ -281,10 +281,10 @@ function KeyRow({
           aria-describedby={hintId}
           aria-invalid={invalid}
           onChange={(e) => onChange(e.target.value)}
-          className="font-mono text-[12px]"
+          className="font-mono text-small"
         />
       )}
-      <div id={hintId} className="text-[11px] text-muted-foreground">
+      <div id={hintId} className="text-small text-muted-foreground">
         {t(hintKey)}
       </div>
     </div>

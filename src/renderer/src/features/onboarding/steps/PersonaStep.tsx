@@ -1,33 +1,23 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check } from 'lucide-react'
+import type { Persona } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@renderer/components/ui/select'
 import { cn } from '@renderer/lib/utils'
-import type { Persona, ResponseLanguage } from '@shared/types'
-import { RESPONSE_LANGUAGES } from '@shared/types'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
 /**
- * "What do you do?" — picks an assistant persona (built-in role) plus the
- * response language so the assistant is useful from the first Ask. Fully
- * skippable: leaving the persona unset keeps the free-form default. Persona
- * data comes from the seeded built-ins (personas.list()).
+ * "What do you do?" — optional. Picks a built-in role so answers fit the
+ * user's calls from the first Ask; skipping leaves the role unset. Role data
+ * comes from the seeded built-ins (personas.list()).
  */
 export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
   const { t } = useTranslation()
   const [personas, setPersonas] = useState<Persona[]>([])
   const [selected, setSelected] = useState<string | null>(settings.activePersonaId)
-  const [language, setLanguage] = useState<ResponseLanguage>(settings.responseLanguage)
   const [saving, setSaving] = useState(false)
-  const languageLabelId = useId()
+  const selectedName = personas.find((p) => p.id === selected)?.name
 
   useEffect(() => {
     void window.zanban.personas.list().then(setPersonas)
@@ -37,7 +27,6 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
     setSaving(true)
     try {
       await update('activePersonaId', selected)
-      await update('responseLanguage', language)
       goNext()
     } finally {
       setSaving(false)
@@ -47,8 +36,13 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.persona.title')}</h2>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lead font-medium tracking-tight">{t('onboarding.persona.title')}</h2>
+          <span className="rounded border border-border px-1.5 py-0.5 font-mono text-meta uppercase tracking-wider text-muted-foreground">
+            {t('onboarding.persona.optional_badge')}
+          </span>
+        </div>
+        <p className="mt-1 text-body leading-relaxed text-muted-foreground">
           {t('onboarding.persona.body')}
         </p>
       </div>
@@ -72,43 +66,22 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
               <div
                 aria-hidden
                 className={cn(
-                  'mt-1 size-2 shrink-0 rounded-full',
+                  'mt-1.5 size-2 shrink-0 rounded-full',
                   active ? 'bg-primary' : 'bg-muted-foreground/40'
                 )}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">{p.name}</span>
+                  <span className="text-body">{p.name}</span>
                   {active && <Check className="size-3.5 text-primary" aria-hidden />}
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-muted-foreground">
                   {p.systemPrompt}
                 </div>
               </div>
             </button>
           )
         })}
-      </div>
-
-      <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
-        <div
-          id={languageLabelId}
-          className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
-        >
-          {t('onboarding.persona.language_label')}
-        </div>
-        <Select value={language} onValueChange={(v) => setLanguage(v as ResponseLanguage)}>
-          <SelectTrigger aria-labelledby={languageLabelId} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {RESPONSE_LANGUAGES.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                {t(`settings.response_languages.${l.value}`, { defaultValue: l.label })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <StepFooter>
@@ -119,8 +92,12 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
           <Button variant="ghost" onClick={goNext} disabled={saving}>
             {t('onboarding.persona.skip')}
           </Button>
-          <Button onClick={() => void saveAndNext()} disabled={saving}>
-            {saving ? t('common.saving') : t('common.next')}
+          <Button onClick={() => void saveAndNext()} disabled={saving || !selected}>
+            {saving
+              ? t('common.saving')
+              : selectedName
+                ? t('onboarding.persona.use_role', { name: selectedName })
+                : t('onboarding.persona.pick_role')}
           </Button>
         </div>
       </StepFooter>

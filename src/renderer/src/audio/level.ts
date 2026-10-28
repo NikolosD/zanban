@@ -60,6 +60,36 @@ export function attachAnalyser(ctx: AudioContext, source: AudioNode): () => void
   }
 }
 
+/**
+ * Standalone peak meter (0..1 per frame) for a stream that is NOT being
+ * captured — the onboarding audio check. It opens its own AudioContext, so
+ * never point it at a device a running session is capturing (see above).
+ * Returns a stop function; the caller still owns the stream's tracks.
+ */
+export function meterStream(stream: MediaStream, onPeak: (peak: number) => void): () => void {
+  const ctx = new AudioContext()
+  const source = ctx.createMediaStreamSource(stream)
+  const meter = ctx.createAnalyser()
+  meter.fftSize = 1024
+  source.connect(meter)
+  void ctx.resume().catch(() => {})
+  const samples = new Float32Array(meter.fftSize)
+  let frame = 0
+  const tick = (): void => {
+    meter.getFloatTimeDomainData(samples)
+    let peak = 0
+    for (const v of samples) peak = Math.max(peak, Math.abs(v))
+    onPeak(peak)
+    frame = requestAnimationFrame(tick)
+  }
+  frame = requestAnimationFrame(tick)
+  return () => {
+    cancelAnimationFrame(frame)
+    source.disconnect()
+    void ctx.close().catch(() => {})
+  }
+}
+
 // ~-70 dBFS: under any real room's noise floor, so only a muted or dead mic
 // (digital zeros, dither) stays below it. Needs float samples — the meter's
 // 8-bit ones read a quiet room as exact zero.

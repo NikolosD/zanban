@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import i18n from 'i18next'
 import { startCapturesFromSettings, stopCaptures } from '@renderer/audio/captureController'
 import { errorMessage, pointsToSettings } from '@renderer/lib/errors'
+import type { SettingsTabId } from '@renderer/features/settings/SettingsPanel'
 import { useTranscript } from './store'
 
 /**
@@ -22,18 +23,25 @@ export async function startSessionWithCapture(resumeId?: string): Promise<void> 
   }
 }
 
-export function toastSessionError(title: string, err: unknown, onOpenSettings?: () => void): void {
+type OpenSettings = (tab: SettingsTabId) => void
+
+/** Errors that point at Settings are missing credentials, which all live on the Keys tab. */
+export function toastSessionError(
+  title: string,
+  err: unknown,
+  onOpenSettings?: OpenSettings
+): void {
   const description = errorMessage(err)
   toast.error(title, {
     description,
     action:
       onOpenSettings && pointsToSettings(description)
-        ? { label: i18n.t('common.open_settings'), onClick: onOpenSettings }
+        ? { label: i18n.t('common.open_settings'), onClick: () => onOpenSettings('keys') }
         : undefined
   })
 }
 
-export async function resumeSession(id: string, onOpenSettings?: () => void): Promise<void> {
+export async function resumeSession(id: string, onOpenSettings?: OpenSettings): Promise<void> {
   if (useTranscript.getState().session.kind === 'running') {
     toast.error(i18n.t('dashboard.session_running_elsewhere'))
     return

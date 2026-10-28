@@ -30,6 +30,8 @@
   --signal-foreground: oklch(0.985 0.003 260);
   --success: oklch(0.52 0.12 145);
   --success-foreground: oklch(0.985 0.003 260);
+  --warn: oklch(0.6 0.13 75);
+  --warn-foreground: oklch(0.985 0.003 260);
   --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.985 0.003 260);
   --border: oklch(0.2 0.012 260 / 0.1);
@@ -62,6 +64,9 @@
   /* Sage — confirmed / success only. */
   --success: oklch(0.78 0.13 145);
   --success-foreground: oklch(0.16 0.01 260);
+  /* Amber — degraded but working (mic lost, missing key). */
+  --warn: oklch(0.82 0.14 80);
+  --warn-foreground: oklch(0.16 0.01 260);
   --destructive: oklch(0.62 0.22 25);
   --destructive-foreground: oklch(0.96 0.005 260);
   --border: oklch(1 0 0 / 0.07);
@@ -88,6 +93,21 @@
   --color-signal-foreground: var(--signal-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+
+  /* Type scale (DESIGN.md). Nothing smaller than meta; anything read mid-call
+     is at least small. */
+  --text-meta: 10px;
+  --text-meta--line-height: 14px;
+  --text-small: 11px;
+  --text-small--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 20px;
+  --text-lead: 15px;
+  --text-lead--line-height: 22px;
+  --text-display: 20px;
+  --text-display--line-height: 28px;
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);

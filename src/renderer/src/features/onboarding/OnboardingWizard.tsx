@@ -11,8 +11,8 @@ import type { AppSettings, LlmProvider } from '@shared/types'
 import { LanguageStep } from './steps/LanguageStep'
 import { ProviderStep } from './steps/ProviderStep'
 import { ApiKeysStep } from './steps/ApiKeysStep'
+import { AudioCheckStep } from './steps/AudioCheckStep'
 import { PersonaStep } from './steps/PersonaStep'
-import { HotkeysStep } from './steps/HotkeysStep'
 import { DoneStep } from './steps/DoneStep'
 import { STEP_ORDER, type StepId, type StepProps } from './types'
 
@@ -90,8 +90,8 @@ export function OnboardingWizard({
           {step === 'language' && <LanguageStep {...stepProps} />}
           {step === 'provider' && <ProviderStep {...stepProps} />}
           {step === 'keys' && <ApiKeysStep {...stepProps} />}
+          {step === 'audio' && <AudioCheckStep {...stepProps} />}
           {step === 'persona' && <PersonaStep {...stepProps} />}
-          {step === 'hotkeys' && <HotkeysStep {...stepProps} />}
           {step === 'done' && <DoneStep {...stepProps} />}
         </div>
       </DialogContent>
@@ -126,7 +126,7 @@ function Stepper({ current }: { current: StepId }) {
               title={active ? undefined : label}
               aria-current={active ? 'step' : undefined}
               className={cn(
-                'flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px]',
+                'flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-meta',
                 done && 'bg-success/15 text-success',
                 active && 'bg-primary text-primary-foreground',
                 !done && !active && 'bg-muted text-muted-foreground'
@@ -135,7 +135,7 @@ function Stepper({ current }: { current: StepId }) {
               {i + 1}
             </div>
             {active ? (
-              <span className="font-mono text-[10px] uppercase tracking-wider text-foreground">
+              <span className="font-mono text-meta uppercase tracking-wider text-foreground">
                 {label}
               </span>
             ) : (

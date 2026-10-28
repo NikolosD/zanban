@@ -94,7 +94,7 @@ export function PersonasTab({ settings, update }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+      <div className="flex items-center gap-2 text-small text-muted-foreground">
         <Loader2 className="size-3 animate-spin" /> {t('common.loading')}
       </div>
     )
@@ -104,10 +104,12 @@ export function PersonasTab({ settings, update }: Props) {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          <h3 className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground">
             {t('settings.personas.title')}
           </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground">{t('settings.personas.hint')}</p>
+          <p className="mt-1 text-small leading-relaxed text-muted-foreground">
+            {t('settings.personas.hint')}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -146,14 +148,14 @@ export function PersonasTab({ settings, update }: Props) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-[13px]">{p.name}</span>
+                    <span className="truncate text-body">{p.name}</span>
                     {p.builtin && (
-                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                      <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-meta uppercase text-muted-foreground">
                         {t('settings.personas.builtin_badge')}
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                  <div className="mt-0.5 truncate text-small text-muted-foreground">
                     {p.systemPrompt.slice(0, 80) || t('settings.personas.empty_prompt_placeholder')}
                   </div>
                 </div>
@@ -163,6 +165,7 @@ export function PersonasTab({ settings, update }: Props) {
                 <PersonaEditor
                   persona={p}
                   activeProvider={settings.llmProvider}
+                  globalLanguage={settings.responseLanguage}
                   onChange={async (patch) => {
                     await window.zanban.personas.update(p.id, patch)
                     await refresh()
@@ -177,7 +180,7 @@ export function PersonasTab({ settings, update }: Props) {
           )
         })}
         {personas.length === 0 && (
-          <li className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-6 text-center text-[12px] text-muted-foreground">
+          <li className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-6 text-center text-small text-muted-foreground">
             {t('settings.personas.empty_list')}
           </li>
         )}
@@ -194,6 +197,8 @@ interface EditorProps {
    *  for direct SDKs (anthropic/openai/ollama), so we show the active
    *  provider's own catalogue instead. */
   activeProvider: LlmProvider
+  /** Answer language from General → Language; what "no override" falls back to. */
+  globalLanguage: ResponseLanguage
   onChange(patch: Partial<Persona>): Promise<void>
   onDelete(): void
   onActivate(): void
@@ -204,6 +209,7 @@ function PersonaEditor({
   persona,
   isActive,
   activeProvider,
+  globalLanguage,
   onChange,
   onDelete,
   onActivate,
@@ -257,13 +263,13 @@ function PersonaEditor({
         onBlur={() => prompt !== persona.systemPrompt && void onChange({ systemPrompt: prompt })}
         rows={6}
         placeholder={t('settings.personas.editor.prompt_placeholder')}
-        className="font-mono text-[12px]"
+        className="font-mono text-small"
       />
       <button
         type="button"
         aria-expanded={advancedOpen}
         onClick={() => setAdvancedOpen((o) => !o)}
-        className="flex items-center gap-1.5 self-start text-[11px] font-mono uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        className="flex items-center gap-1.5 self-start font-mono text-small uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronRight
           aria-hidden
@@ -275,7 +281,7 @@ function PersonaEditor({
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor={modelSelectId} className="text-[11px] text-muted-foreground">
+              <label htmlFor={modelSelectId} className="text-small text-muted-foreground">
                 {t('settings.personas.editor.default_model_label')}
               </label>
               <Select
@@ -301,7 +307,7 @@ function PersonaEditor({
               </Select>
             </div>
             <div>
-              <label htmlFor={languageSelectId} className="text-[11px] text-muted-foreground">
+              <label htmlFor={languageSelectId} className="text-small text-muted-foreground">
                 {t('settings.personas.editor.response_language_label')}
               </label>
               <Select
@@ -316,7 +322,9 @@ function PersonaEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__inherit__">
-                    {t('settings.personas.editor.inherit_option')}
+                    {t('settings.personas.editor.language_inherit_option', {
+                      language: t(`settings.response_languages.${globalLanguage}`)
+                    })}
                   </SelectItem>
                   {RESPONSE_LANGUAGES.map((l) => (
                     <SelectItem key={l.value} value={l.value}>
@@ -329,8 +337,8 @@ function PersonaEditor({
           </div>
           <div className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
             <div className="flex-1">
-              <div className="text-[12px]">{t('settings.personas.editor.rag_title')}</div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-body">{t('settings.personas.editor.rag_title')}</div>
+              <div className="text-small text-muted-foreground">
                 {t('settings.personas.editor.rag_hint')}
               </div>
             </div>
@@ -350,7 +358,7 @@ function PersonaEditor({
                   }
                 })
               }}
-              className="w-14 rounded border border-white/[0.08] bg-transparent px-2 py-1 text-[12px]"
+              className="w-14 rounded border border-white/[0.08] bg-transparent px-2 py-1 text-small"
               aria-label={t('settings.personas.editor.rag_topk_aria')}
             />
             <Switch
@@ -381,7 +389,7 @@ function PersonaEditor({
         <Button
           variant="ghost"
           size="sm"
-          className="text-red-400 hover:text-red-300"
+          className="text-destructive hover:text-destructive/80"
           onClick={onDelete}
         >
           <Trash2 className="size-3.5" /> {t('settings.personas.editor.delete')}

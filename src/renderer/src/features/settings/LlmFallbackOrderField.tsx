@@ -61,15 +61,15 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[14px] font-medium">{t('settings.providers.fallback_title')}</div>
-          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+          <div className="text-body font-medium">{t('settings.providers.fallback_title')}</div>
+          <p className="mt-1 text-small leading-relaxed text-muted-foreground">
             {t('settings.providers.fallback_hint')}
           </p>
         </div>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 shrink-0 gap-1.5 px-2.5 text-[11px]"
+          className="h-7 shrink-0 gap-1.5 px-2.5 text-small"
           disabled={!canAuto}
           onClick={() => set(auto)}
           title={t('settings.providers.fallback_auto_hint')}
@@ -80,7 +80,7 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
       </div>
 
       {order.length === 0 ? (
-        <div className="rounded-md border border-dashed border-white/[0.08] bg-white/[0.01] px-3 py-4 text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="rounded-md border border-dashed border-white/[0.08] bg-white/[0.01] px-3 py-4 text-center font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('settings.providers.fallback_empty')}
         </div>
       ) : (
@@ -97,10 +97,10 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
                   isActiveInChain && 'opacity-50'
                 )}
               >
-                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                <span className="font-mono text-meta tabular-nums text-muted-foreground">
                   {i + 1}
                 </span>
-                <span className="flex-1 text-[12px]">{labelOf(id)}</span>
+                <span className="flex-1 text-body">{labelOf(id)}</span>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -138,7 +138,7 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
 
       {candidates.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
             {t('settings.providers.fallback_add_label')}
           </span>
           {candidates.map((p) => (
@@ -146,7 +146,7 @@ export function LlmFallbackOrderField({ settings, update }: Props) {
               key={p.value}
               size="sm"
               variant="outline"
-              className="h-6 gap-1 px-2 text-[11px]"
+              className="h-6 gap-1 px-2 text-small"
               onClick={() => add(p.value)}
             >
               <Plus className="size-3" />

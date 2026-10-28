@@ -32,7 +32,7 @@ export interface ProviderCardProps {
 
 const BADGE_STYLES: Record<NonNullable<ProviderCardProps['badge']>, string> = {
   recommended: 'bg-success/10 text-success border-success/30',
-  experimental: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  experimental: 'bg-warn/10 text-warn border-warn/30',
   local: 'bg-white/5 text-muted-foreground border-white/10'
 }
 
@@ -73,11 +73,11 @@ export function ProviderCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {status && <ProviderStatusDot status={status} />}
-            <span className="text-[14px] font-medium leading-none text-foreground">{name}</span>
+            <span className="text-body font-medium leading-none text-foreground">{name}</span>
             {badge && (
               <span
                 className={cn(
-                  'rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] leading-none',
+                  'rounded-full border px-2 py-0.5 font-mono text-meta uppercase tracking-[0.12em] leading-none',
                   BADGE_STYLES[badge]
                 )}
               >
@@ -85,13 +85,13 @@ export function ProviderCard({
               </span>
             )}
             {active && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] leading-none text-success">
+              <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-meta uppercase tracking-[0.12em] leading-none text-success">
                 <Check className="size-2.5" />
                 {t('settings.providers.active_badge')}
               </span>
             )}
           </div>
-          <p className="mt-1.5 text-[12px] text-muted-foreground leading-relaxed">{description}</p>
+          <p className="mt-1.5 text-small leading-relaxed text-muted-foreground">{description}</p>
         </div>
         {keyUrl && (
           <a
@@ -99,8 +99,8 @@ export function ProviderCard({
             href={keyUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex shrink-0 items-center gap-1 self-start rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
-            title="Open the provider's API console to get a key"
+            className="inline-flex shrink-0 items-center gap-1 self-start rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-meta text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
+            title={t('settings.providers.get_key_title')}
           >
             {t('settings.providers.get_key')}
             <ExternalLink className="size-3" />
@@ -172,7 +172,7 @@ export function SecretKeyField({
       {label && (
         <label
           htmlFor={id}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+          className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground"
         >
           {label}
         </label>
@@ -185,7 +185,7 @@ export function SecretKeyField({
           onChange={(e) => secret.edit(e.target.value)}
           placeholder={secret.placeholder}
           aria-label={label ? undefined : ariaLabel}
-          className="flex-1 font-mono text-xs"
+          className="flex-1 font-mono text-small"
         />
         <Button
           type="button"

@@ -120,10 +120,12 @@ export function ReferenceDocsTab() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        <h3 className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground">
           {t('settings.documents.title')}
         </h3>
-        <p className="mt-1 text-[12px] text-muted-foreground">{t('settings.documents.hint')}</p>
+        <p className="mt-1 text-small leading-relaxed text-muted-foreground">
+          {t('settings.documents.hint')}
+        </p>
       </div>
 
       <label
@@ -139,7 +141,7 @@ export function ReferenceDocsTab() {
           // The input is visually hidden but focusable, so the drop zone
           // carries its keyboard focus ring.
           'has-[:focus-visible]:border-white/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
-          dragActive && 'border-emerald-400/60 bg-emerald-400/5'
+          dragActive && 'border-success/60 bg-success/5'
         )}
       >
         {busy ? (
@@ -147,10 +149,10 @@ export function ReferenceDocsTab() {
         ) : (
           <UploadCloud className="size-5 text-muted-foreground" />
         )}
-        <div className="text-[13px]">
+        <div className="text-body">
           {busy ? t('settings.documents.extracting') : t('settings.documents.drop_label')}
         </div>
-        <div className="text-[11px] text-muted-foreground">{t('settings.documents.accepted')}</div>
+        <div className="text-small text-muted-foreground">{t('settings.documents.accepted')}</div>
         <input
           id={inputId}
           type="file"
@@ -163,11 +165,11 @@ export function ReferenceDocsTab() {
       </label>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+        <div className="flex items-center gap-2 text-small text-muted-foreground">
           <Loader2 className="size-3 animate-spin" /> {t('settings.documents.loading')}
         </div>
       ) : docs.length === 0 ? (
-        <div className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-6 text-center text-[12px] text-muted-foreground">
+        <div className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-6 text-center text-small text-muted-foreground">
           {t('settings.documents.empty')}
         </div>
       ) : (
@@ -206,20 +208,20 @@ function DocRow({
         <FileType2 className="size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[13px]">{d.name}</span>
+            <span className="truncate text-body">{d.name}</span>
             {empty && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 text-meta font-medium text-warn">
                 <AlertTriangle className="size-3" />
                 {t('settings.documents.badge_no_text')}
               </span>
             )}
             {d.truncated && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 text-meta font-medium text-warn">
                 {t('settings.documents.badge_truncated')}
               </span>
             )}
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-small text-muted-foreground">
             {d.kind.toUpperCase()} · {formatBytes(d.bytes)} ·{' '}
             {t('settings.documents.stats_chars', { count: d.text.length })}
           </div>
@@ -244,18 +246,16 @@ function DocRow({
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 text-muted-foreground hover:text-red-400"
+          className="size-7 text-muted-foreground hover:text-destructive"
           onClick={onRemove}
           aria-label={t('settings.documents.remove_aria')}
         >
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-      {empty && (
-        <p className="text-[11px] text-red-300/80">{t('settings.documents.empty_text_hint')}</p>
-      )}
+      {empty && <p className="text-small text-warn">{t('settings.documents.empty_text_hint')}</p>}
       {showText && hasText && (
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 px-2.5 py-2 text-small leading-relaxed text-muted-foreground">
           {d.text}
         </pre>
       )}

@@ -63,10 +63,10 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
   if (!recap) {
     return (
       <div className="flex h-full flex-col items-start justify-center gap-4 px-1">
-        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('session_detail.recap.empty_label')}
         </div>
-        <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground">
+        <p className="max-w-md text-body leading-relaxed text-muted-foreground">
           {t('session_detail.recap.empty_blurb')}
         </p>
         <Button
@@ -77,7 +77,7 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
           {generate.isPending && <Loader2 className="size-4 animate-spin" />}
           {t('session_detail.recap.generate')}
         </Button>
-        {errorMessage && <p className="text-[12px] text-destructive">{errorMessage}</p>}
+        {errorMessage && <p className="text-small text-destructive">{errorMessage}</p>}
       </div>
     )
   }
@@ -100,12 +100,12 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
           busy={generate.isPending || remove.isPending}
         />
         {recap.partial && (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+          <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-small text-warn">
             {t('session_detail.recap.partial_warning')}
           </div>
         )}
         {errorMessage && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-small text-destructive">
             {errorMessage}
           </div>
         )}
@@ -153,16 +153,16 @@ function RecapHeader({
   onCopyAll(): void
   onDelete(): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {recap.model} · {relativeAge(recap.generatedAt)}
+      <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
+        {recap.model} · {relativeAge(recap.generatedAt, i18n.language)}
         {recap.partial && (
-          <span className="ml-2 text-amber-400">{t('session_detail.recap.partial_badge')}</span>
+          <span className="ml-2 text-warn">{t('session_detail.recap.partial_badge')}</span>
         )}
         {outdated && (
-          <span className="ml-2 text-amber-400">{t('session_detail.recap.older_prompt')}</span>
+          <span className="ml-2 text-warn">{t('session_detail.recap.older_prompt')}</span>
         )}
       </div>
       <div className="flex gap-1">
@@ -188,7 +188,7 @@ function RecapHeader({
 
 function TldrCard({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-[15px] leading-relaxed text-foreground/95">
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-lead leading-relaxed text-foreground/95">
       {text}
     </div>
   )
@@ -197,7 +197,7 @@ function TldrCard({ text }: { text: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="px-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="px-1 font-mono text-meta uppercase tracking-wider text-muted-foreground">
         {title}
       </div>
       {children}
@@ -212,7 +212,7 @@ function BulletList({ items, muted = false }: { items: string[]; muted?: boolean
         <li
           key={i}
           className={cn(
-            'flex gap-2 text-[13px] leading-relaxed',
+            'flex gap-2 text-body leading-relaxed',
             muted ? 'text-muted-foreground' : 'text-foreground/90'
           )}
         >
@@ -268,16 +268,14 @@ function ActionItem({
         : '?'
   const ownerColor =
     item.owner === 'you'
-      ? 'text-blue-400 border-blue-500/40'
-      : item.owner === 'them'
-        ? 'text-orange-400 border-orange-500/40'
-        : 'text-muted-foreground border-white/[0.08]'
+      ? 'text-foreground border-white/[0.14]'
+      : 'text-muted-foreground border-white/[0.08]'
   return (
-    <li className="flex items-start gap-2 text-[13px] leading-relaxed">
+    <li className="flex items-start gap-2 text-body leading-relaxed">
       <input type="checkbox" checked={checked} onChange={toggle} className="mt-1.5" />
       <span
         className={cn(
-          'mt-0.5 select-none rounded border px-1.5 py-0 font-mono text-[10px] uppercase tracking-wider',
+          'mt-0.5 select-none rounded border px-1.5 py-0 font-mono text-meta uppercase tracking-wider',
           ownerColor
         )}
       >
@@ -285,7 +283,7 @@ function ActionItem({
       </span>
       <span className={cn('flex-1', checked && 'line-through opacity-60')}>{item.text}</span>
       {item.dueHint && (
-        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{item.dueHint}</span>
+        <span className="shrink-0 font-mono text-meta text-muted-foreground">{item.dueHint}</span>
       )}
     </li>
   )
@@ -302,7 +300,7 @@ function FollowUpSection({ followUp }: { followUp: { subject: string; body: stri
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 px-1 text-left"
       >
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('session_detail.recap.follow_up')}
         </span>
         <span aria-hidden className="text-muted-foreground">
@@ -311,8 +309,8 @@ function FollowUpSection({ followUp }: { followUp: { subject: string; body: stri
       </button>
       {open && (
         <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-          <div className="mb-2 text-[13px] font-medium">{followUp.subject}</div>
-          <div className="text-[13px] leading-relaxed text-foreground/90">
+          <div className="mb-2 text-body font-medium">{followUp.subject}</div>
+          <div className="text-body leading-relaxed text-foreground/90">
             <StreamingMarkdown text={followUp.body} />
           </div>
           <div className="mt-3 flex gap-2">
@@ -378,12 +376,13 @@ async function openInEmail(
   if (!ok) toast.error(failMessage)
 }
 
-function relativeAge(generatedAt: number): string {
+function relativeAge(generatedAt: number, locale: string): string {
+  const rtf = new Intl.RelativeTimeFormat(locale, { style: 'short' })
   const seconds = Math.max(1, Math.floor((Date.now() - generatedAt) / 1000))
-  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 60) return rtf.format(-seconds, 'second')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return rtf.format(-minutes, 'minute')
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return new Date(generatedAt).toLocaleDateString()
+  if (hours < 24) return rtf.format(-hours, 'hour')
+  return new Date(generatedAt).toLocaleDateString(locale)
 }

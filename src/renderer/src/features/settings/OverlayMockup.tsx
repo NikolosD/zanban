@@ -1,143 +1,121 @@
-import { Square, EyeOff, X, Send, ChevronDown, Ear } from 'lucide-react'
+import { Square, EyeOff, X, Send, ChevronDown, Ear, Camera, Copy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { ZanbanMark } from '@renderer/components/brand'
-import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
+import { GLASS_PANEL, GLASS_PILL, overlayGlassVars } from '@renderer/windows/overlay/glass'
 
 /**
  * Static, presentational replica of the overlay's running state — used in
  * Settings → Appearance to preview Interface Opacity. Mirrors the JSX/classes
- * in OverlayApp.tsx 1:1 so the user judges opacity against the actual chrome,
- * not a stylized approximation.
+ * in OverlayApp.tsx so the user judges the glass against the actual chrome.
+ * `opacity` drives only the glass alpha, exactly like the overlay: the host
+ * must not fade this element itself, or the text fades with it.
  *
  * Maintenance note: when OverlayApp's render structure changes (status pill,
- * rolling transcript, merged panel layout, action chips, input row), update
- * this file too. There is no automated drift check.
+ * answer pane, transcript row, action chips, input row), update this file
+ * too. There is no automated drift check.
  */
-export function OverlayMockup(): React.JSX.Element {
+export function OverlayMockup({ opacity = 1 }: { opacity?: number }): React.JSX.Element {
   return (
-    <div className="pointer-events-none p-3" style={{ width: 680 }}>
+    <div className="pointer-events-none p-3" style={{ width: 680, ...overlayGlassVars(opacity) }}>
       <div
         className={cn('pointer-events-auto mx-auto flex w-full flex-col gap-1.5', 'max-w-[680px]')}
       >
         <MockStatusBar />
-        <MockRollingTranscript />
         <div
           className={cn(
-            'flex flex-col rounded-2xl border border-white/10',
-            'bg-black/55 backdrop-blur-2xl backdrop-saturate-150 text-foreground',
-            'shadow-2xl overflow-hidden'
+            'flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
+            GLASS_PANEL,
+            'text-foreground shadow-2xl overflow-hidden'
           )}
         >
+          <MockAnswerSection />
+          <MockTranscriptRow />
           <MockChipsRow />
           <MockInputRow />
-          <MockAnswerSection />
         </div>
       </div>
     </div>
   )
 }
 
-function MockRollingTranscript() {
-  // Mirrors RollingTranscript.tsx — single-line pill above the merged panel
-  // with an ear icon, a fading-edge italic strip of system-channel text, and
-  // an inline highlight for the most-recent detected question.
-  return (
-    <div
-      className={cn(
-        'mx-auto flex w-full max-w-[680px] items-center gap-2',
-        'rounded-full border border-white/10',
-        'bg-black/55 px-3 py-1 backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
-      )}
-    >
-      <Ear className="size-3 shrink-0 text-muted-foreground/70" aria-hidden />
-      <div
-        className="flex-1 min-w-0 overflow-hidden whitespace-nowrap text-[12px] leading-6 italic"
-        style={{
-          maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
-          WebkitMaskImage:
-            'linear-gradient(to right, transparent, black 10%, black 90%, transparent)'
-        }}
-      >
-        <span className="text-muted-foreground/80">
-          So the dashboard is updating live, right? Looks great.
-        </span>
-        <span className="px-1 text-muted-foreground/30" aria-hidden>
-          ·
-        </span>
-        <span className="rounded-sm bg-signal/15 px-1 text-signal">
-          How do you handle reconciliation when streams disagree?
-        </span>
-      </div>
-    </div>
-  )
-}
-
 function MockStatusBar() {
+  const { t } = useTranslation()
   return (
     <div
       className={cn(
-        'mx-auto flex items-center gap-2 rounded-full border border-white/10',
-        'bg-black/55 px-2 py-1 backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
+        'mx-auto flex items-center gap-2 rounded-full border border-white/10 px-2 py-1 shadow-xl',
+        GLASS_PILL
       )}
     >
-      <button
-        type="button"
-        className={cn(
-          'flex h-7 w-7 -translate-y-px items-center justify-center rounded-full',
-          'text-foreground'
-        )}
-      >
+      <span className="flex h-7 w-7 -translate-y-px items-center justify-center rounded-full text-foreground">
         <ZanbanMark size={18} signal="oklch(0.72 0.18 25)" />
-      </button>
+      </span>
       <div className="flex items-center gap-1">
-        {/* Recording chip — running state */}
-        <button
-          type="button"
+        <span
           className={cn(
             'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-            'border border-signal/30 bg-signal/10 font-mono text-[10px] text-signal'
+            'border border-signal/30 bg-signal/10 font-mono text-small text-signal'
           )}
         >
           <span className="inline-flex size-1.5 rounded-full bg-signal" />
           02:31
           <Square className="ml-0.5 size-2.5 fill-current" />
-        </button>
-        {/* Stealth on label */}
-        <button
-          type="button"
-          className={cn(
-            'inline-flex h-6 items-center gap-1 rounded px-2 font-mono text-[11px] lowercase tracking-tight',
-            'text-muted-foreground'
-          )}
-        >
-          <EyeOff className="size-3" />
-          <span>stealth on</span>
-        </button>
-        {/* Hotkey hint */}
-        <span className="inline-flex items-center gap-1 px-1 font-mono text-[10px] tabular-nums">
-          <span className="text-muted-foreground/55">⌃⇧</span>
-          <span className="text-muted-foreground">␣</span>
-          <span className="text-muted-foreground/40">ask</span>
         </span>
-        {/* Close */}
-        <button
-          type="button"
-          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground"
-        >
+        <span className="inline-flex h-6 items-center gap-1 px-2 font-mono text-small lowercase tracking-tight text-muted-foreground">
+          <EyeOff className="size-3" />
+          <span>{t('overlay.stealth_on')}</span>
+        </span>
+        <span className="inline-flex size-6 items-center justify-center text-muted-foreground">
           <X className="size-3" />
-        </button>
+        </span>
       </div>
     </div>
   )
 }
 
+function MockAnswerSection() {
+  const { t } = useTranslation()
+  return (
+    <div className="px-3 py-2.5">
+      <div className="space-y-1.5 px-1 py-1">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 text-small text-muted-foreground">
+            {t('overlay.labels.answer_last')}
+          </div>
+          <Copy className="size-3 text-muted-foreground/70" />
+        </div>
+        <div className="max-w-[65ch] text-[14px] leading-[1.5] text-foreground">
+          {t('overlay.preview.answer')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MockTranscriptRow() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 text-[12px] leading-5">
+      <Ear className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+      <p className="min-w-0 flex-1 truncate">
+        <span className="mr-1.5 font-mono text-meta uppercase tracking-wide text-muted-foreground">
+          {t('overlay.rolling.them')}
+        </span>
+        <span className="text-foreground/90">{t('overlay.preview.heard')}</span>
+      </p>
+    </div>
+  )
+}
+
 function MockChipsRow() {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-2">
-      <Chip>Recap</Chip>
-      <Chip trailing={<ChevronDown className="size-3 opacity-60" />}>more</Chip>
+      <Chip>{t('overlay.chips.catch_up')}</Chip>
+      <Chip trailing={<ChevronDown className="size-3 opacity-60" />}>{t('overlay.more')}</Chip>
       <span className="flex-1" />
-      <Chip emphasis>Answer</Chip>
+      <Chip emphasis>{t('overlay.chips.answer')}</Chip>
     </div>
   )
 }
@@ -154,7 +132,7 @@ function Chip({
   return (
     <span
       className={cn(
-        'inline-flex h-7 items-center gap-1 rounded-full px-3 text-[11px]',
+        'inline-flex h-7 items-center gap-1 rounded-full px-3 text-small',
         emphasis
           ? 'bg-foreground text-background font-medium'
           : 'border border-white/10 bg-white/[0.04] text-foreground/85'
@@ -167,61 +145,18 @@ function Chip({
 }
 
 function MockInputRow() {
+  const { t } = useTranslation()
   return (
-    <div className="flex items-center gap-2 border-t border-white/10 px-3 py-2">
-      <span className="flex-1 truncate py-1 text-[13px] text-muted-foreground/60">
-        Ask anything on screen or conversation, or
+    <div className="flex items-center gap-2 px-3 py-2">
+      <span className="flex-1 truncate py-1 text-body text-muted-foreground">
+        {t('overlay.ask_placeholder')}
       </span>
-      {/* model picker */}
-      <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-muted-foreground">
-        <span className="max-w-[110px] truncate">Default</span>
-        <ChevronDown className="size-3 shrink-0 opacity-60" />
+      <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground">
+        <Camera className="size-3.5" />
       </span>
-      {/* snap hotkey badge */}
-      <span
-        className={cn(
-          'inline-flex h-6 items-center gap-1 rounded-md border border-white/10',
-          'bg-white/5 px-1.5 font-mono text-[10px] text-muted-foreground'
-        )}
-      >
-        <Kbd>⌘</Kbd>
-        <span>+</span>
-        <Kbd>H</Kbd>
-      </span>
-      {/* send */}
-      <button
-        type="button"
-        className={cn(
-          'inline-flex size-7 shrink-0 items-center justify-center rounded-full',
-          'bg-foreground text-background'
-        )}
-      >
+      <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground">
         <Send className="size-3.5" />
-      </button>
-    </div>
-  )
-}
-
-function MockAnswerSection() {
-  // The detected-question chip was removed from the real overlay — it's now
-  // surfaced inline inside RollingTranscript (see MockRollingTranscript above).
-  // Only the answer body remains in the merged panel.
-  return (
-    <div className="flex flex-col gap-2 border-t border-white/10 px-3 py-2.5">
-      <div className="px-1 py-1">
-        <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
-          Answer last question
-        </div>
-        <div className="mt-2 text-[13px] leading-relaxed text-foreground">
-          We resolve disagreement by treating system-audio as authoritative for what the room said,
-          and the mic channel for what <em>you</em> said. The reconciler diffs both streams every
-          800 ms.
-        </div>
-        <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-success" />
-          done · 920 ms · 184 tok
-        </div>
-      </div>
+      </span>
     </div>
   )
 }

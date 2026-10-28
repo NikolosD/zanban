@@ -162,7 +162,7 @@ export function AskPanel({
               alt={t('overlay.input.screenshot_alt')}
               className="h-12 w-auto rounded border border-border/50 object-cover"
             />
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="font-mono text-meta text-muted-foreground">
               {t('ask_panel.screenshot_attached')}
             </span>
             <Button
@@ -268,7 +268,7 @@ function Empty({
   ]
   return (
     <div className="flex flex-col gap-1.5 pt-1">
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
         {t('ask_panel.quick_actions')}
       </div>
       {suggestions.map((s) => (
@@ -331,7 +331,7 @@ export function AskCard({
       )}
     >
       <CardContent className="px-1 py-1">
-        <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="mb-2 flex items-center gap-1.5 font-mono text-meta uppercase tracking-wider text-muted-foreground">
           <Quote className="size-3 shrink-0" />
           <span className="flex-1 truncate">{m.prompt}</span>
           {canCopy && (
@@ -352,18 +352,18 @@ export function AskCard({
           <StreamingMarkdown text={m.answer} />
         )}
         {m.status === 'streaming' && (
-          <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+          <div className="mt-1 flex items-center gap-1.5 font-mono text-meta text-muted-foreground">
             <span className={cn('size-1.5 rounded-full bg-signal animate-pulse')} />
             {t('ask_panel.streaming')}
           </div>
         )}
         {m.status === 'done' && m.finishReason === 'length' && (
-          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
+          <div className="mt-2 flex items-center gap-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 font-mono text-meta text-warn">
             <span className="flex-1">{t('ask_panel.answer_truncated')}</span>
             {onContinue && (
               <button
                 onClick={onContinue}
-                className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
+                className="inline-flex items-center gap-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 hover:bg-warn/20"
                 title={t('ask_panel.continue_tooltip')}
               >
                 <ArrowDownToLine className="size-3" />
@@ -379,7 +379,7 @@ export function AskCard({
                 onClick={onRegenerate}
                 disabled={busy}
                 title={t('ask_panel.regenerate_tooltip')}
-                className="inline-flex items-center gap-1 rounded border border-border/60 bg-card/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded border border-border/60 bg-card/40 px-1.5 py-0.5 font-mono text-meta text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
               >
                 <RefreshCw className="size-3" />
                 {t('ask_panel.regenerate')}
@@ -435,7 +435,7 @@ function SourcesList({ sources }: { sources: AiSource[] }) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80 hover:text-foreground"
+        className="flex w-full items-center gap-1.5 font-mono text-meta uppercase tracking-wider text-muted-foreground/80 hover:text-foreground"
       >
         <ChevronDown
           aria-hidden
@@ -450,12 +450,12 @@ function SourcesList({ sources }: { sources: AiSource[] }) {
             return (
               <li
                 key={s.id}
-                className="rounded-md border border-border/50 bg-card/40 px-2 py-1.5 text-[11px]"
+                className="rounded-md border border-border/50 bg-card/40 px-2 py-1.5 text-small"
               >
                 <div className="flex items-center gap-1.5">
                   <Icon className={cn('size-3 shrink-0', color)} />
                   <span className="truncate font-medium text-foreground/85">{s.label}</span>
-                  <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">
+                  <span className="ml-auto shrink-0 font-mono text-meta text-muted-foreground/70">
                     {s.distance.toFixed(2)}
                   </span>
                 </div>
@@ -500,7 +500,7 @@ function FollowUpChips({
   if (chips.length === 0) return null
   return (
     <div className="mt-2 flex flex-col gap-1">
-      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+      <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground/70">
         {t('ask_panel.follow_ups')}
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -509,7 +509,7 @@ function FollowUpChips({
             key={q}
             onClick={() => onAsk(q)}
             disabled={disabled}
-            className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1 text-left text-[11px] text-foreground/85 transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
+            className="rounded-full border border-border/60 bg-card/40 px-2.5 py-1 text-left text-small text-foreground/85 transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
           >
             {q}
           </button>

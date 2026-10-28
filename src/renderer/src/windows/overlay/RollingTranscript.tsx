@@ -27,19 +27,19 @@ export function RollingTranscript() {
       data-testid="overlay-rolling-transcript"
       className="flex min-w-0 items-center gap-2 px-3 py-1.5 text-[12px] leading-5"
     >
-      <Ear className="size-3 shrink-0 text-muted-foreground/70" aria-hidden />
+      <Ear className="size-3 shrink-0 text-muted-foreground" aria-hidden />
       <p className="min-w-0 flex-1 truncate" title={latest?.text}>
         {latest ? (
           <>
-            <span className="mr-1.5 font-mono text-[9px] uppercase tracking-wide text-muted-foreground/70">
+            <span className="mr-1.5 font-mono text-meta uppercase tracking-wide text-muted-foreground">
               {latest.channel === 'mic' ? t('overlay.rolling.you') : t('overlay.rolling.them')}
             </span>
-            <span className={latest.live ? 'text-foreground/55' : 'text-foreground/85'}>
+            <span className={latest.live ? 'text-foreground/70' : 'text-foreground/90'}>
               {latest.text}
             </span>
           </>
         ) : (
-          <span className="text-muted-foreground/60">{t('overlay.rolling.listening')}</span>
+          <span className="text-muted-foreground">{t('overlay.rolling.listening')}</span>
         )}
       </p>
       {micError && <CaptureErrorDot channel="mic" />}

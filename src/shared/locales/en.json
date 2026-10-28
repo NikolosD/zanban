@@ -22,8 +22,10 @@
     "open_dashboard": "open dashboard",
     "open_dashboard_keep_session": "Open dashboard · session keeps running",
     "ask_placeholder": "Ask about your screen or the conversation…",
+    "ask_placeholder_hotkey": "Ask about your screen or the conversation · {{chord}}",
     "ask_about_screenshot": "Ask about the screenshot…",
-    "idle": "idle",
+    "start": "start",
+    "start_tooltip": "Start a session and begin transcribing",
     "stealth_on": "stealth on",
     "stealth_off": "stealth off",
     "stealth_on_tooltip": "Invisible to screen-share. Click to expose.",
@@ -59,12 +61,11 @@
       "continue": "Continue"
     },
     "chips": {
-      "recap": "Recap",
+      "catch_up": "Catch up",
       "answer": "Answer",
-      "what_to_answer": "What to answer?",
+      "which_question": "Which question?",
       "shorten": "Shorten last answer",
       "follow_up": "Suggest follow-up",
-      "disabled_needs_session": "Start a session first — there's nothing to work with yet",
       "disabled_needs_answer": "Generate an answer first"
     },
     "model_picker": {
@@ -73,17 +74,22 @@
       "default_with_model": "Default · {{model}}",
       "text_answers": "Text answers",
       "vision": "Vision (screenshots)",
-      "tooltip": "Override model for this request · provider: {{provider}}"
+      "tooltip": "Override model for this request · provider: {{provider}}",
+      "menu_label": "Model"
     },
     "input": {
       "remove_screenshot": "Remove screenshot",
       "screenshot_attached_tooltip": "Screenshot attached · click to remove",
       "snap_tooltip": "Snap a screenshot to send with your question",
-      "snap_hotkey_tooltip": "Press {{chord}} to snap the full screen and attach it",
+      "snap_hotkey_tooltip": "Attach a screenshot of the full screen · {{chord}}",
       "screenshot_alt": "Attached screenshot"
     },
     "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
-    "resize_answer": "Answer pane height"
+    "resize_answer": "Answer pane height",
+    "preview": {
+      "heard": "How do you handle reconciliation when streams disagree?",
+      "answer": "System audio is authoritative for what the room said, the mic for what you said. The reconciler diffs both streams every 800 ms."
+    }
   },
   "capture": {
     "mic_lost": "Microphone disconnected and couldn't reconnect — your side isn't being transcribed",
@@ -191,6 +197,7 @@
       "aria_label": "Search sessions and settings, or ask Zanban"
     },
     "session_actions": {
+      "resume": "resume",
       "resume_tooltip": "Resume — append new audio to this session",
       "menu_aria": "Session actions",
       "export_markdown": "Export markdown…",
@@ -219,6 +226,15 @@
       "today": "Today",
       "yesterday": "Yesterday",
       "this_week": "Earlier this week"
+    },
+    "row": {
+      "untitled": "Untitled session",
+      "open_items_one": "{{count}} open action item",
+      "open_items_other": "{{count}} open action items"
+    },
+    "action_items": {
+      "show_all": "show all ({{count}})",
+      "show_less": "show less"
     }
   },
   "settings": {
@@ -230,9 +246,10 @@
     "save_failed": "Failed to save",
     "tabs": {
       "general": "General",
+      "keys": "Keys & providers",
       "ai": "AI",
       "audio": "Audio",
-      "identity": "Identity",
+      "identity": "Context",
       "recap": "Recap",
       "hotkeys": "Hotkeys",
       "about": "About"
@@ -254,12 +271,17 @@
       "reference_documents_divider": "reference documents"
     },
     "providers": {
-      "ai_section_title": "ai providers · text & vision",
-      "ai_section_hint": "Pick which provider answers your questions. Click a card to make it active — credentials stay in the OS keychain.",
+      "ai_section_title": "ai models · text & screenshots",
+      "ai_section_hint": "The provider that answers your questions. Click a card to make it active — keys stay in your OS keychain.",
+      "stt_section_title": "speech-to-text",
+      "stt_section_hint": "Turns your mic and system audio into the live transcript. Click a card to make it active.",
+      "web_search_title": "web search",
+      "web_search_hint": "Optional. Lets answers look things up — say, the company you're about to talk to.",
       "privacy_mode_label": "Privacy mode",
-      "privacy_mode_on": "Active — LLM is Ollama, STT is local Whisper. Nothing leaves your machine.",
-      "privacy_mode_off": "Off — flips LLM + STT to local at once. Slower, lower quality, fully private.",
+      "privacy_mode_on": "On — answers come from Ollama and speech-to-text runs on local Whisper. Nothing leaves your machine.",
+      "privacy_mode_off": "Off — turn on to switch answers and speech-to-text to local models at once. Slower and less accurate, fully private.",
       "get_key": "get key",
+      "get_key_title": "Open the provider's console to get a key",
       "active_badge": "active",
       "key_placeholder": "paste key here…",
       "key_hide": "Hide key",
@@ -292,7 +314,7 @@
       "tavily_hint": "Powers live web search for company research. If empty, LLM general knowledge is used and may be outdated.",
       "tavily_placeholder": "tvly-…",
       "tavily_auto_label": "Auto web search",
-      "tavily_auto_hint": "Inject Tavily results into prompts ≥4 words.",
+      "tavily_auto_hint": "Search the web on its own for questions of four words or more.",
       "llm": {
         "vercel-gateway": {
           "name": "Vercel AI Gateway",
@@ -316,7 +338,7 @@
         },
         "groq": {
           "name": "Groq",
-          "description": "Fastest TTFT (sub-100ms). Great for question detector.",
+          "description": "Fastest first token (under 100 ms). Good for quick follow-up suggestions.",
           "key_label": "Groq API key"
         },
         "ollama": {
@@ -368,32 +390,33 @@
       }
     },
     "personas": {
-      "title": "Personas",
-      "hint": "Pick the active persona — its system prompt drives every AI request. Built-ins can be edited or deleted; create your own with the + button.",
+      "title": "Roles",
+      "hint": "The active role tells the assistant who you are and how to answer. Built-in roles can be edited or deleted; add your own with New.",
       "import": "Import",
       "export": "Export",
       "new": "New",
-      "new_default_name": "New persona",
-      "builtin_badge": "builtin",
-      "empty_prompt_placeholder": "(empty prompt)",
-      "empty_list": "No personas yet. Click \"New\" to create one.",
-      "delete_confirm": "Delete this persona?",
-      "toast_export_success": "Personas JSON copied to clipboard",
+      "new_default_name": "New role",
+      "builtin_badge": "built-in",
+      "empty_prompt_placeholder": "(no instructions)",
+      "empty_list": "No roles yet. Click \"New\" to create one.",
+      "delete_confirm": "Delete this role?",
+      "toast_export_success": "Roles copied to the clipboard as JSON",
       "toast_export_failed": "Export failed",
       "toast_import_clipboard_empty": "Clipboard is empty",
       "toast_import_success": "Imported {{added}}, skipped {{skipped}}",
       "toast_import_failed": "Import failed",
       "editor": {
-        "name_placeholder": "Persona name",
-        "prompt_placeholder": "System prompt that defines this persona's behavior…",
-        "default_model_label": "Default fast model (optional)",
-        "response_language_label": "Response language (optional)",
-        "inherit_option": "Inherit from settings",
-        "rag_title": "RAG (history retrieval)",
-        "rag_hint": "Pull relevant snippets from past sessions into the prompt.",
-        "rag_topk_aria": "RAG top-K",
-        "stop_using": "Stop using this persona",
-        "activate": "Activate",
+        "name_placeholder": "Role name",
+        "prompt_placeholder": "Instructions for this role — who you are, what your calls are about, how to answer…",
+        "default_model_label": "Answer model override",
+        "response_language_label": "Answer language override",
+        "inherit_option": "No override",
+        "language_inherit_option": "No override · {{language}}",
+        "rag_title": "Use past sessions",
+        "rag_hint": "Pull relevant snippets from earlier calls into answers.",
+        "rag_topk_aria": "Number of snippets",
+        "stop_using": "Stop using this role",
+        "activate": "Use this role",
         "delete": "Delete",
         "advanced_label": "Advanced"
       }
@@ -421,45 +444,49 @@
       "upload_failed": "Failed: {{path}}"
     },
     "general": {
-      "appearance_title": "appearance",
-      "appearance_hint": "How the overlay sits on your screen during a call.",
-      "language_title": "language",
-      "language_hint": "Interface language of the app.",
-      "answer_language_title": "answer language",
-      "answer_language_hint": "Language the assistant writes answers in (including screenshot answers). \"Auto\" matches the question / transcript; for a one-shot screenshot it falls back to the app language. Code and quoted text stay verbatim.",
-      "privacy_title": "privacy",
-      "privacy_hint": "How the floating widget behaves around screen-sharing and Hide.",
+      "overlay_title": "overlay",
+      "overlay_hint": "How the floating assistant looks, and who can see it.",
+      "opacity_label": "Background opacity",
+      "opacity_hint": "How much of your screen shows through the overlay's background. Text always stays solid.",
+      "opacity_preview": "{{percent}}% preview",
       "stealth_label": "Stealth mode",
-      "stealth_hint": "On (default): the overlay is invisible to screen-share and recording. Off: shows up like any normal window.",
-      "hide_widget_label": "Hide widget when hiding",
-      "hide_widget_hint": "When you toggle Hide, also collapse the chips/input so only the tiny status pill remains.",
-      "hide_app_switcher_label": "Hide from app switcher",
-      "hide_app_switcher_hint": "Drop Zanban from the dock + Cmd+Tab on macOS, and the taskbar + Alt+Tab on Windows. Restart on macOS for the dock change to take effect.",
-      "assistant_title": "assistant",
-      "assistant_hint": "How proactively Zanban surfaces helpers during the call.",
-      "transcript_window_label": "Transcript window",
-      "transcript_window_hint": "Seconds of recent audio sent as context for each Ask.",
-      "sessions_title": "sessions",
-      "sessions_hint": "Stored locally as Markdown + JSON. Open the folder to grep or back up.",
-      "open_sessions_folder": "Open sessions folder",
-      "setup_title": "setup",
-      "setup_hint": "Replay the first-run wizard to swap providers or re-add keys.",
-      "rerun_onboarding": "Re-run onboarding",
-      "opacity_label": "Interface opacity",
-      "opacity_hint": "Blend the floating overlay into the screen background. Useful when a meeting tile is bright. 100% = solid.",
-      "opacity_preview": "{{percent}}% preview"
+      "stealth_hint": "On (default): screen-share and recordings can't see the overlay or the dashboard. Off: they show up like any other window.",
+      "stealth_taskbar_label": "Leave the taskbar in stealth",
+      "stealth_taskbar_hint": "While stealth is on, the dashboard also drops out of the taskbar. The Show dashboard hotkey brings it back.",
+      "app_switcher_label": "Always stay out of the taskbar",
+      "app_switcher_hint": "Keeps Zanban out of the taskbar and Alt+Tab on Windows, and out of the dock and Cmd+Tab on macOS (after a restart there).",
+      "data_title": "data",
+      "data_hint": "Everything stays on this computer.",
+      "sessions_label": "Session files",
+      "sessions_hint": "Transcripts and recaps, saved as Markdown and JSON.",
+      "open_sessions_folder": "Open folder",
+      "setup_label": "Setup wizard",
+      "setup_hint": "Walk through keys, the audio check, and your role again.",
+      "rerun_onboarding": "Run again"
+    },
+    "language": {
+      "title": "language",
+      "hint": "Each one can differ — say, a Russian interface with English answers.",
+      "interface_label": "Interface",
+      "interface_hint": "Menus, settings, and the overlay.",
+      "speech_label": "Speech",
+      "answers_label": "Answers",
+      "answers_hint": "What the assistant writes in, screenshot answers included. Auto matches the question; code and quotes stay as they are.",
+      "recap_label": "Recap",
+      "recap_hint": "Recaps come in English or Russian. With any other answer language they match the conversation.",
+      "recap_same": "Same as answers"
     },
     "ai": {
-      "models_card_title": "models per role",
-      "models_card_hint": "What model handles each task. Selector lists only the active provider's catalogue — no more `openai/gpt-oss-120b` showing up while talking to Anthropic.",
-      "web_search_title": "web search",
-      "web_search_hint": "External knowledge for company research. Uses Tavily; falls back to LLM general knowledge if no key.",
+      "models_card_title": "models per task",
+      "models_card_hint": "Zanban picks a model for each task from your active provider. Override one only if you want it faster or stronger.",
       "answers_title": "answers",
-      "answers_hint": "Length and verbosity of streamed text answers.",
+      "answers_hint": "How long answers are, and how much of the call they see.",
+      "context_window_label": "Context window",
+      "context_window_hint": "Seconds of recent conversation sent with each question (10–600).",
       "detailed_answers_label": "Detailed answers",
       "detailed_answers_hint": "Raise the output limit so answers truncate less often. Slightly slower. Off by default for short, snappy replies.",
-      "streaming_label": "Streaming answers",
-      "streaming_hint": "Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels.",
+      "streaming_label": "Answers",
+      "streaming_hint": "Every answer you ask for, by hotkey or typed. Pick the fastest model you trust — you wait for it mid-call.",
       "follow_up_model_label": "Follow-up suggestions model",
       "follow_up_model_hint": "Suggests follow-up questions under each finished answer. Runs after every answer — a small, cheap model is enough.",
       "session_title_label": "Session title",
@@ -475,32 +502,27 @@
       "default_chip": "default",
       "reset_to_defaults": "Reset to defaults",
       "advanced_overrides_label": "Advanced model overrides",
-      "showing_models": "Showing models for <0>{{provider}}</0>. Each provider keeps its own per-role IDs — switching providers above doesn't lose what you typed here."
+      "showing_models": "Models for <0>{{provider}}</0>. Each provider keeps its own overrides, so switching providers doesn't lose them."
     },
     "audio": {
       "capture_title": "audio capture",
-      "capture_hint": "Microphone for your voice. System loopback captures the other speaker.",
+      "capture_hint": "Your microphone, plus the other side of the call through system audio.",
       "mic_label": "Microphone",
       "default_device": "Default device",
       "rescan_tooltip": "Re-scan and request mic permission",
       "device_unnamed": "device {{id}}…",
       "system_label": "Capture system audio",
-      "system_hint": "Loopback the other side of the call automatically.",
-      "vad_label": "Skip silence on mic (VAD)",
-      "vad_hint": "Drop pure-silence batches from the MIC channel before sending to STT. Saves bandwidth on quiet sessions. Never applied to system audio (the other speaker's loopback is left alone). Takes effect on next session start.",
-      "stt_title": "speech-to-text providers",
-      "stt_hint": "How Zanban transcribes mic + system audio. Click a card to make it active — credentials stay in the OS keychain."
+      "system_hint": "Records what you hear, so the other people on the call make it into the transcript.",
+      "vad_label": "Skip silence on the mic",
+      "vad_hint": "Don't send silence from your mic to speech-to-text. Saves bandwidth on quiet calls; system audio is never cut. Applies from the next session.",
+      "elsewhere_note": "Speech-to-text provider and keys are in <0>Keys & providers</0>; the speech language is in <1>General</1>."
     },
     "transcription": {
-      "title": "transcription language",
-      "hint_multi": "Pick \"Multilingual\" for code-switching, or pin a specific language for sharper accuracy. Provider: {{provider}}.",
-      "hint_single": "Provider \"{{provider}}\" works best with a single locked language. Pick the one most of your speech is in.",
-      "language_label": "Language",
+      "hint_multi": "The language spoken on your calls. Multilingual follows switches mid-call; a single language is a little more accurate.",
+      "hint_single": "The language spoken on your calls. {{provider}} needs one fixed language.",
       "popular": "Popular",
       "other": "Other",
-      "switch_provider_note_before": "Switch STT provider in the",
-      "switch_provider_note_tab": "Providers",
-      "switch_provider_note_after": "tab.",
+      "switch_provider_note": "Speech-to-text: {{provider}}. Change it in <0>Keys & providers</0>.",
       "lang": {
         "multi": "Multilingual · auto-switch",
         "en": "English",
@@ -522,11 +544,10 @@
       }
     },
     "recap": {
-      "title": "Post-Meeting Recap",
-      "subtitle": "Controls how the structured recap document is generated at the end of each session.",
-      "auto_label": "Auto-generate",
-      "auto_hint": "Start recap generation automatically when you stop a session.",
-      "auto_toggle": "Generate recap when session ends",
+      "title": "recap",
+      "subtitle": "The structured summary written after each session: decisions, action items, a follow-up draft.",
+      "auto_label": "Write automatically",
+      "auto_hint": "Generate the recap as soon as you stop a session.",
       "tone_label": "Tone",
       "tone_hint": "Tone applied to the follow-up draft and action items.",
       "tones": {
@@ -534,10 +555,9 @@
         "friendly": "Friendly",
         "formal": "Formal"
       },
-      "language_label": "Output language",
-      "language_hint": "Language the recap is written in. \"Auto\" detects from the transcript.",
+      "language_moved": "The recap language is set in <0>General → Language</0>.",
       "languages": {
-        "auto": "Auto (detect from transcript)",
+        "auto": "Match the conversation",
         "en": "English",
         "ru": "Russian · Русский"
       },
@@ -558,8 +578,8 @@
         "hint": "Start a session, or stop the one in progress — no need to open the dashboard."
       },
       "toggleOverlay": {
-        "label": "Toggle overlay",
-        "hint": "Show or hide the floating assistant."
+        "label": "Show / collapse overlay",
+        "hint": "Collapse the floating assistant out of the way, or bring it back."
       },
       "askAi": {
         "label": "Focus ask",
@@ -571,7 +591,7 @@
       },
       "hideShow": {
         "label": "Toggle stealth",
-        "hint": "Toggle stealth — hides from screen-share."
+        "hint": "Turn stealth on or off. While it's on, screen-share and recordings can't see Zanban."
       },
       "screenshot": {
         "label": "Snap full screen → Ask",
@@ -590,16 +610,17 @@
         "hint": "Open the standalone chat window (no transcript context)."
       },
       "showDashboard": {
-        "label": "Force-show dashboard",
-        "hint": "Brings back the dashboard window when stealth + hide-widget mode would otherwise leave it unreachable."
+        "label": "Show dashboard",
+        "hint": "Brings the dashboard back when stealth has taken it out of the taskbar."
       }
     },
     "dialog_description": "API keys, audio devices, hotkeys.",
     "search_keywords": {
-      "general": "general, privacy, stealth, detectable, hide widget, app switcher, transcript window, sessions folder, dock, taskbar, opacity, appearance, language, answer language, onboarding",
-      "ai": "ai, models, llm, gateway, vercel, api key, openai, gpt, claude, gemini, groq, ollama, anthropic, tavily, web search, fallback, follow-up, summary, vision, screenshots, token, secret, privacy mode, providers, detailed answers",
-      "audio": "audio, mic, microphone, system audio, loopback, device, vad, silence, transcription, language, stt, speech to text, multilingual, deepgram, whisper, elevenlabs, google",
-      "identity": "identity, persona, preset, response language, reply language, system prompt, documents, reference, pdf, docx, txt, context, resume, spec, brief, rag",
+      "general": "general, overlay, privacy, stealth, detectable, taskbar, app switcher, alt+tab, dock, opacity, appearance, language, interface language, answer language, speech language, transcription language, recap language, multilingual, data, sessions folder, setup wizard, onboarding",
+      "keys": "keys, providers, api key, token, secret, llm, gateway, vercel, openai, gpt, claude, anthropic, gemini, groq, ollama, privacy mode, fallback, stt, speech to text, transcription, deepgram, whisper, elevenlabs, google, tavily, web search",
+      "ai": "ai, models, model overrides, detailed answers, context window, transcript window, follow-up, summary, session title, vision, screenshots",
+      "audio": "audio, mic, microphone, system audio, loopback, device, vad, silence",
+      "identity": "context, role, roles, persona, preset, answer language override, system prompt, instructions, documents, reference, pdf, docx, txt, resume, spec, brief, rag",
       "recap": "recap, post-meeting, summary, auto generate, tone, concise, friendly, formal, language, model override, action items",
       "hotkeys": "hotkeys, keybinds, keyboard, shortcut, shortcuts, accelerator, rebind",
       "about": "about, version, changelog, updates, logs, bug, diagnostics"
@@ -626,14 +647,14 @@
   },
   "onboarding": {
     "title": "First-run setup",
-    "description": "Pick a language, an LLM provider, and add API keys.",
+    "description": "Pick your languages and an AI provider, add keys, and check your audio.",
     "steps": {
       "language": "Language",
       "provider": "Provider",
       "keys": "Keys",
-      "hotkeys": "Hotkeys",
+      "audio": "Audio",
       "done": "Done",
-      "persona": "Persona"
+      "persona": "Role"
     },
     "language": {
       "title": "Welcome to Zanban",
@@ -642,7 +663,9 @@
       "english_label": "English",
       "english_sublabel": "Full support today.",
       "russian_label": "Русский",
-      "russian_sublabel": "Полная поддержка."
+      "russian_sublabel": "Полная поддержка.",
+      "answers_label": "answer language",
+      "answers_hint": "Auto answers in the language of the question. Change it any time in Settings → General."
     },
     "provider": {
       "title": "Pick an LLM provider",
@@ -739,30 +762,49 @@
         "local_whisper_note": "No keys needed. The model downloads on first session and runs entirely on this machine."
       }
     },
-    "hotkeys": {
-      "title": "Hotkeys",
-      "body": "The keys that matter most. All of them are global — they fire even when another app has focus. Customize them later in Settings → Hotkeys.",
-      "labels": {
-        "toggleSession": "Start / stop session",
-        "toggleOverlay": "Toggle overlay",
-        "hideShow": "Toggle stealth",
-        "askAi": "Focus ask",
-        "answerLast": "Answer last question",
-        "screenshot": "Snap full screen → Ask",
-        "showDashboard": "Force-show dashboard"
-      }
+    "audio": {
+      "title": "Check your audio",
+      "body": "Bad audio is the most common reason a first call goes wrong. Half a minute here saves that.",
+      "session_running": "A session is recording right now. Stop it to run the audio check, or skip this step.",
+      "mic_title": "your microphone",
+      "mic_starting": "Opening the microphone…",
+      "mic_listening": "Say a few words — the bar should cross the line.",
+      "mic_heard": "We can hear you.",
+      "mic_quiet": "Very quiet. Move closer, or raise the input level in your system sound settings.",
+      "mic_silent": "No signal from this microphone. Check that it isn't muted, or pick another one.",
+      "mic_failed": "Can't open the microphone ({{error}}). Allow microphone access in your system privacy settings, then come back.",
+      "system_title": "the other side of the call",
+      "system_label": "Capture system audio",
+      "system_hint": "Records what you hear, so the other people on the call make it into the transcript.",
+      "system_off": "Off — only your own voice will be transcribed.",
+      "system_test": "Play a test sound",
+      "system_retest": "Test again",
+      "system_starting": "Starting system audio capture…",
+      "system_listening": "Playing three beeps — the bar should jump.",
+      "system_heard": "System audio works.",
+      "system_silent": "Didn't catch any sound. Check your output volume, or play something in another app (a video works) and test again.",
+      "system_failed": "System audio capture isn't available on this computer. Zanban will still transcribe your microphone."
     },
     "done": {
       "title": "You're set",
       "missing_title": "Almost set",
       "missing_body": "These providers still have no credentials, so sessions and answers won't work yet. Go back to the Keys step or add them later in Settings:",
-      "body": "Hit <0>Start session</0> in the dashboard header to begin recording. The overlay floats on top of your call and is invisible to screen-share by default. Stop by Settings any time to swap providers, edit hotkeys, or re-run this wizard."
+      "body": "Hit <0>Start session</0> in the dashboard header to begin recording. The overlay floats over your call and, in stealth, stays invisible to screen-share.",
+      "hotkeys_title": "three keys to remember",
+      "hotkeys": {
+        "toggleOverlay": "Show / collapse overlay",
+        "answerLast": "Answer the last question",
+        "toggleSession": "Start / stop session"
+      },
+      "hotkeys_more": "They work from any app. See and change every hotkey in Settings → Hotkeys."
     },
     "persona": {
       "title": "What do you do?",
-      "body": "Pick a role so the assistant answers in the right voice. You can change or fine-tune this later in Settings.",
-      "language_label": "Response language",
-      "skip": "Skip"
+      "optional_badge": "optional",
+      "body": "Pick a role so answers fit your calls — or skip. You can choose one later in Settings → Context.",
+      "skip": "Skip",
+      "pick_role": "Pick a role",
+      "use_role": "Use “{{name}}”"
     }
   },
   "errors": {
@@ -791,10 +833,9 @@
     "recent_ai_exchanges": "Recent AI exchanges",
     "ask_placeholder": "Ask about this meeting…",
     "send": "Send",
-    "resume_session": "Resume Session",
+    "resume_session": "Resume session",
     "cannot_read": "Cannot read this session.",
-    "asked_toast": "Asked — see the answer in Ask",
-    "ask_failed": "Failed",
+    "dismiss_answer": "Dismiss answer",
     "loading": "Loading session…",
     "back": "Back",
     "not_found": "Session file not found.",
@@ -803,7 +844,7 @@
     "tabs": {
       "recap": "Recap",
       "transcript": "Transcript",
-      "usage": "Usage"
+      "stats": "Stats"
     },
     "recap": {
       "empty_label": "no recap yet",
@@ -828,7 +869,7 @@
       "error": {
         "rate_limit": "Provider rate-limited. Try again in a moment.",
         "timeout": "Recap took too long. Try a smaller model or a shorter transcript.",
-        "no_provider": "No AI provider configured. Open Settings → Providers.",
+        "no_provider": "No AI provider configured. Open Settings → Keys & providers.",
         "invalid_output": "Model output couldn't be parsed. Try regenerating.",
         "no_transcript": "No transcript to summarise.",
         "already_generating": "A recap is already being generated for this session.",

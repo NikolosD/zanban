@@ -3,7 +3,8 @@ import {
   Loader2,
   RefreshCw,
   Cpu,
-  User,
+  KeyRound,
+  BookUser,
   Keyboard,
   SlidersHorizontal,
   Info,
@@ -22,21 +23,21 @@ import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
   PROVIDER_VISION_MODELS,
-  RESPONSE_LANGUAGES,
   type AiModelSettings,
   type AiRole,
   type AppSettings,
-  type LlmProvider,
-  type ResponseLanguage
+  type LlmProvider
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
 import { errorMessage } from '@renderer/lib/errors'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
-import { ProvidersTab, SttProviderCards, WebSearchCard, LLM_PROVIDERS } from './ProvidersTab'
+import { ProvidersTab, LLM_PROVIDERS } from './ProvidersTab'
 import { RecapSettingsTab } from './RecapSettingsTab'
 import { OverlayMockup } from './OverlayMockup'
+import { LanguageSection } from './LanguageSection'
+import { Field, Row, Section, TabLink, type FieldControlProps } from './layout'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
@@ -55,13 +56,13 @@ import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 
 // Settings IDs the rest of the app passes around. The legacy `providers`,
-// `models`, and `documents` ids are kept as aliases (mapped to their merged
-// tabs in resolveTab) so deeper jump-to-tab links still work — search hits,
-// the overlay's "API keys not configured" alert, etc.
+// `models`, `persona`, and `documents` ids are kept as aliases (mapped to their
+// merged tabs in resolveTab) so older jump-to-tab links still work.
 export type SettingsTabId =
   | 'general'
-  | 'audio'
+  | 'keys'
   | 'ai'
+  | 'audio'
   | 'identity'
   | 'recap'
   | 'hotkeys'
@@ -72,19 +73,21 @@ export type SettingsTabId =
   | 'persona'
   | 'documents'
 
-type TabId = 'general' | 'audio' | 'ai' | 'identity' | 'recap' | 'hotkeys' | 'about'
+type TabId = 'general' | 'keys' | 'ai' | 'audio' | 'identity' | 'recap' | 'hotkeys' | 'about'
 
 function resolveTab(id: SettingsTabId): TabId {
-  if (id === 'providers' || id === 'models') return 'ai'
+  if (id === 'providers') return 'keys'
+  if (id === 'models') return 'ai'
   if (id === 'persona' || id === 'documents') return 'identity'
   return id
 }
 
 const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'general', icon: SlidersHorizontal },
+  { id: 'keys', icon: KeyRound },
   { id: 'ai', icon: Cpu },
   { id: 'audio', icon: Headphones },
-  { id: 'identity', icon: User },
+  { id: 'identity', icon: BookUser },
   { id: 'recap', icon: FileText },
   { id: 'hotkeys', icon: Keyboard },
   { id: 'about', icon: Info }
@@ -197,7 +200,7 @@ export function SettingsPanel({
 
   if (!settings) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-body text-muted-foreground">
         <Loader2 className="mr-2 size-3.5 animate-spin" /> {t('common.loading')}
       </div>
     )
@@ -214,22 +217,17 @@ export function SettingsPanel({
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-8 py-7">
           <Tabs.Content value="general">
-            <GeneralTab settings={settings} update={update} onReRunOnboarding={onReRunOnboarding} />
+            <GeneralTab
+              settings={settings}
+              update={update}
+              onOpenTab={setTab}
+              onReRunOnboarding={onReRunOnboarding}
+            />
+          </Tabs.Content>
+          <Tabs.Content value="keys">
+            <ProvidersTab settings={settings} update={update} />
           </Tabs.Content>
           <Tabs.Content value="ai">
-            <ProvidersTab settings={settings} update={update} />
-            <Section
-              title={t('settings.ai.models_card_title')}
-              hint={t('settings.ai.models_card_hint')}
-            >
-              <ModelsTab settings={settings} update={update} />
-            </Section>
-            <Section
-              title={t('settings.ai.web_search_title')}
-              hint={t('settings.ai.web_search_hint')}
-            >
-              <WebSearchCard settings={settings} update={update} />
-            </Section>
             <Section title={t('settings.ai.answers_title')} hint={t('settings.ai.answers_hint')}>
               <Row
                 label={t('settings.ai.detailed_answers_label')}
@@ -240,6 +238,24 @@ export function SettingsPanel({
                   onCheckedChange={(v) => update('detailedAnswers', v)}
                 />
               </Row>
+              <Field
+                label={t('settings.ai.context_window_label')}
+                hint={t('settings.ai.context_window_hint')}
+              >
+                {(control) => (
+                  <TranscriptWindowInput
+                    {...control}
+                    value={settings.contextSeconds}
+                    onCommit={(n) => update('contextSeconds', n)}
+                  />
+                )}
+              </Field>
+            </Section>
+            <Section
+              title={t('settings.ai.models_card_title')}
+              hint={t('settings.ai.models_card_hint')}
+            >
+              <ModelsTab settings={settings} update={update} />
             </Section>
           </Tabs.Content>
           <Tabs.Content value="audio">
@@ -249,13 +265,14 @@ export function SettingsPanel({
               mics={mics}
               micsError={micsError}
               onRescan={() => void rescanMics()}
+              onOpenTab={setTab}
             />
           </Tabs.Content>
           <Tabs.Content value="identity">
             <PersonasTab settings={settings} update={update} />
             <div className="mt-10 mb-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-white/[0.06]" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground">
                 {t('settings.identity.reference_documents_divider')}
               </span>
               <div className="h-px flex-1 bg-white/[0.06]" />
@@ -263,7 +280,11 @@ export function SettingsPanel({
             <ReferenceDocsTab />
           </Tabs.Content>
           <Tabs.Content value="recap">
-            <RecapSettingsTab settings={settings} update={update} />
+            <RecapSettingsTab
+              settings={settings}
+              update={update}
+              onOpenGeneral={() => setTab('general')}
+            />
           </Tabs.Content>
           <Tabs.Content value="hotkeys">
             <HotkeysTab
@@ -277,8 +298,8 @@ export function SettingsPanel({
           </Tabs.Content>
         </div>
         <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-8 py-3">
-          <div className="text-[11px] text-muted-foreground">{t('settings.footer_note')}</div>
-          <div className="flex h-7 items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="text-small text-muted-foreground">{t('settings.footer_note')}</div>
+          <div className="flex h-7 items-center gap-1.5 text-small text-muted-foreground">
             {savingState === 'saving' && (
               <>
                 <Loader2 className="size-3 animate-spin" />
@@ -305,7 +326,7 @@ function SettingsSidebar({ tab }: { tab: TabId }) {
     <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
       <h2
         id={titleId}
-        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+        className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground"
       >
         {tr('settings.sidebar_title')}
       </h2>
@@ -321,7 +342,7 @@ function SettingsSidebar({ tab }: { tab: TabId }) {
                 // border that lights up on active. No filled pill background —
                 // keeps the panel quieter and the active state unambiguous
                 // even from the corner of the eye.
-                'group relative flex items-center gap-2.5 border-l py-2 pl-3 pr-2 text-[13px] transition-colors',
+                'group relative flex items-center gap-2.5 border-l py-2 pl-3 pr-2 text-body transition-colors',
                 active
                   ? 'border-foreground/80 text-foreground'
                   : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground'
@@ -337,82 +358,23 @@ function SettingsSidebar({ tab }: { tab: TabId }) {
   )
 }
 
-function Section({
-  title,
-  children,
-  hint
-}: {
-  title: string
-  children: React.ReactNode
-  hint?: string
-}) {
-  // Section header: monospace eyebrow + plain title. Wide bottom margin
-  // (40px) gives the page a clear rhythm so adjacent groups don't blur
-  // into one wall of rows.
-  return (
-    <section className="mb-10 first:mt-0">
-      <div className="mb-4 flex flex-col gap-1">
-        <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          {title}
-        </div>
-        {hint && <p className="text-[12px] leading-relaxed text-muted-foreground">{hint}</p>}
-      </div>
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
-  )
-}
-
-interface FieldControlProps {
-  id: string
-  'aria-describedby'?: string
-}
-
-/** Label + hint column beside a control; spread `control` onto the control. */
-function Field({
-  label,
-  hint,
-  children
-}: {
-  label: string
-  hint?: string
-  children(control: FieldControlProps): React.ReactNode
-}) {
-  const id = useId()
-  const hintId = `${id}-hint`
-  return (
-    <div className="grid grid-cols-[180px_1fr] items-start gap-4">
-      <div className="pt-1.5">
-        <label htmlFor={id} className="block text-[13px] text-foreground/85">
-          {label}
-        </label>
-        {hint && (
-          <div id={hintId} className="mt-0.5 text-[11px] text-muted-foreground">
-            {hint}
-          </div>
-        )}
-      </div>
-      <div className="min-w-0">
-        {children({ id, 'aria-describedby': hint ? hintId : undefined })}
-      </div>
-    </div>
-  )
-}
-
 function GeneralTab({
   settings,
   update,
+  onOpenTab,
   onReRunOnboarding
 }: {
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
+  onOpenTab(tab: TabId): void
   onReRunOnboarding?: () => void
 }) {
   const { t } = useTranslation()
   return (
     <>
       <Section
-        title={t('settings.general.appearance_title')}
-        hint={t('settings.general.appearance_hint')}
+        title={t('settings.general.overlay_title')}
+        hint={t('settings.general.overlay_hint')}
       >
         <Field
           label={t('settings.general.opacity_label')}
@@ -434,48 +396,6 @@ function GeneralTab({
             )
           }}
         </Field>
-      </Section>
-      <Section
-        title={t('settings.general.language_title')}
-        hint={t('settings.general.language_hint')}
-      >
-        <Select
-          value={settings.uiLocale ?? 'en'}
-          onValueChange={(v) => update('uiLocale', v as 'en' | 'ru')}
-        >
-          <SelectTrigger className="w-44" aria-label={t('settings.general.language_title')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="ru">Русский</SelectItem>
-          </SelectContent>
-        </Select>
-      </Section>
-      <Section
-        title={t('settings.general.answer_language_title')}
-        hint={t('settings.general.answer_language_hint')}
-      >
-        <Select
-          value={settings.responseLanguage ?? 'auto'}
-          onValueChange={(v) => update('responseLanguage', v as ResponseLanguage)}
-        >
-          <SelectTrigger className="w-56" aria-label={t('settings.general.answer_language_title')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {RESPONSE_LANGUAGES.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                {t(`settings.response_languages.${l.value}`, { defaultValue: l.label })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Section>
-      <Section
-        title={t('settings.general.privacy_title')}
-        hint={t('settings.general.privacy_hint')}
-      >
         <Row label={t('settings.general.stealth_label')} hint={t('settings.general.stealth_hint')}>
           {/* Inverse of `detectable` to remove the double-negative ("off = invisible")
               that was confusing in the previous label. The setting key stays
@@ -486,8 +406,8 @@ function GeneralTab({
           />
         </Row>
         <Row
-          label={t('settings.general.hide_widget_label')}
-          hint={t('settings.general.hide_widget_hint')}
+          label={t('settings.general.stealth_taskbar_label')}
+          hint={t('settings.general.stealth_taskbar_hint')}
         >
           <Switch
             checked={settings.hideWidgetWhenHidden}
@@ -495,8 +415,8 @@ function GeneralTab({
           />
         </Row>
         <Row
-          label={t('settings.general.hide_app_switcher_label')}
-          hint={t('settings.general.hide_app_switcher_hint')}
+          label={t('settings.general.app_switcher_label')}
+          hint={t('settings.general.app_switcher_hint')}
         >
           <Switch
             checked={settings.hideFromAppSwitcher}
@@ -504,48 +424,42 @@ function GeneralTab({
           />
         </Row>
       </Section>
-      <Section
-        title={t('settings.general.assistant_title')}
-        hint={t('settings.general.assistant_hint')}
-      >
+      <LanguageSection settings={settings} update={update} onOpenKeys={() => onOpenTab('keys')} />
+      <Section title={t('settings.general.data_title')} hint={t('settings.general.data_hint')}>
         <Field
-          label={t('settings.general.transcript_window_label')}
-          hint={t('settings.general.transcript_window_hint')}
+          label={t('settings.general.sessions_label')}
+          hint={t('settings.general.sessions_hint')}
         >
           {(control) => (
-            <TranscriptWindowInput
-              {...control}
-              value={settings.contextSeconds}
-              onCommit={(n) => update('contextSeconds', n)}
-            />
+            // Described, not labelled: a <label> for a button would make a
+            // click on the label text open the folder.
+            <Button
+              aria-describedby={control['aria-describedby']}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => void window.zanban.sessions.revealFolder()}
+            >
+              <FolderOpen className="size-3.5" />
+              {t('settings.general.open_sessions_folder')}
+            </Button>
           )}
         </Field>
+        {onReRunOnboarding && (
+          <Field label={t('settings.general.setup_label')} hint={t('settings.general.setup_hint')}>
+            {(control) => (
+              <Button
+                aria-describedby={control['aria-describedby']}
+                variant="outline"
+                size="sm"
+                onClick={onReRunOnboarding}
+              >
+                {t('settings.general.rerun_onboarding')}
+              </Button>
+            )}
+          </Field>
+        )}
       </Section>
-      <Section
-        title={t('settings.general.sessions_title')}
-        hint={t('settings.general.sessions_hint')}
-      >
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => void window.zanban.sessions.revealFolder()}
-          >
-            <FolderOpen className="size-3.5" />
-            {t('settings.general.open_sessions_folder')}
-          </Button>
-        </div>
-      </Section>
-      {onReRunOnboarding && (
-        <Section title={t('settings.general.setup_title')} hint={t('settings.general.setup_hint')}>
-          <div>
-            <Button variant="outline" size="sm" className="gap-2" onClick={onReRunOnboarding}>
-              {t('settings.general.rerun_onboarding')}
-            </Button>
-          </div>
-        </Section>
-      )}
     </>
   )
 }
@@ -559,8 +473,8 @@ function ModelsTab({
 }) {
   const { t } = useTranslation()
   // Advanced per-role overrides are collapsed by default — 90% of users never
-  // touch fast/filter/summary/vision and the provider + key (in ProvidersTab
-  // above) is all they need. Auto-open when the user already has an override so
+  // touch fast/filter/summary/vision and the provider + key (on the Keys tab)
+  // is all they need. Auto-open when the user already has an override so
   // we don't hide their existing config.
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const provider = settings.llmProvider
@@ -654,7 +568,7 @@ function ModelsTab({
           type="button"
           aria-expanded={showAdvanced}
           onClick={() => setAdvancedOpen((o) => !o)}
-          className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          className="flex items-center gap-1.5 font-mono text-small uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronRight
             className={cn('size-3 transition-transform', showAdvanced && 'rotate-90')}
@@ -665,7 +579,7 @@ function ModelsTab({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 shrink-0 text-[11px] text-muted-foreground"
+            className="h-7 shrink-0 text-small text-muted-foreground"
             onClick={resetForProvider}
           >
             {t('settings.ai.reset_to_defaults')}
@@ -675,11 +589,11 @@ function ModelsTab({
 
       {showAdvanced && (
         <>
-          <p className="text-[12px] leading-relaxed text-muted-foreground">
+          <p className="text-small leading-relaxed text-muted-foreground">
             <Trans
               i18nKey="settings.ai.showing_models"
-              values={{ provider }}
-              components={{ 0: <span className="font-mono text-foreground" /> }}
+              values={{ provider: t(`settings.providers.llm.${provider}.name`) }}
+              components={{ 0: <span className="text-foreground" /> }}
             />
           </p>
 
@@ -714,14 +628,14 @@ function ModelsTab({
             </div>
           </div>
 
-          {/* Vision — its own card so the dual contol (provider + model) stands
+          {/* Vision — its own card so the dual control (provider + model) stands
           apart from the text roles. The user can route screenshots through
           a different vendor than text. */}
           <div className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
             <div className="flex items-baseline justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[13px] font-medium">{t('settings.ai.vision_title')}</div>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                <div className="text-body font-medium">{t('settings.ai.vision_title')}</div>
+                <p className="mt-0.5 text-small leading-relaxed text-muted-foreground">
                   {t('settings.ai.vision_hint')}
                 </p>
               </div>
@@ -730,7 +644,7 @@ function ModelsTab({
             {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-                <label htmlFor={visionProviderId} className="text-[11px] text-muted-foreground">
+                <label htmlFor={visionProviderId} className="text-small text-muted-foreground">
                   {t('settings.ai.provider_label')}
                 </label>
                 <Select
@@ -747,7 +661,9 @@ function ModelsTab({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__same__">
-                      {t('settings.ai.same_as_text', { provider })}
+                      {t('settings.ai.same_as_text', {
+                        provider: t(`settings.providers.llm.${provider}.name`)
+                      })}
                     </SelectItem>
                     {LLM_PROVIDERS.map((p) => (
                       <SelectItem key={p.value} value={p.value}>
@@ -758,7 +674,7 @@ function ModelsTab({
                 </Select>
               </div>
               <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-                <span id={visionModelLabelId} className="text-[11px] text-muted-foreground">
+                <span id={visionModelLabelId} className="text-small text-muted-foreground">
                   {t('settings.ai.model_label')}
                 </span>
                 <ModelOptionSelect
@@ -801,10 +717,10 @@ function ModelRoleField({
   return (
     <div className="grid grid-cols-[180px_1fr] items-start gap-4">
       <div className="pt-1">
-        <div id={labelId} className="text-[12.5px] font-medium text-foreground/90">
+        <div id={labelId} className="text-body font-medium text-foreground/90">
           {label}
         </div>
-        <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{hint}</div>
+        <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">{hint}</div>
       </div>
       <ModelOptionSelect
         labelledBy={labelId}
@@ -843,9 +759,9 @@ function ModelOptionSelect({
         <SelectContent>
           {options.map((m) => (
             <SelectItem key={m} value={m}>
-              <span className="font-mono text-xs">{m}</span>
+              <span className="font-mono text-small">{m}</span>
               {m === fallback && (
-                <span className="ml-2 text-[10px] text-muted-foreground">
+                <span className="ml-2 text-meta text-muted-foreground">
                   {t('settings.ai.default_chip')}
                 </span>
               )}
@@ -856,7 +772,7 @@ function ModelOptionSelect({
       <div className="flex items-center gap-2">
         <Input
           aria-labelledby={labelledBy}
-          className="font-mono text-[11px]"
+          className="font-mono text-small"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={t('settings.ai.custom_id_placeholder', { model: fallback })}
@@ -865,7 +781,7 @@ function ModelOptionSelect({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-[11px]"
+            className="h-7 px-2 text-small"
             onClick={() => onChange('')}
             title={t('settings.ai.reset_to_default')}
           >
@@ -883,13 +799,15 @@ function AudioTab({
   update,
   mics,
   micsError,
-  onRescan
+  onRescan,
+  onOpenTab
 }: {
   settings: AppSettings
   update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
   mics: MicDevice[]
   micsError: string | null
   onRescan(): void
+  onOpenTab(tab: TabId): void
 }) {
   const { t } = useTranslation()
   return (
@@ -931,7 +849,7 @@ function AudioTab({
                   <RefreshCw className="size-3.5" />
                 </Button>
               </div>
-              {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
+              {micsError && <p className="mt-2 text-small text-destructive">{micsError}</p>}
             </>
           )}
         </Field>
@@ -948,114 +866,16 @@ function AudioTab({
           />
         </Row>
       </Section>
-
-      <Section title={t('settings.audio.stt_title')} hint={t('settings.audio.stt_hint')}>
-        <SttProviderCards settings={settings} update={update} />
-      </Section>
-
-      <TranscriptionLanguageSection settings={settings} update={update} />
-    </>
-  )
-}
-
-// Language labels are pulled from i18n at render time (see
-// `settings.transcription.lang.*`). Only the value + flag stay here.
-const TRANSCRIPTION_LANGUAGES_POPULAR: Array<{ value: string; flag: string }> = [
-  { value: 'multi', flag: '🌐' },
-  { value: 'en', flag: '🇬🇧' },
-  { value: 'ru', flag: '🇷🇺' },
-  { value: 'es', flag: '🇪🇸' },
-  { value: 'de', flag: '🇩🇪' },
-  { value: 'fr', flag: '🇫🇷' }
-]
-
-const TRANSCRIPTION_LANGUAGES_OTHER: Array<{ value: string; flag: string }> = [
-  { value: 'it', flag: '🇮🇹' },
-  { value: 'pt', flag: '🇵🇹' },
-  { value: 'nl', flag: '🇳🇱' },
-  { value: 'pl', flag: '🇵🇱' },
-  { value: 'tr', flag: '🇹🇷' },
-  { value: 'uk', flag: '🇺🇦' },
-  { value: 'ja', flag: '🇯🇵' },
-  { value: 'ko', flag: '🇰🇷' },
-  { value: 'zh', flag: '🇨🇳' },
-  { value: 'hi', flag: '🇮🇳' },
-  { value: 'ar', flag: '🇸🇦' }
-]
-
-function TranscriptionLanguageSection({
-  settings,
-  update
-}: {
-  settings: AppSettings
-  update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void
-}) {
-  const { t } = useTranslation()
-  // Different STT providers handle 'multi' differently — Deepgram has native
-  // multilingual streaming, the others do per-utterance language detection or
-  // require a single locked language. The hint changes accordingly so the
-  // user knows what to expect for THEIR provider.
-  const provider = settings.sttProvider
-  const supportsMulti = provider === 'deepgram' || provider === 'openai-whisper'
-  const findLang = (v: string) =>
-    [...TRANSCRIPTION_LANGUAGES_POPULAR, ...TRANSCRIPTION_LANGUAGES_OTHER].find(
-      (l) => l.value === v
-    )
-
-  const current = findLang(settings.transcriptionLanguage)
-  return (
-    <Section
-      title={t('settings.transcription.title')}
-      hint={
-        supportsMulti
-          ? t('settings.transcription.hint_multi', { provider })
-          : t('settings.transcription.hint_single', { provider })
-      }
-    >
-      <Field label={t('settings.transcription.language_label')}>
-        {(control) => (
-          <Select
-            value={settings.transcriptionLanguage}
-            onValueChange={(v) => update('transcriptionLanguage', v)}
-          >
-            <SelectTrigger {...control} className="w-full">
-              <SelectValue>
-                {current
-                  ? `${current.flag}  ${t(`settings.transcription.lang.${current.value}`)}`
-                  : settings.transcriptionLanguage}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                {t('settings.transcription.popular')}
-              </div>
-              {TRANSCRIPTION_LANGUAGES_POPULAR.filter(
-                (l) => l.value !== 'multi' || supportsMulti
-              ).map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  <span className="mr-2">{l.flag}</span>
-                  {t(`settings.transcription.lang.${l.value}`)}
-                </SelectItem>
-              ))}
-              <div className="mt-1 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                {t('settings.transcription.other')}
-              </div>
-              {TRANSCRIPTION_LANGUAGES_OTHER.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  <span className="mr-2">{l.flag}</span>
-                  {t(`settings.transcription.lang.${l.value}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </Field>
-      <p className="text-[11px] text-muted-foreground">
-        {t('settings.transcription.switch_provider_note_before')}{' '}
-        <span className="font-mono">{t('settings.transcription.switch_provider_note_tab')}</span>
-        {t('settings.transcription.switch_provider_note_after')}
+      <p className="text-small text-muted-foreground">
+        <Trans
+          i18nKey="settings.audio.elsewhere_note"
+          components={{
+            0: <TabLink onClick={() => onOpenTab('keys')} />,
+            1: <TabLink onClick={() => onOpenTab('general')} />
+          }}
+        />
       </p>
-    </Section>
+    </>
   )
 }
 
@@ -1114,7 +934,7 @@ function HotkeysTab({
                   }}
                 />
                 {conflicts.has(k) && (
-                  <span className="text-[10px] font-medium text-amber-400">
+                  <span className="text-meta font-medium text-warn">
                     {t('settings.hotkeys_section.conflict_badge')}
                   </span>
                 )}
@@ -1198,12 +1018,10 @@ function AboutTab({ version }: { version: string }) {
       <Section title={t('settings.about.title')}>
         <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
           <div className="flex items-baseline gap-2">
-            <div className="text-base font-semibold">Zanban</div>
-            <div className="font-mono text-[11px] text-muted-foreground">v{version || '…'}</div>
+            <div className="text-lead font-semibold">Zanban</div>
+            <div className="font-mono text-small text-muted-foreground">v{version || '…'}</div>
           </div>
-          <p className="mt-2 text-[12px] text-muted-foreground">
-            {t('settings.about.description')}
-          </p>
+          <p className="mt-2 text-small text-muted-foreground">{t('settings.about.description')}</p>
         </div>
       </Section>
 
@@ -1256,26 +1074,6 @@ function AboutTab({ version }: { version: string }) {
         </div>
       </Section>
     </>
-  )
-}
-
-function Row({
-  label,
-  hint,
-  children
-}: {
-  label: string
-  hint?: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-white/[0.05] bg-white/[0.015] px-3 py-2.5 transition-colors hover:bg-white/[0.03]">
-      <div className="min-w-0">
-        <div className="text-[13px] text-foreground">{label}</div>
-        {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </label>
   )
 }
 
@@ -1350,23 +1148,22 @@ function OverlayPreview({ opacity }: { opacity: number }) {
       </div>
       {/* The actual overlay chrome at native pixel size, scaled down. Native
           width matches OverlayApp's max-w-[680px] so component pixels in
-          the preview match what the user will see at 100% opacity. */}
+          the preview match the real overlay. Opacity reaches only the glass
+          alpha, as in the overlay — fading this wrapper would fade the text. */}
       <div
         className="absolute left-1/2 top-2"
         style={{
           width: 720,
           marginLeft: -360,
-          opacity: clamped,
           transform: `scale(${scale})`,
-          transformOrigin: 'top center',
-          transition: 'opacity 120ms ease-out'
+          transformOrigin: 'top center'
         }}
       >
-        <OverlayMockup />
+        <OverlayMockup opacity={clamped} />
       </div>
       {/* corner readout — confirms the % the user is dragging without making
           them look up at the slider's tail. */}
-      <div className="absolute bottom-1.5 right-2 font-mono text-[9px] text-muted-foreground/70">
+      <div className="absolute bottom-1.5 right-2 font-mono text-meta text-muted-foreground">
         {t('settings.general.opacity_preview', { percent: Math.round(clamped * 100) })}
       </div>
     </div>
@@ -1378,9 +1175,8 @@ function OpacitySlider({
   onChange,
   ...control
 }: FieldControlProps & { value: number; onChange(v: number): void }) {
-  // Floor mirrors the clamp in main/index.ts → applyOverlayOpacity. Letting the
-  // user drag below this would risk dragging the overlay below visibility on
-  // glance-and-recover.
+  // Floor mirrors MIN_OPACITY in windows/overlay/glass.ts, which maps the
+  // setting onto the overlay's glass alpha.
   const min = 0.4
   const max = 1
   const pct = Math.round(value * 100)
@@ -1410,7 +1206,7 @@ function OpacitySlider({
       />
       <span
         aria-hidden
-        className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground"
+        className="w-10 shrink-0 text-right font-mono text-small tabular-nums text-muted-foreground"
       >
         {pct}%
       </span>
