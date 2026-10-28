@@ -127,8 +127,8 @@ function Stepper({ current }: { current: StepId }) {
               aria-current={active ? 'step' : undefined}
               className={cn(
                 'flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px]',
-                done && 'bg-primary text-primary-foreground',
-                active && 'bg-primary/20 text-primary ring-1 ring-primary/40',
+                done && 'bg-success/15 text-success',
+                active && 'bg-primary text-primary-foreground',
                 !done && !active && 'bg-muted text-muted-foreground'
               )}
             >

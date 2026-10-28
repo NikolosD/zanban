@@ -18,7 +18,7 @@ import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
-import type { AppSettings, AudioChannel } from '../shared/types.js'
+import type { AppSettings, AudioChannel, CaptureNotice } from '../shared/types.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
 import { raceTimeout } from './ai/raceTimeout.js'
@@ -375,6 +375,11 @@ app.whenReady().then(async () => {
       applyDashboardVisibility()
     }
   })
+  ipcMain.on(IPC.audio.notice, (_e, notice: CaptureNotice) => {
+    for (const win of [mainWindow, overlayWindow]) {
+      if (win && !win.isDestroyed()) win.webContents.send(IPC.audio.notice, notice)
+    }
+  })
   ipcMain.on(IPC.audio.chunk, (_e, channel: AudioChannel, buffer: ArrayBuffer) => {
     sessionManager.sendAudio(channel, buffer)
   })
@@ -600,6 +605,13 @@ app.whenReady().then(async () => {
   )
 
   const { failed: failedHotkeys } = registerShortcuts({
+    // Same route as the tray (capture lives in the dashboard renderer), but
+    // without surfacing the dashboard — the overlay is the live surface.
+    onToggleSession: () => {
+      const { kind } = sessionManager.getState()
+      if (kind === 'running') mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
+      else if (kind === 'idle') mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
+    },
     onToggleOverlay: () => {
       if (!overlayWindow) return
       if (overlayWindow.isVisible()) overlayWindow.hide()
@@ -613,11 +625,7 @@ app.whenReady().then(async () => {
       showOverlay()
       overlayWindow?.webContents.send(IPC.overlay.answerLast)
     },
-    onHideShow: () => {
-      if (!overlayWindow) return
-      if (overlayWindow.isVisible()) overlayWindow.hide()
-      else showOverlay()
-    },
+    onHideShow: () => setStealth(!stealthOn),
     onScreenshot: () => {
       void captureAndAttach()
     },

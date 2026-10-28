@@ -3,6 +3,7 @@ import type { AppSettings } from '@shared/types'
 export type HotkeyKey = keyof AppSettings['hotkeys']
 
 const LABELS: Record<HotkeyKey, string> = {
+  toggleSession: 'Start / stop session',
   toggleOverlay: 'Toggle overlay',
   askAi: 'Focus ask',
   answerLast: 'Answer last',
@@ -15,6 +16,7 @@ const LABELS: Record<HotkeyKey, string> = {
 }
 
 const HINTS: Record<HotkeyKey, string> = {
+  toggleSession: 'Start recording a session, or stop the one in progress.',
   toggleOverlay: 'Show or hide the floating assistant.',
   askAi: 'Focus the Ask input from anywhere.',
   answerLast: 'Answer the last detected question with one keypress.',

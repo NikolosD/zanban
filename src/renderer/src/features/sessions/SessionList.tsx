@@ -58,7 +58,7 @@ export function SessionList({ onSelect }: { onSelect?(id: string): void } = {}) 
                 <div className="group flex items-center gap-4 px-1 py-3 transition-colors hover:bg-white/[0.025]">
                   <span className="flex w-2.5 shrink-0 items-center justify-center">
                     {isLive && (
-                      <span className="size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
+                      <span className="size-1.5 rounded-full bg-signal motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
                     )}
                   </span>
                   <button onClick={() => onSelect?.(s.id)} className="min-w-0 flex-1 text-left">

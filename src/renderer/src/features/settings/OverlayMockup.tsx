@@ -64,7 +64,7 @@ function MockRollingTranscript() {
         <span className="px-1 text-muted-foreground/30" aria-hidden>
           ·
         </span>
-        <span className="rounded-sm bg-primary/15 px-1 text-primary">
+        <span className="rounded-sm bg-signal/15 px-1 text-signal">
           How do you handle reconciliation when streams disagree?
         </span>
       </div>
@@ -95,10 +95,10 @@ function MockStatusBar() {
           type="button"
           className={cn(
             'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-            'border border-primary/30 bg-primary/10 font-mono text-[10px] text-primary'
+            'border border-signal/30 bg-signal/10 font-mono text-[10px] text-signal'
           )}
         >
-          <span className="inline-flex size-1.5 rounded-full bg-primary" />
+          <span className="inline-flex size-1.5 rounded-full bg-signal" />
           02:31
           <Square className="ml-0.5 size-2.5 fill-current" />
         </button>
@@ -218,7 +218,7 @@ function MockAnswerSection() {
           800 ms.
         </div>
         <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-accent" />
+          <span className="size-1.5 rounded-full bg-success" />
           done · 920 ms · 184 tok
         </div>
       </div>

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { pcm16ToBase64, resamplePcm16 } from './pcmUtils.js'
+import { LivenessWatchdog } from './livenessWatchdog.js'
 
 export interface OpenAiWhisperOptions {
   apiKey: string
@@ -39,6 +40,7 @@ export class OpenAiWhisperSttChannel {
   private retries = 0
   private retryTimer: NodeJS.Timeout | null = null
   private reconnectScheduled = false
+  private watchdog: LivenessWatchdog | null = null
   // Audio that arrived before the socket opened — replayed on open.
   private pending: Int16Array[] = []
   // Monotonic count of audio milliseconds streamed, used to stamp segments.
@@ -77,6 +79,8 @@ export class OpenAiWhisperSttChannel {
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
     this.reconnectScheduled = false
+    this.watchdog?.stop()
+    this.watchdog = null
     try {
       this.ws?.close()
     } catch {
@@ -85,6 +89,22 @@ export class OpenAiWhisperSttChannel {
     this.ws = null
     this.pending = []
     this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+  }
+
+  private dropSocket(): void {
+    const ws = this.ws
+    this.ws = null
+    this.ready = false
+    this.watchdog?.stop()
+    this.watchdog = null
+    // terminate(), not close(): a stalled peer never completes the close handshake.
+    ws?.terminate()
+  }
+
+  private restart(): void {
+    this.dropSocket()
+    this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
+    this.scheduleReconnect()
   }
 
   private pushAudio(samples: Int16Array): void {
@@ -96,6 +116,7 @@ export class OpenAiWhisperSttChannel {
           audio: pcm16ToBase64(upsampled)
         })
       )
+      this.watchdog?.noteSent()
     } catch (err) {
       console.warn(`[openai-whisper:${this.opts.channel}] send failed`, err)
     }
@@ -114,7 +135,7 @@ export class OpenAiWhisperSttChannel {
     this.ws = ws
 
     ws.on('open', () => {
-      if (this.closed) {
+      if (this.ws !== ws) {
         ws.close()
         return
       }
@@ -136,11 +157,30 @@ export class OpenAiWhisperSttChannel {
         })
       )
       this.opts.onStatus({ kind: 'open', channel: this.opts.channel })
+      // Server VAD sends nothing while the line is quiet, so pongs are what
+      // tell a silent stretch apart from a dead socket.
+      this.watchdog = new LivenessWatchdog(
+        () => {
+          console.warn(
+            `[openai-whisper:${this.opts.channel}] server stopped answering — reconnecting`
+          )
+          this.restart()
+        },
+        () => ws.ping()
+      )
+      this.watchdog.start()
       for (const samples of this.pending) this.pushAudio(samples)
       this.pending = []
     })
 
+    ws.on('pong', () => {
+      if (this.ws === ws) this.watchdog?.noteHeard()
+    })
+
+    // Deliberately not gated on the current socket: finals still draining from
+    // a socket closed on Stop belong to the session that just ended.
     ws.on('message', (raw: WebSocket.RawData) => {
+      if (this.ws === ws) this.watchdog?.noteHeard()
       let event: OpenAiEvent
       try {
         event = JSON.parse(raw.toString()) as OpenAiEvent
@@ -151,20 +191,22 @@ export class OpenAiWhisperSttChannel {
     })
 
     ws.on('error', (err: Error) => {
+      if (this.ws !== ws) return
       console.error(`[openai-whisper:${this.opts.channel}] error`, err.message)
       this.opts.onStatus({
         kind: 'error',
         channel: this.opts.channel,
         message: err.message
       })
-      this.ready = false
-      if (!this.closed) this.scheduleReconnect()
+      this.dropSocket()
+      this.scheduleReconnect()
     })
 
     ws.on('close', () => {
+      if (this.ws !== ws) return
       console.log(`[openai-whisper:${this.opts.channel}] closed`)
-      this.ready = false
-      if (!this.closed) this.scheduleReconnect()
+      // A mid-session drop is a reconnect in progress, not an idle channel.
+      this.restart()
     })
   }
 

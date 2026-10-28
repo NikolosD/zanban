@@ -12,6 +12,7 @@ vi.mock('electron', () => ({
 
 // Mock settings to return a fixed hotkey map.
 const hotkeys = {
+  toggleSession: 'Control+Shift+Alt+R',
   toggleOverlay: 'Control+\\',
   askAi: 'Control+Shift+Space',
   answerLast: 'Control+Shift+Return',
@@ -30,6 +31,7 @@ import { registerShortcuts, reRegisterShortcuts, unregisterShortcuts } from './s
 
 function noop(): void {}
 const handlers = {
+  onToggleSession: noop,
   onToggleOverlay: noop,
   onAskAi: noop,
   onAnswerLast: noop,
@@ -52,8 +54,8 @@ describe('registerShortcuts', () => {
     registerMock.mockReturnValue(true)
     const { failed } = registerShortcuts(handlers)
     expect(failed).toEqual([])
-    // One register() call per non-empty binding (all 9 are set).
-    expect(registerMock).toHaveBeenCalledTimes(9)
+    // One register() call per non-empty binding (all 10 are set).
+    expect(registerMock).toHaveBeenCalledTimes(10)
   })
 
   it('reports the action + accelerator that fails to bind', () => {
@@ -76,8 +78,8 @@ describe('registerShortcuts', () => {
     registerShortcuts(handlers)
     unregisterMock.mockClear()
     reRegisterShortcuts()
-    // Re-register unregisters the 9 it bound last time.
-    expect(unregisterMock).toHaveBeenCalledTimes(9)
+    // Re-register unregisters the 10 it bound last time.
+    expect(unregisterMock).toHaveBeenCalledTimes(10)
   })
 
   it('reRegisterShortcuts is a no-op before any initial registration', () => {

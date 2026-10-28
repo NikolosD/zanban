@@ -1,6 +1,6 @@
 import { app, type BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile, unlink } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, unlink, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sessionManager } from '../transcription/sessionManager.js'
 import { generateSessionTitle } from '../ai/titleGen.js'
@@ -25,9 +25,14 @@ interface SessionRecord {
   exchanges: StoredExchange[]
 }
 
+interface BufferedFinal {
+  sessionId: string
+  seg: TranscriptSegment
+}
+
 const sessions = new Map<string, SessionRecord>()
 const finalizedWaiters = new Map<string, Promise<void>>()
-const buffer: TranscriptSegment[] = []
+let buffer: BufferedFinal[] = []
 let timer: NodeJS.Timeout | null = null
 let activeSessionId: string | null = null
 let initialized = false
@@ -133,10 +138,15 @@ function getOrCreateRecord(sessionId: string, startedAt: number): SessionRecord 
   return rec
 }
 
-/** Move all buffered final segments into `rec`. Returns true if any were added. */
+function takeFinals(sessionId: string): TranscriptSegment[] {
+  const taken = buffer.filter((b) => b.sessionId === sessionId).map((b) => b.seg)
+  if (taken.length > 0) buffer = buffer.filter((b) => b.sessionId !== sessionId)
+  return taken
+}
+
+/** Move the session's buffered final segments into `rec`. Returns true if any were added. */
 function drainFinalsInto(rec: SessionRecord): boolean {
-  if (buffer.length === 0) return false
-  const batch = buffer.splice(0, buffer.length).filter((s) => s.isFinal)
+  const batch = takeFinals(rec.id)
   for (const s of batch) {
     rec.segments.push({ channel: s.channel, startMs: s.startMs, text: s.text })
   }
@@ -161,11 +171,11 @@ export function registerSyncWindow(_win: BrowserWindow): void {
   if (initialized) return
   initialized = true
 
-  sessionManager.onSegment((seg) => {
-    // Only finals are persisted (flush filters isFinal anyway). Buffering finals
-    // only keeps the buffer bounded and lets the session-end handler drain it
-    // even after the manager state has already flipped to 'idle'.
-    if (seg.isFinal) buffer.push(seg)
+  sessionManager.onSegment((seg, sessionId) => {
+    // Only finals are persisted. Buffering finals only keeps the buffer bounded
+    // and lets the session-end handler drain it even after the manager state
+    // has already flipped to 'idle'.
+    if (seg.isFinal) buffer.push({ sessionId, seg })
   })
 
   sessionManager.onSessionEnd((sessionId) => {
@@ -177,6 +187,12 @@ export function registerSyncWindow(_win: BrowserWindow): void {
     const work = serialize(async () => {
       const rec = getOrCreateRecord(sessionId, Date.now())
       drainFinalsInto(rec)
+      // A start that failed (capture error, rollback) or a session with no
+      // speech would otherwise leave an empty row in the session list.
+      if (rec.segments.length === 0 && rec.exchanges.length === 0) {
+        sessions.delete(sessionId)
+        return null
+      }
       rec.endedAt = Date.now()
       await persist(rec)
       return rec
@@ -188,7 +204,10 @@ export function registerSyncWindow(_win: BrowserWindow): void {
       )
       .finally(() => finalizedWaiters.delete(sessionId))
     finalizedWaiters.set(sessionId, tracked)
-    void work.then(addGeneratedTitle, () => undefined)
+    void work.then(
+      (rec) => (rec ? addGeneratedTitle(rec) : undefined),
+      () => undefined
+    )
   })
 
   timer = setInterval(() => void serialize(flush), FLUSH_INTERVAL_MS)
@@ -196,15 +215,21 @@ export function registerSyncWindow(_win: BrowserWindow): void {
 
 async function flush(): Promise<void> {
   if (buffer.length === 0) return
-  const rec = ensureRecord()
-  if (!rec) {
-    // Not running (stopping/idle). Do NOT clear the buffer — the session-end
-    // handler drains these tail segments into the correct record. Clearing here
-    // was silently dropping the last few seconds of finals on every Stop.
-    return
+  const live = ensureRecord()
+  if (live && drainFinalsInto(live)) await persist(live)
+  // What's left belongs to sessions that already ended: finals that arrived
+  // after Stop (in-flight local inference, a socket still draining).
+  for (const sessionId of new Set(buffer.map((b) => b.sessionId))) {
+    // Its session-end finalize is still queued and drains these itself.
+    if (finalizedWaiters.has(sessionId)) continue
+    const rec = sessions.get(sessionId)
+    if (!rec) {
+      // Deleted while the stragglers were in flight — don't resurrect it.
+      takeFinals(sessionId)
+      continue
+    }
+    if (drainFinalsInto(rec)) await persist(rec)
   }
-  const changed = drainFinalsInto(rec)
-  if (changed) await persist(rec)
 }
 
 // Runs outside the write chain: a slow or hung LLM call must never hold up other
@@ -245,11 +270,19 @@ export async function recordAiExchange(
   await serialize(() => persist(rec))
 }
 
+// Write-then-rename so a crash mid-write leaves the previous complete file
+// rather than a truncated one (a truncated .json drops the meeting from the list).
+async function writeAtomic(path: string, data: string): Promise<void> {
+  const tmp = path + '.tmp'
+  await writeFile(tmp, data, 'utf8')
+  await rename(tmp, path)
+}
+
 async function persist(rec: SessionRecord): Promise<void> {
   await ensureDir()
   await Promise.all([
-    writeFile(jsonPath(rec.id), JSON.stringify(rec, null, 2), 'utf8'),
-    writeFile(mdPath(rec.id), renderMarkdown(rec), 'utf8')
+    writeAtomic(jsonPath(rec.id), JSON.stringify(rec, null, 2)),
+    writeAtomic(mdPath(rec.id), renderMarkdown(rec))
   ])
 }
 

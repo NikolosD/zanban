@@ -48,7 +48,11 @@ const api: ZanbanApi = {
   audio: {
     sendChunk: (channel, buffer) => {
       ipcRenderer.send(IPC.audio.chunk, channel, buffer)
-    }
+    },
+    reportNotice: (notice) => {
+      ipcRenderer.send(IPC.audio.notice, notice)
+    },
+    onNotice: (cb) => on(IPC.audio.notice, cb)
   },
   transcription: {
     onSegment: (cb) => on(IPC.transcription.segment, cb),

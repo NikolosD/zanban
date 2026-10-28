@@ -59,3 +59,38 @@ export function attachAnalyser(ctx: AudioContext, source: AudioNode): () => void
     for (const cb of listeners) cb(0)
   }
 }
+
+// ~-70 dBFS: under any real room's noise floor, so only a muted or dead mic
+// (digital zeros, dither) stays below it. Needs float samples — the meter's
+// 8-bit ones read a quiet room as exact zero.
+const SILENT_PEAK = 0.0003
+const SILENCE_POLL_MS = 200
+
+/**
+ * Calls `onSilent` once if the mic peak never rises above SILENT_PEAK within
+ * `windowMs`. Polls the analyser on a timer instead of reading the meter: the
+ * meter runs on rAF, which stalls while the dashboard window is hidden. Gives
+ * up quietly if the mic goes away. Returns a cancel function.
+ */
+export function watchMicSilence(windowMs: number, onSilent: () => void): () => void {
+  const startedAt = Date.now()
+  let samples: Float32Array<ArrayBuffer> | null = null
+  const timer = setInterval(() => {
+    const a = analyser
+    if (!a) {
+      clearInterval(timer)
+      return
+    }
+    if (samples?.length !== a.fftSize) samples = new Float32Array(a.fftSize)
+    a.getFloatTimeDomainData(samples)
+    let peak = 0
+    for (const v of samples) peak = Math.max(peak, Math.abs(v))
+    if (peak >= SILENT_PEAK) {
+      clearInterval(timer)
+    } else if (Date.now() - startedAt >= windowMs) {
+      clearInterval(timer)
+      onSilent()
+    }
+  }, SILENCE_POLL_MS)
+  return () => clearInterval(timer)
+}

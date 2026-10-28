@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   X,
   Send,
@@ -8,18 +8,13 @@ import {
   Square,
   Loader2,
   ChevronDown,
+  ChevronRight,
   Copy,
   ArrowDownToLine,
   Camera
 } from 'lucide-react'
-import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
-import { wireAiIpc, useAi } from '@renderer/features/ai/store'
-import { useAskRequest } from '@renderer/features/ai/useAskRequest'
-import { wireJobsIpc } from '@renderer/features/jobs/jobsStore'
-import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
-import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
-import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
-import { missingProviderNames } from '@renderer/features/settings/providerStatus'
+import i18n from 'i18next'
+import { useTranslation } from 'react-i18next'
 import {
   PROVIDER_MODEL_DEFAULTS,
   PROVIDER_FAST_MODELS,
@@ -33,6 +28,12 @@ import {
   SHORTEN_PROMPT,
   WHAT_TO_ANSWER_PROMPT
 } from '@shared/prompts'
+import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
+import { wireAiIpc, useAi } from '@renderer/features/ai/store'
+import { useAskRequest } from '@renderer/features/ai/useAskRequest'
+import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
+import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
+import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import { Button } from '@renderer/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import {
@@ -52,16 +53,16 @@ import {
 import { Toaster } from '@renderer/components/ui/sonner'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
-import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
-import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 import { RollingTranscript } from './RollingTranscript'
+import { CaptureNoticeLine } from './CaptureNoticeLine'
+import { useCaptureNotices, wireCaptureNotices } from './captureNotices'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -90,13 +91,15 @@ export function OverlayApp() {
   >(() => Promise.resolve())
   const ignoreMouseRef = useRef<boolean | null>(null)
   const session = useTranscript((s) => s.session)
-  const t0 = session.kind === 'running' ? session.startedAt : null
-  const elapsed = useElapsed(session.kind === 'running', t0)
+  const startedAt = session.kind === 'running' ? session.startedAt : null
+  const running = startedAt !== null
   const settings = useSettingsStore((s) => s.settings)
   const refreshSettings = useSettingsStore((s) => s.load)
   const status = useTranscript((s) => s.status)
-  const messages = useAi((s) => s.messages)
-  const latest = messages.at(-1)
+  // Narrow selectors on purpose: answer text is read only inside AnswerHistory,
+  // so streamed tokens don't re-render this whole tree.
+  const hasHistory = useAi((s) => s.messages.length > 0)
+  const streaming = useAi((s) => s.messages.at(-1)?.status === 'streaming')
 
   const persistedAnswerMax = settings?.overlayAnswerMaxHeight ?? DEFAULT_ANSWER_MAX_HEIGHT
   const [userMaxHeight, setUserMaxHeight] = useState<number>(persistedAnswerMax)
@@ -137,13 +140,6 @@ export function OverlayApp() {
     []
   )
 
-  // Keep the history pane pinned to the latest answer as it streams. The pin
-  // releases when the user scrolls up to read older Q&A, so we don't yank
-  // them back; a fresh Q&A re-arms it.
-  const { rootRef: historyRef } = useStickToBottom<HTMLDivElement>(
-    latest?.id,
-    latest?.answer.length
-  )
   const transcriptionError =
     status.mic?.kind === 'error'
       ? status.mic.message
@@ -160,38 +156,50 @@ export function OverlayApp() {
   // get clipped by a frame-late IPC. Main clamps to the work area, so very
   // long answers fall back to internal scrolling rather than running
   // off-screen.
+  const measurePanel = useCallback((): void => {
+    const el = panelRef.current
+    if (!el) return
+    // 28px = outer p-3 padding above and below the panel (12px each), plus
+    // an extra 4px so the rounded bottom border isn't shaved when the OS
+    // rounds the content size. Without this, fast streams left ~2-3px of
+    // the answer's last line clipped under the window edge.
+    void window.zanban.overlay.setContentHeight(Math.ceil(el.getBoundingClientRect().height + 28))
+  }, [])
+
   useLayoutEffect(() => {
     const el = panelRef.current
     if (!el) return
-    const send = (): void => {
-      const rect = el.getBoundingClientRect()
-      // 24px = outer p-3 padding above and below the panel (12px each), plus
-      // an extra 4px so the rounded bottom border isn't shaved when the OS
-      // rounds the content size. Without this, fast streams left ~2-3px of
-      // the answer's last line clipped under the window edge.
-      const next = Math.ceil(rect.height + 28)
-      void window.zanban.overlay.setContentHeight(next)
-    }
-    const ro = new ResizeObserver(send)
+    const ro = new ResizeObserver(measurePanel)
     ro.observe(el)
-    send()
+    measurePanel()
     return () => ro.disconnect()
-  }, [])
+  }, [measurePanel])
 
   // Safety re-measure on content-state transitions. ResizeObserver alone is
   // usually enough, but rapid state flips (alert appears + answer streams in
   // the same frame) sometimes settle to a height that ResizeObserver missed
   // because the entry was coalesced. Forcing a measure on the next frame
-  // catches that case.
+  // catches that case. AnswerHistory does the same per streamed chunk.
   useEffect(() => {
-    const el = panelRef.current
-    if (!el) return
-    const id = requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect()
-      void window.zanban.overlay.setContentHeight(Math.ceil(rect.height + 28))
-    })
+    const id = requestAnimationFrame(measurePanel)
     return () => cancelAnimationFrame(id)
-  }, [messages.length, latest?.answer.length, transcriptionError, apiKeysMissing])
+  }, [transcriptionError, apiKeysMissing, measurePanel])
+
+  // Labels are resolved through the i18n instance at call time: these callbacks
+  // outlive renders (IPC subscriptions, memoized panes) and the UI language
+  // switches after mount, once settings load.
+  const handleAnswer = useCallback((): void => {
+    void runPromptRef.current(
+      ANSWER_LAST_PROMPT,
+      i18n.t('overlay.labels.answer_last'),
+      undefined,
+      true
+    )
+  }, [])
+
+  const continueAnswer = useCallback((): void => {
+    void runPromptRef.current('continue', i18n.t('overlay.labels.continue'))
+  }, [])
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -199,7 +207,7 @@ export function OverlayApp() {
     const offTr = wireTranscriptIpc()
     const offAi = wireAiIpc()
     const offCap = wireCaptureAutostop()
-    const offJobs = wireJobsIpc()
+    const offNotices = wireCaptureNotices()
     // Live-sync settings from main — needed so toggles changed in the
     // dashboard (e.g. hideWidgetWhenHidden) take effect here without an app restart.
     const offSettings = wireSettingsIpc()
@@ -230,9 +238,7 @@ export function OverlayApp() {
       inputRef.current?.select()
     })
 
-    const offAnswerLast = window.zanban.overlay.onAnswerLast(() => {
-      handleAnswerRef.current()
-    })
+    const offAnswerLast = window.zanban.overlay.onAnswerLast(handleAnswer)
 
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
       snapshotIdRef.current = snap.snapshotId
@@ -245,7 +251,13 @@ export function OverlayApp() {
     // fire the answer about the captured image. Empty prompt falls back to
     // SCREENSHOT_DEFAULT_PROMPT and the image triggers vision routing.
     const offSnapshotAnswer = window.zanban.overlay.onSnapshotAnswer((snap) => {
-      void runPromptRef.current('', 'Screenshot answer', snap.dataUrl, false, snap.ocrText)
+      void runPromptRef.current(
+        '',
+        i18n.t('overlay.labels.screenshot_answer'),
+        snap.dataUrl,
+        false,
+        snap.ocrText
+      )
     })
 
     // Background OCR for an instant snapshot landed — fold it in only if the
@@ -264,7 +276,7 @@ export function OverlayApp() {
       offTr()
       offAi()
       offCap()
-      offJobs()
+      offNotices()
       offAsk()
       offAnswerLast()
       offSnapshot()
@@ -274,17 +286,15 @@ export function OverlayApp() {
       offSettings()
       window.removeEventListener('mousemove', onMove)
     }
-  }, [])
+  }, [handleAnswer])
 
   async function toggleStealth(): Promise<void> {
     const next = await window.zanban.overlay.setStealth(!stealth)
     setStealth(next)
   }
 
-  async function backToDashboard(): Promise<void> {
-    stopCaptures()
-    await window.zanban.session.stop().catch(() => {})
-    await window.zanban.dashboard.show()
+  async function collapse(): Promise<void> {
+    if (!running) await window.zanban.dashboard.show()
     await window.zanban.overlay.hide()
   }
 
@@ -333,24 +343,19 @@ export function OverlayApp() {
     runPromptRef.current = runPrompt
   })
 
-  const handleAnswer = useCallback((): void => {
-    void runPromptRef.current(ANSWER_LAST_PROMPT, 'Answer last question', undefined, true)
-  }, [])
-
-  const handleAnswerRef = useRef(handleAnswer)
-  useEffect(() => {
-    handleAnswerRef.current = handleAnswer
-  })
+  function clearInput(): void {
+    setText('')
+    setImage(null)
+    setOcrText(null)
+    snapshotIdRef.current = null
+  }
 
   async function send(): Promise<void> {
     const value = text.trim()
     const attached = image
     const ocrAttached = ocrText
     if ((!value && !attached) || busy) return
-    setText('')
-    setImage(null)
-    setOcrText(null)
-    snapshotIdRef.current = null
+    clearInput()
     await runPrompt(value, undefined, attached ?? undefined, false, ocrAttached)
   }
 
@@ -376,12 +381,13 @@ export function OverlayApp() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void send()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      if (streaming) stopAsk()
+      else clearInput()
     }
   }
 
-  const running = session.kind === 'running'
-  const hasAnswer = !!latest
-  const hasHistory = messages.length > 0
   const hasContent = hasHistory || apiKeysMissing || transcriptionError
   // Hide is now strictly "make me invisible to screen-share". It no longer
   // collapses the overlay's own UI: action chips, input, and answer pane
@@ -404,72 +410,31 @@ export function OverlayApp() {
           )}
         >
           <StatusBar
-            running={running}
+            startedAt={startedAt}
             busy={stoppingSession}
-            elapsed={elapsed}
             stealth={stealth}
+            toggleHotkey={settings?.hotkeys?.toggleOverlay ?? null}
             onStop={() => void stopSession()}
             onToggleStealth={() => void toggleStealth()}
-            onClose={() => void backToDashboard()}
+            onCollapse={() => void collapse()}
             onOpenDashboard={() => void openDashboardKeepSession()}
           />
 
-          <RollingTranscript />
+          {running && <CaptureNoticeLine />}
 
-          {/* Merged panel: chips → input → answer in ONE container. Per UX
-              review the previous 4-surface stack was the highest-cost
-              friction point during a live call — every Ask cycle made the
-              eye traverse 4 floating boxes. One container, sections divided
-              by 1px borders, same chrome as before. */}
+          {/* One container, sections divided by 1px rules. The answer comes
+              first: during heads-up it is the one thing the user reads, so it
+              sits right under the status pill; the transcript line, chips and
+              input are secondary and follow it. */}
           <div
             className={cn(
-              'flex flex-col rounded-2xl border border-white/10',
+              'flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
               'bg-black/55 backdrop-blur-2xl backdrop-saturate-150 text-foreground',
               'shadow-2xl overflow-hidden'
             )}
           >
-            <ActionChipsRow
-              busy={busy}
-              running={running}
-              hasAnswer={hasAnswer}
-              onWhatToAnswer={() =>
-                void runPrompt(WHAT_TO_ANSWER_PROMPT, 'What to answer?', undefined, true)
-              }
-              onShorten={() => void runPrompt(SHORTEN_PROMPT, 'Shorten')}
-              onRecap={() => void runPrompt(RECAP_PROMPT, 'Recap')}
-              onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, 'Follow-up')}
-              onAnswer={handleAnswer}
-            />
-
-            <InputPill
-              text={text}
-              image={image}
-              busy={busy}
-              streaming={latest?.status === 'streaming'}
-              snapping={snapping}
-              inputRef={inputRef}
-              onTextChange={setText}
-              onKey={onKey}
-              onSend={() => void send()}
-              onStop={() => stopAsk()}
-              onSnap={() => void snap()}
-              onClearImage={() => {
-                setImage(null)
-                setOcrText(null)
-                snapshotIdRef.current = null
-              }}
-              modelOverride={modelOverride}
-              onModelChange={setModelOverride}
-              activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
-              activeDefaultModel={
-                settings?.aiModels?.[settings.llmProvider]?.fast ||
-                (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
-              }
-              screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
-            />
-
             {hasContent && (
-              <div className="flex flex-col gap-2 border-t border-white/10 px-3 py-2.5">
+              <div className="flex flex-col gap-2 px-3 py-2.5">
                 {(apiKeysMissing || transcriptionError) && (
                   <div className="space-y-2">
                     {apiKeysMissing && (
@@ -512,20 +477,11 @@ export function OverlayApp() {
                 )}
 
                 {hasHistory && (
-                  <div
-                    ref={historyRef}
-                    data-interactive
-                    style={{ maxHeight: `${userMaxHeight}px` }}
-                    className="flex min-w-0 flex-col gap-3 overflow-y-auto overflow-x-hidden px-1 py-1"
-                  >
-                    {messages.map((m) => (
-                      <AnswerPane
-                        key={m.id}
-                        message={m}
-                        onContinue={() => void runPrompt('continue', 'Continue')}
-                      />
-                    ))}
-                  </div>
+                  <AnswerHistory
+                    maxHeight={userMaxHeight}
+                    onContinue={continueAnswer}
+                    onContentChange={measurePanel}
+                  />
                 )}
                 {hasHistory && (
                   <AnswerPaneResizer
@@ -537,6 +493,54 @@ export function OverlayApp() {
                 )}
               </div>
             )}
+
+            <RollingTranscript />
+
+            <ActionChipsRow
+              busy={busy}
+              running={running}
+              hasAnswer={hasHistory}
+              answerHotkey={settings?.hotkeys?.answerLast ?? null}
+              onWhatToAnswer={() =>
+                void runPrompt(
+                  WHAT_TO_ANSWER_PROMPT,
+                  t('overlay.chips.what_to_answer'),
+                  undefined,
+                  true
+                )
+              }
+              onShorten={() => void runPrompt(SHORTEN_PROMPT, t('overlay.chips.shorten'))}
+              onRecap={() => void runPrompt(RECAP_PROMPT, t('overlay.chips.recap'))}
+              onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, t('overlay.chips.follow_up'))}
+              onAnswer={handleAnswer}
+            />
+
+            <InputPill
+              text={text}
+              image={image}
+              busy={busy}
+              streaming={streaming}
+              snapping={snapping}
+              inputRef={inputRef}
+              onTextChange={setText}
+              onKey={onKey}
+              onSend={() => void send()}
+              onStop={stopAsk}
+              onSnap={() => void snap()}
+              onClearImage={() => {
+                setImage(null)
+                setOcrText(null)
+                snapshotIdRef.current = null
+              }}
+              modelOverride={modelOverride}
+              onModelChange={setModelOverride}
+              activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
+              activeDefaultModel={
+                settings?.aiModels?.[settings.llmProvider]?.fast ||
+                (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
+              }
+              screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
+            />
           </div>
         </div>
         <Toaster theme="dark" />
@@ -546,38 +550,34 @@ export function OverlayApp() {
 }
 
 function StatusBar({
-  running,
+  startedAt,
   busy,
-  elapsed,
   stealth,
+  toggleHotkey,
   onStop,
   onToggleStealth,
-  onClose,
+  onCollapse,
   onOpenDashboard
 }: {
-  running: boolean
+  /** Session start time; null while idle. */
+  startedAt: number | null
   busy: boolean
-  elapsed: string
   stealth: boolean
+  /** Configured show/hide-overlay accelerator; null until settings load. */
+  toggleHotkey: string | null
   onStop: () => void
   onToggleStealth: () => void
-  onClose: () => void
+  onCollapse: () => void
   onOpenDashboard: () => void
 }) {
   const { t } = useTranslation()
-  const stopConfirm = useConfirmClick(onStop)
-  const closeConfirm = useConfirmClick(onClose)
-  // Idle, the close button only returns to the dashboard; with a live session
-  // it also stops it, so it needs the same confirming second click as the timer.
-  const closeArmed = running && closeConfirm.armed
-  const closeLabel = closeArmed
-    ? t('overlay.confirm_stop_tooltip')
-    : running
-      ? t('overlay.stop_and_back_tooltip')
-      : t('overlay.back_to_dashboard')
-  const stopLabel = stopConfirm.armed
-    ? t('overlay.confirm_stop_tooltip')
-    : t('overlay.stop_recording_tooltip')
+  const running = startedAt !== null
+  const toggleTokens = toggleHotkey ? acceleratorTokens(toggleHotkey) : []
+  const collapseLabel = !running
+    ? t('overlay.hide_to_dashboard')
+    : toggleTokens.length > 0
+      ? t('overlay.hide_keep_recording', { chord: toggleTokens.join(' + ') })
+      : t('overlay.hide_keep_recording_tray')
   return (
     <div
       className={cn(
@@ -586,12 +586,11 @@ function StatusBar({
       )}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Brand lockup — clickable. Acts as the "back to dashboard" affordance,
-          but unlike the X close it KEEPS the session running. Used when the
-          user wants to peek at settings / past sessions mid-call. Sits a hair
-          above baseline (-translate-y-px) for visual lift like the natively
-          mark, and paints in solid foreground so it reads at a glance against
-          dark meeting tiles. */}
+      {/* Brand lockup — clickable. Brings the dashboard forward and KEEPS the
+          session running. Used when the user wants to peek at settings / past
+          sessions mid-call. Sits a hair above baseline (-translate-y-px) for
+          visual lift like the natively mark, and paints in solid foreground so
+          it reads at a glance against dark meeting tiles. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -615,31 +614,8 @@ function StatusBar({
         className="flex items-center gap-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {running ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                data-interactive
-                onClick={stopConfirm.click}
-                disabled={busy}
-                aria-label={stopLabel}
-                className={cn(
-                  'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-                  'border font-mono text-[10px] text-primary transition-colors',
-                  stopConfirm.armed
-                    ? 'border-primary/60 bg-primary/20'
-                    : 'border-primary/30 bg-primary/10 hover:border-primary/50 hover:bg-primary/15'
-                )}
-              >
-                {/* Slower pulse (1.6s) — calmer than the default 1s; matches
-                    the "doesn't want to be seen" stealth posture. */}
-                <span className="inline-flex size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
-                {stopConfirm.armed ? t('overlay.confirm_stop') : elapsed}
-                <Square className="ml-0.5 size-2.5 fill-current" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{stopLabel}</TooltipContent>
-          </Tooltip>
+        {startedAt !== null ? (
+          <RecordingChip startedAt={startedAt} busy={busy} onStop={onStop} />
         ) : (
           <span
             data-interactive
@@ -649,10 +625,6 @@ function StatusBar({
             {t('overlay.idle')}
           </span>
         )}
-
-        <span data-interactive>
-          <JobsBadge />
-        </span>
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -684,22 +656,79 @@ function StatusBar({
             <Button
               data-interactive
               variant="ghost"
-              size={closeArmed ? 'xs' : 'icon'}
-              aria-label={closeLabel}
-              className={
-                closeArmed
-                  ? 'font-mono text-[10px] text-primary hover:text-primary'
-                  : 'size-6 text-muted-foreground hover:text-foreground'
-              }
-              onClick={running ? closeConfirm.click : onClose}
+              size="icon"
+              aria-label={collapseLabel}
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={onCollapse}
             >
-              {closeArmed ? t('overlay.confirm_stop') : <X className="size-3" />}
+              <X className="size-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{closeLabel}</TooltipContent>
+          <TooltipContent>{collapseLabel}</TooltipContent>
         </Tooltip>
       </div>
     </div>
+  )
+}
+
+/**
+ * Timer + stop control. Owns the elapsed clock so its twice-a-second tick
+ * re-renders only this chip, not the overlay tree.
+ */
+function RecordingChip({
+  startedAt,
+  busy,
+  onStop
+}: {
+  startedAt: number
+  busy: boolean
+  onStop: () => void
+}) {
+  const { t } = useTranslation()
+  const elapsed = useElapsed(startedAt)
+  const micLost = useCaptureNotices((s) => s.flags.micLost)
+  const stopConfirm = useConfirmClick(onStop)
+  const stopLabel = stopConfirm.armed
+    ? t('overlay.confirm_stop_tooltip')
+    : t('overlay.stop_recording_tooltip')
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          data-interactive
+          onClick={stopConfirm.click}
+          disabled={busy}
+          aria-label={stopLabel}
+          className={cn(
+            'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
+            'border font-mono text-[10px] transition-colors',
+            stopConfirm.armed
+              ? 'border-signal/60 bg-signal/20 text-signal'
+              : micLost
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15'
+                : 'border-signal/30 bg-signal/10 text-signal hover:border-signal/50 hover:bg-signal/15'
+          )}
+        >
+          {/* Slower pulse (1.6s) — calmer than the default 1s; matches the
+              "doesn't want to be seen" stealth posture. A lost mic holds still. */}
+          <span
+            className={cn(
+              'inline-flex size-1.5 rounded-full',
+              micLost
+                ? 'bg-amber-400'
+                : 'bg-signal motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]'
+            )}
+          />
+          {stopConfirm.armed
+            ? t('overlay.confirm_stop')
+            : micLost
+              ? t('overlay.notices.mic_lost_chip', { elapsed })
+              : elapsed}
+          <Square className="ml-0.5 size-2.5 fill-current" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{stopLabel}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -707,6 +736,7 @@ function ActionChipsRow({
   busy,
   running,
   hasAnswer,
+  answerHotkey,
   onWhatToAnswer,
   onShorten,
   onRecap,
@@ -716,6 +746,8 @@ function ActionChipsRow({
   busy: boolean
   running: boolean
   hasAnswer: boolean
+  /** Configured answer-last accelerator; null until settings load. */
+  answerHotkey: string | null
   onWhatToAnswer: () => void
   onShorten: () => void
   onRecap: () => void
@@ -800,6 +832,7 @@ function ActionChipsRow({
       <ActionChip
         label={t('overlay.chips.answer')}
         emphasis
+        hotkey={answerHotkey ? acceleratorTokens(answerHotkey) : undefined}
         disabled={busy || !running}
         disabledReason={sessionReason}
         onClick={onAnswer}
@@ -811,12 +844,15 @@ function ActionChipsRow({
 function ActionChip({
   label,
   emphasis,
+  hotkey,
   disabled,
   disabledReason,
   onClick
 }: {
   label: string
   emphasis?: boolean
+  /** Accelerator tokens shown as a kbd hint; the trigger key reads brighter than its modifiers. */
+  hotkey?: string[]
   disabled?: boolean
   /** Why the chip is disabled. When present (and disabled), shown as a tooltip. */
   disabledReason?: string
@@ -837,6 +873,15 @@ function ActionChip({
       )}
     >
       {label}
+      {hotkey && hotkey.length > 0 && (
+        <Kbd className="ml-2 h-4 gap-1 bg-background/15 text-[10px] text-inherit">
+          {hotkey.map((tok, i) => (
+            <span key={i} className={cn(i < hotkey.length - 1 && 'opacity-60')}>
+              {tok}
+            </span>
+          ))}
+        </Kbd>
+      )}
     </button>
   )
   // Tooltip only when we actually have a reason to show — a disabled button
@@ -1006,7 +1051,7 @@ function InputPill({
   const snapChord = snapTokens.length > 0 ? snapTokens.join(' + ') : t('overlay.input.snap_tooltip')
   return (
     <div
-      className="flex items-center gap-2 border-t border-white/10 px-3 py-2"
+      className="flex items-center gap-2 px-3 py-2"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {image && (
@@ -1021,7 +1066,7 @@ function InputPill({
             >
               <img
                 src={image}
-                alt="screenshot"
+                alt={t('overlay.input.screenshot_alt')}
                 className="h-8 w-auto rounded border border-white/20 object-cover"
               />
               <span className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full border border-white/30 bg-black/80 opacity-0 transition-opacity group-hover:opacity-100">
@@ -1096,15 +1141,15 @@ function InputPill({
               data-interactive
               onClick={onStop}
               size="icon"
-              variant="destructive"
+              variant="ghost"
               aria-label={t('overlay.stop_generating')}
               style={noDrag}
-              className="size-7 shrink-0 rounded-full"
+              className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             >
               <Square className="size-3 fill-current" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{t('overlay.stop_generating')}</TooltipContent>
+          <TooltipContent>{t('overlay.stop_generating_tooltip')}</TooltipContent>
         </Tooltip>
       ) : (
         <Button
@@ -1133,40 +1178,76 @@ interface AskMessage {
   finishReason?: string
 }
 
-function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinue: () => void }) {
-  const { t } = useTranslation()
-  const canCopy = m.status !== 'error' && m.answer.length > 0
+/**
+ * Newest answer first and in full; earlier ones fold to a one-line header.
+ * The only overlay component subscribed to the streamed text.
+ */
+function AnswerHistory({
+  maxHeight,
+  onContinue,
+  onContentChange
+}: {
+  maxHeight: number
+  onContinue: () => void
+  onContentChange: () => void
+}) {
+  const messages = useAi((s) => s.messages)
+  const latest = messages.at(-1)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // The newest answer is at the top, so a fresh ask scrolls back up to it.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [latest?.id])
+
+  useEffect(() => {
+    const id = requestAnimationFrame(onContentChange)
+    return () => cancelAnimationFrame(id)
+  }, [messages.length, latest?.answer.length, onContentChange])
+
+  if (!latest) return null
+  const earlier = messages.slice(0, -1).reverse()
   return (
-    <div className="space-y-2">
+    <div
+      ref={scrollRef}
+      data-interactive
+      style={{ maxHeight: `${maxHeight}px` }}
+      className="flex min-w-0 flex-col overflow-y-auto overflow-x-hidden px-1 py-1"
+    >
+      <AnswerPane message={latest} onContinue={onContinue} />
+      {earlier.length > 0 && (
+        <div className="mt-3 flex flex-col gap-0.5 border-t border-white/[0.06] pt-2">
+          {earlier.map((m) => (
+            <EarlierAnswer key={m.id} message={m} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const AnswerPane = memo(function AnswerPane({
+  message: m,
+  onContinue
+}: {
+  message: AskMessage
+  onContinue: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-1.5">
       <div className="flex items-center gap-2">
-        <div className="flex-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
+        <div className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
           {m.prompt}
         </div>
-        {canCopy && (
-          <button
-            data-interactive
-            onClick={() => void copyToClipboard(m.answer, t('ask_panel.copy_toast'))}
-            title={t('overlay.copy_answer')}
-            className={cn(
-              'inline-flex shrink-0 items-center justify-center rounded',
-              'size-5 text-muted-foreground/70 hover:bg-white/10 hover:text-foreground'
-            )}
-          >
-            <Copy className="size-3" />
-          </button>
+        {m.status === 'streaming' && (
+          <span className="shrink-0 font-mono text-[10px] lowercase text-muted-foreground">
+            {t('overlay.streaming')}
+          </span>
         )}
+        <CopyAnswerButton message={m} />
       </div>
-      {m.status === 'error' ? (
-        <div className="text-xs text-destructive">{m.error}</div>
-      ) : (
-        <StreamingMarkdown text={m.answer} />
-      )}
-      {m.status === 'streaming' && (
-        <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-          {t('overlay.streaming')}
-        </div>
-      )}
+      <AnswerBody message={m} />
       {m.status === 'done' && m.finishReason === 'length' && (
         <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
           <span className="flex-1">{t('overlay.answer_truncated')}</span>
@@ -1182,6 +1263,75 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
         </div>
       )}
     </div>
+  )
+})
+
+const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: AskMessage }) {
+  const [open, setOpen] = useState(false)
+  const preview =
+    m.status === 'error'
+      ? m.error
+      : (m.answer.trimStart().split('\n', 1)[0] ?? '').replace(/[*_`#>]/g, '')
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <button
+          data-interactive
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className={cn(
+            'flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left',
+            'text-muted-foreground/80 transition-colors hover:bg-white/[0.04] hover:text-foreground'
+          )}
+        >
+          <ChevronRight
+            className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')}
+            aria-hidden
+          />
+          <span className="max-w-[40%] shrink-0 truncate font-mono text-[10px] uppercase tracking-wider">
+            {m.prompt}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/60">
+            {preview}
+          </span>
+        </button>
+        {open && <CopyAnswerButton message={m} />}
+      </div>
+      {open && (
+        <div className="pb-2 pl-5 pt-1">
+          <AnswerBody message={m} />
+        </div>
+      )}
+    </div>
+  )
+})
+
+function AnswerBody({ message: m }: { message: AskMessage }) {
+  if (m.status === 'error') return <div className="text-xs text-destructive">{m.error}</div>
+  return (
+    <div className="max-w-[65ch]">
+      <StreamingMarkdown text={m.answer} streaming={m.status === 'streaming'} />
+    </div>
+  )
+}
+
+function CopyAnswerButton({ message: m }: { message: AskMessage }) {
+  const { t } = useTranslation()
+  if (m.status === 'error' || m.answer.length === 0) return null
+  return (
+    <button
+      data-interactive
+      onClick={() => void copyToClipboard(m.answer, t('ask_panel.copy_toast'))}
+      title={t('overlay.copy_answer')}
+      aria-label={t('overlay.copy_answer')}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded',
+        'size-5 text-muted-foreground/70 hover:bg-white/10 hover:text-foreground'
+      )}
+    >
+      <Copy className="size-3" />
+    </button>
   )
 }
 
@@ -1215,14 +1365,12 @@ function useConfirmClick(action: () => void, windowMs = 3000): { armed: boolean;
   return { armed, click }
 }
 
-function useElapsed(running: boolean, t0?: number | null): string {
-  const [now, setNow] = useState(Date.now())
+function useElapsed(startedAt: number): string {
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    if (!running) return
     const id = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(id)
-  }, [running])
-  if (!running || !t0) return '00:00'
-  const s = Math.floor((now - t0) / 1000)
+  }, [])
+  const s = Math.floor((now - startedAt) / 1000)
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }

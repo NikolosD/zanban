@@ -38,8 +38,8 @@ export function buildLane({ finals, partials, limit = DEFAULT_LIMIT }: BuildLane
 
   if (partials) {
     for (const seg of Object.values(partials)) {
-      // Skip null/empty partials so we don't render a stray cursor on a blank
-      // channel that hasn't spoken yet.
+      // Skip null/empty partials so a channel that hasn't spoken yet never
+      // becomes the latest line.
       if (seg && seg.text.trim().length > 0) {
         items.push({ id: seg.id, text: seg.text, channel: seg.channel, live: true })
       }

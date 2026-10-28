@@ -1,5 +1,16 @@
 export type AudioChannel = 'mic' | 'system'
 
+/**
+ * Capture-health problems the user must see during a call. Raised by the
+ * window that owns capture and relayed by main to every window; each window
+ * renders its own localized message for the kind.
+ */
+export type CaptureNoticeKind = 'mic-lost' | 'mic-healed' | 'mic-silent' | 'system-unavailable'
+
+export interface CaptureNotice {
+  kind: CaptureNoticeKind
+}
+
 export type ReferenceDocKind = 'pdf' | 'docx' | 'txt' | 'md'
 
 export interface ReferenceDoc {
@@ -362,6 +373,7 @@ export interface AppSettings {
     modelOverride: string | null
   }
   hotkeys: {
+    toggleSession: string
     toggleOverlay: string
     askAi: string
     answerLast: string
@@ -642,6 +654,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     modelOverride: null
   },
   hotkeys: {
+    toggleSession: 'Control+Shift+Alt+R',
     toggleOverlay: 'Control+\\',
     askAi: 'Control+Shift+Space',
     answerLast: 'Control+Shift+Return',

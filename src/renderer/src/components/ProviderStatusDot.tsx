@@ -3,7 +3,7 @@ import { cn } from '@renderer/lib/utils'
 export type ProviderDotStatus = 'ok' | 'missing' | 'unknown' | 'error'
 
 const STYLES: Record<ProviderDotStatus, string> = {
-  ok: 'bg-emerald-400 shadow-[0_0_0_2px_oklch(0.78_0.13_145/0.2)]',
+  ok: 'bg-success shadow-[0_0_0_2px_oklch(0.78_0.13_145/0.2)]',
   missing: 'bg-muted-foreground/40',
   unknown: 'bg-muted-foreground/40',
   error: 'bg-red-500 shadow-[0_0_0_2px_oklch(0.6_0.2_25/0.25)]'

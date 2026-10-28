@@ -361,7 +361,7 @@ export function AskCard({
     <Card
       className={cn(
         'transition-all border-0 bg-transparent shadow-none',
-        m.status === 'streaming' && 'ring-1 ring-primary/40'
+        m.status === 'streaming' && 'ring-1 ring-signal/40'
       )}
     >
       <CardContent className="px-1 py-1">
@@ -387,7 +387,7 @@ export function AskCard({
         )}
         {m.status === 'streaming' && (
           <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
-            <span className={cn('size-1.5 rounded-full bg-primary animate-pulse')} />
+            <span className={cn('size-1.5 rounded-full bg-signal animate-pulse')} />
             {t('ask_panel.streaming')}
           </div>
         )}

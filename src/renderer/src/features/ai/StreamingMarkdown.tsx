@@ -6,10 +6,17 @@ import { lazy, Suspense } from 'react'
 // the rendered version, so the UI doesn't jump.
 const StreamingMarkdownImpl = lazy(() => import('./StreamingMarkdownImpl'))
 
-export function StreamingMarkdown({ text }: { text: string }) {
+export function StreamingMarkdown({
+  text,
+  streaming = false
+}: {
+  text: string
+  /** While true, code blocks stay unhighlighted; highlighting runs once the answer is done. */
+  streaming?: boolean
+}) {
   return (
     <Suspense fallback={<MarkdownFallback text={text} />}>
-      <StreamingMarkdownImpl text={text} />
+      <StreamingMarkdownImpl text={text} highlight={!streaming} />
     </Suspense>
   )
 }

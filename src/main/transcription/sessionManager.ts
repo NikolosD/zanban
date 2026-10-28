@@ -30,7 +30,7 @@ export class SessionManager {
   private state: SessionState = { kind: 'idle' }
   private channels = new Map<AudioChannel, SttChannel>()
   private windows: BrowserWindow[] = []
-  private segmentListeners = new Set<(seg: TranscriptSegment) => void>()
+  private segmentListeners = new Set<(seg: TranscriptSegment, sessionId: string) => void>()
 
   registerWindow(win: BrowserWindow): void {
     this.windows.push(win)
@@ -39,7 +39,12 @@ export class SessionManager {
     })
   }
 
-  onSegment(cb: (seg: TranscriptSegment) => void): () => void {
+  /**
+   * `sessionId` is the session whose audio produced the segment. It can differ
+   * from the live session: finals keep arriving after Stop (in-flight local
+   * inference, a socket still draining) and must not land in the next call.
+   */
+  onSegment(cb: (seg: TranscriptSegment, sessionId: string) => void): () => void {
     this.segmentListeners.add(cb)
     return () => this.segmentListeners.delete(cb)
   }
@@ -83,11 +88,11 @@ export class SessionManager {
     // recent-context priming, and stale entries from a different call would
     // confuse the next prompt.
     clearExchanges()
-    this.openChannel('mic')
-    if (settings.audio.systemEnabled) {
-      this.openChannel('system')
-    }
     const sessionId = opts?.resumeId ?? randomUUID()
+    this.openChannel('mic', sessionId)
+    if (settings.audio.systemEnabled) {
+      this.openChannel('system', sessionId)
+    }
     this.setState({ kind: 'running', sessionId, startedAt: Date.now() })
     return { sessionId }
   }
@@ -131,14 +136,16 @@ export class SessionManager {
     this.channels.get(channel)?.send(buffer)
   }
 
-  private openChannel(channel: AudioChannel): void {
+  private openChannel(channel: AudioChannel, sessionId: string): void {
     const settings = getSettings()
     const onSegment = (seg: TranscriptSegment): void => {
-      this.broadcast(IPC.transcription.segment, seg)
-      for (const cb of this.segmentListeners) cb(seg)
+      const liveId = this.state.kind === 'running' ? this.state.sessionId : null
+      // A straggler from a previous call must not show up in the next call's live transcript.
+      if (liveId === null || liveId === sessionId) this.broadcast(IPC.transcription.segment, seg)
+      for (const cb of this.segmentListeners) cb(seg, sessionId)
       // Live RAG indexing: feed final segments into the per-session buffer.
       // Best-effort — failures swallowed inside the indexer.
-      if (this.state.kind === 'running') ragPush(this.state.sessionId, seg)
+      if (liveId === sessionId) ragPush(sessionId, seg)
     }
     const onStatus = (status: TranscriptionStatus): void => {
       this.broadcast(IPC.transcription.status, status)

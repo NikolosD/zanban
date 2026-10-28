@@ -1,6 +1,7 @@
 import { DeepgramClient } from '@deepgram/sdk'
 import { randomUUID } from 'node:crypto'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
+import { LivenessWatchdog } from './livenessWatchdog.js'
 
 export interface DeepgramSttChannelOptions {
   apiKey: string
@@ -61,6 +62,7 @@ export class DeepgramSttChannel {
   private retries = 0
   private retryTimer: NodeJS.Timeout | null = null
   private keepAliveTimer: NodeJS.Timeout | null = null
+  private watchdog: LivenessWatchdog | null = null
   private reconnectScheduled = false
   // Audio chunks dropped because the socket isn't ready yet — Deepgram closes
   // the stream if it sits idle, so we buffer briefly and replay on `open` so
@@ -80,6 +82,7 @@ export class DeepgramSttChannel {
     if (this.connection && this.ready) {
       try {
         this.connection.sendMedia(buf)
+        this.watchdog?.noteSent()
         this.sentCount += 1
         if (this.sentCount === 1 || this.sentCount % 50 === 0) {
           console.log(
@@ -100,20 +103,35 @@ export class DeepgramSttChannel {
 
   close(): void {
     this.closed = true
-    this.ready = false
     if (this.retryTimer) clearTimeout(this.retryTimer)
     this.retryTimer = null
+    this.reconnectScheduled = false
+    this.dropConnection()
+    this.pending = []
+    this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+  }
+
+  // The SDK socket also reconnects on its own after an abnormal close; closing
+  // it here keeps our backoff the only retry path instead of leaking a twin.
+  private dropConnection(): void {
+    const conn = this.connection
+    this.connection = null
+    this.ready = false
+    this.watchdog?.stop()
+    this.watchdog = null
     if (this.keepAliveTimer) clearInterval(this.keepAliveTimer)
     this.keepAliveTimer = null
-    this.reconnectScheduled = false
     try {
-      this.connection?.close()
+      conn?.close()
     } catch {
       /* ignore */
     }
-    this.connection = null
-    this.pending = []
-    this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
+  }
+
+  private restart(): void {
+    this.dropConnection()
+    this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
+    this.scheduleReconnect()
   }
 
   private async connect(): Promise<void> {
@@ -174,6 +192,12 @@ export class DeepgramSttChannel {
           }
         }
         this.pending = []
+        this.watchdog?.stop()
+        this.watchdog = new LivenessWatchdog(() => {
+          console.warn(`[deepgram:${this.opts.channel}] server stopped answering — reconnecting`)
+          this.restart()
+        })
+        this.watchdog.start()
         // Deepgram closes idle sockets after ~12s. Pinging KeepAlive every
         // 8s keeps the WebSocket warm during long silent stretches in the
         // call (think notes, mute pauses).
@@ -191,6 +215,7 @@ export class DeepgramSttChannel {
 
       conn.on('message', (raw) => {
         if (this.connection !== conn) return
+        this.watchdog?.noteHeard()
         const data = raw as DgResult
         if (data.type !== 'Results') return
         const text = data.channel?.alternatives?.[0]?.transcript?.trim()
@@ -224,18 +249,15 @@ export class DeepgramSttChannel {
           channel: this.opts.channel,
           message
         })
-        this.ready = false
-        if (!this.closed) this.scheduleReconnect()
+        this.dropConnection()
+        this.scheduleReconnect()
       })
 
       conn.on('close', () => {
         if (this.connection !== conn) return
         console.log(`[deepgram:${this.opts.channel}] closed`)
-        this.ready = false
-        if (this.keepAliveTimer) clearInterval(this.keepAliveTimer)
-        this.keepAliveTimer = null
-        this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
-        if (!this.closed) this.scheduleReconnect()
+        // A mid-session drop is a reconnect in progress, not an idle channel.
+        this.restart()
       })
 
       conn.connect()

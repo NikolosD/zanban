@@ -392,7 +392,7 @@ export function SettingsPanel({
             )}
             {savingState === 'saved' && (
               <>
-                <Check className="size-3 text-emerald-400/80" />
+                <Check className="size-3 text-success/80" />
                 {t('settings.saved')}
               </>
             )}

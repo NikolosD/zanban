@@ -5,7 +5,9 @@ import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
 const HEADLINE_KEYS = [
+  'toggleSession',
   'toggleOverlay',
+  'hideShow',
   'askAi',
   'answerLast',
   'screenshot',

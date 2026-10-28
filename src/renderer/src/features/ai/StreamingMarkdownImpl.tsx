@@ -1,4 +1,5 @@
-import ReactMarkdown from 'react-markdown'
+import { memo } from 'react'
+import ReactMarkdown, { type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/atom-one-dark.css'
@@ -90,12 +91,20 @@ const components = {
   }
 }
 
-export default function StreamingMarkdownImpl({ text }: { text: string }) {
+const REMARK_PLUGINS: Options['remarkPlugins'] = [remarkGfm]
+// Re-highlighting every code block on each streamed chunk is the costliest part
+// of a render, so highlighting is applied once, when the answer is complete.
+const HIGHLIGHT_PLUGINS: Options['rehypePlugins'] = [
+  [rehypeHighlight, { detect: true, ignoreMissing: true }]
+]
+const NO_PLUGINS: Options['rehypePlugins'] = []
+
+function StreamingMarkdownImpl({ text, highlight }: { text: string; highlight: boolean }) {
   return (
     <div className="min-w-0 text-[13px] leading-[1.5] text-foreground break-words">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={highlight ? HIGHLIGHT_PLUGINS : NO_PLUGINS}
         components={components as never}
         urlTransform={safeUrl}
       >
@@ -104,3 +113,5 @@ export default function StreamingMarkdownImpl({ text }: { text: string }) {
     </div>
   )
 }
+
+export default memo(StreamingMarkdownImpl)

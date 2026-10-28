@@ -255,11 +255,13 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
     <div
       className={cn(
         'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors',
-        active ? 'border-accent/40 bg-accent/[0.06]' : 'border-white/[0.06] bg-white/[0.02]'
+        active ? 'border-success/40 bg-success/[0.06]' : 'border-white/[0.06] bg-white/[0.02]'
       )}
     >
       <div className="flex items-center gap-3">
-        <Lock className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-muted-foreground')} />
+        <Lock
+          className={cn('size-4 shrink-0', active ? 'text-success' : 'text-muted-foreground')}
+        />
         <div>
           <div className="text-[13px] font-medium">
             {t('settings.providers.privacy_mode_label')}
@@ -321,7 +323,7 @@ function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; dis
         <span
           className={cn(
             'flex min-w-0 items-center gap-1 text-[11px]',
-            result.ok ? 'text-accent' : 'text-amber-400'
+            result.ok ? 'text-success' : 'text-amber-400'
           )}
         >
           {result.ok ? (
@@ -416,7 +418,7 @@ function OllamaModelManager({
               {busy ? (
                 <Loader2 className="size-3 animate-spin" />
               ) : has ? (
-                <CheckCircle2 className="size-3 text-accent" />
+                <CheckCircle2 className="size-3 text-success" />
               ) : (
                 <Download className="size-3" />
               )}
@@ -510,7 +512,7 @@ function LlmCredentials({
           </Button>
         </div>
         {ollama && (
-          <div className={ok ? 'text-[11px] text-accent' : 'text-[11px] text-amber-400'}>
+          <div className={ok ? 'text-[11px] text-success' : 'text-[11px] text-amber-400'}>
             {ok
               ? t(
                   modelCount === 1

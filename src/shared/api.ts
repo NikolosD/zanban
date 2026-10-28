@@ -6,6 +6,7 @@ import type {
   AiSources,
   AppSettings,
   AudioChannel,
+  CaptureNotice,
   LlmProvider,
   Persona,
   ReferenceDoc,
@@ -104,6 +105,11 @@ export interface ZanbanApi {
   }
   audio: {
     sendChunk(channel: AudioChannel, buffer: ArrayBuffer): void
+    /** Report a capture-health problem from the window that owns capture
+     *  (the dashboard); main relays it to every window, so the overlay can
+     *  show it during a call. */
+    reportNotice(notice: CaptureNotice): void
+    onNotice(cb: (notice: CaptureNotice) => void): () => void
   }
   transcription: {
     onSegment(cb: (segment: TranscriptSegment) => void): () => void
