@@ -1,6 +1,5 @@
 import { createGateway } from '@ai-sdk/gateway'
 import { streamText } from 'ai'
-import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
 import { getSettings } from '../settings.js'
@@ -97,6 +96,7 @@ class TranscriptBuffer {
 const transcriptBuffer = new TranscriptBuffer()
 
 export interface AskOptions {
+  requestId: string
   prompt: string
   contextSeconds?: number
   imageDataUrl?: string
@@ -132,13 +132,12 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   // Don't reject early on a missing Vercel key — the user may have switched
   // to Anthropic / OpenAI / Gemini / Groq / Ollama in Settings. We re-check
   // only when we actually need to fall back to the gateway path below.
-  const requestId = randomUUID()
+  const { requestId } = opts
   const abort = new AbortController()
   const entry: InFlight = { abort, stoppedByUser: false }
   inFlight.set(requestId, entry)
   ;(async () => {
     try {
-      const gw = gateway()
       // Optional web search via Tavily. Triggered only when the user has
       // both autoWebSearch enabled AND a Tavily key, AND the prompt looks
       // factual (≥4 words). Failures swallowed — the prompt still goes out.
@@ -288,7 +287,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             // still bails to the catch so it surfaces as an error.
             if (abort.signal.aborted) {
               if (entry.stoppedByUser) break
-              return
+              throw new Error('LLM stream timed out')
             }
             timeout.reset()
             if (ev.kind === 'fallback') {
@@ -353,6 +352,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           'No LLM provider configured. Set a provider key in Settings (Anthropic, OpenAI, Gemini, Groq, Ollama, or Vercel AI Gateway).'
         )
       }
+      const gw = gateway()
 
       const streamArgs = hasImage
         ? {
@@ -401,7 +401,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
               stoppedEarly = true
               break
             }
-            return
+            throw new Error('LLM stream timed out (no response for 30s)')
           }
           gwTimeout.reset()
           if (text) {

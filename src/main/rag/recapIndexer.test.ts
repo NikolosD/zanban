@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { recapToText, type IndexableRecap } from './recapIndexer.js'
+
+// recapIndexer → vectorStore → db imports electron, whose binary isn't
+// installed when CI runs `pnpm install --ignore-scripts`.
+vi.mock('electron', () => ({ app: {} }))
 
 function recap(over: Partial<IndexableRecap> = {}): IndexableRecap {
   return {

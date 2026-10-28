@@ -58,9 +58,10 @@ export async function* streamWithFallback(
       lastError = err
       const reason = err instanceof Error ? err.message : String(err)
 
-      if (emittedAny) {
-        // Mid-stream failure — bubble up. Switching providers now would
-        // overwrite the user's partial answer with something inconsistent.
+      // Mid-stream failure — bubble up. Switching providers now would
+      // overwrite the user's partial answer with something inconsistent.
+      // An aborted request (Stop / idle timeout) must not fall back either.
+      if (emittedAny || args.signal?.aborted) {
         throw err
       }
 

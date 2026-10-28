@@ -1,22 +1,11 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
+import type { AiAskInput } from '../../shared/types.js'
 import { ask as aiAsk, stop as aiStop } from '../ai/aiGatewayClient.js'
 import { suggestFollowUps } from '../ai/llm/followUpLlm.js'
 
 export function registerAiHandlers(): void {
-  ipcMain.handle(
-    IPC.ai.ask,
-    (
-      _e,
-      input: {
-        prompt: string
-        contextSeconds?: number
-        imageDataUrl?: string
-        ocrText?: string
-        modelOverride?: string
-      }
-    ) => aiAsk(input)
-  )
+  ipcMain.handle(IPC.ai.ask, (_e, input: AiAskInput) => aiAsk(input))
   // Abort an in-flight ask() by id. Renderer's Stop button calls this; main
   // finalizes the partial answer cleanly (no error).
   ipcMain.handle(IPC.ai.stop, (_e, requestId: string) => aiStop(requestId))

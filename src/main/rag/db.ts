@@ -64,6 +64,13 @@ function readMeta(db: Database): RagMeta | null {
   return { schemaVersion: userVersion, embeddingDim: dim, embeddingModel: model }
 }
 
+// The initial schema keyed chunks by `session_id` and predates user_version, so
+// it reads as a fresh DB — and SCHEMA's source_kind index fails against it.
+function hasLegacyChunksTable(db: Database): boolean {
+  const cols = db.prepare('PRAGMA table_info(chunks)').all<{ name: string }>()
+  return cols.length > 0 && !cols.some((c) => c.name === 'source_kind')
+}
+
 function writeMeta(db: Database, meta: RagMeta): void {
   db.pragma(`user_version = ${meta.schemaVersion}`)
   const up = db.prepare(
@@ -111,14 +118,21 @@ export async function getDb(): Promise<Database | null> {
     const dim = embedder?.dim ?? VEC_DIM
     const model = embedder?.model ?? LOCAL_EMBEDDING_MODEL
 
-    db.exec(SCHEMA)
-    const stored = readMeta(db)
-    const decision = decideMigration(stored, { embeddingDim: dim, embeddingModel: model })
-    if (decision.rebuild) {
-      console.warn(`[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`)
+    if (hasLegacyChunksTable(db)) {
+      console.warn('[rag] migrating legacy session-only schema — reindexing required')
       recreateSchema(db, dim)
     } else {
-      db.exec(vecSchema(dim))
+      db.exec(SCHEMA)
+      const stored = readMeta(db)
+      const decision = decideMigration(stored, { embeddingDim: dim, embeddingModel: model })
+      if (decision.rebuild) {
+        console.warn(
+          `[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`
+        )
+        recreateSchema(db, dim)
+      } else {
+        db.exec(vecSchema(dim))
+      }
     }
     writeMeta(db, { schemaVersion: RAG_SCHEMA_VERSION, embeddingDim: dim, embeddingModel: model })
 

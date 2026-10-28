@@ -20,7 +20,9 @@ import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, setSettings } from './settings.js'
 import type { AppSettings, AudioChannel } from '../shared/types.js'
-import { registerSyncWindow, awaitSessionFinalized } from './sync/sessionSync.js'
+import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
+import { closeDb, flushAll } from './rag/index.js'
+import { raceTimeout } from './ai/raceTimeout.js'
 import { captureInstant, getActiveDisplay } from './screenshot/index.js'
 import { cssRectToCroppedPx } from './screenshot/cropGeometry.js'
 import { runOcr, terminateOcrWorker } from './screenshot/ocrPipeline.js'
@@ -80,10 +82,17 @@ let stealthOn = true
 // hotkey sets this to true so the dashboard stays in Alt+Tab/taskbar until
 // the user starts a new session (which clears it back to settings-driven).
 let dashboardForcedVisible = false
+// Closing a window only hides it until the app is really quitting — every
+// module keeps a reference to the dashboard/overlay, and the dashboard renderer
+// owns audio capture for a running session.
+let isQuitting = false
+let quitFinalized = false
+const QUIT_FINALIZE_TIMEOUT_MS = 8000
 
 app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
     mainWindow.focus()
   }
 })
@@ -308,9 +317,13 @@ app.whenReady().then(async () => {
     applyStealth()
     applyDashboardVisibility()
     // Persist so the next session honors the user's last choice.
-    void setSettings({ detectable: !stealthOn })
+    const next = setSettings({ detectable: !stealthOn })
     // Notify overlay so its UI badge flips without a polling round-trip.
     overlayWindow?.webContents.send(IPC.overlay.stealthChanged, stealthOn)
+    // The dashboard's settings panel holds its own copy — keep its toggle in sync.
+    for (const win of [mainWindow, overlayWindow]) {
+      win?.webContents.send(IPC.settings.changed, next)
+    }
     return stealthOn
   }
   ipcMain.handle(IPC.overlay.getStealth, () => stealthOn)
@@ -428,6 +441,11 @@ app.whenReady().then(async () => {
     win.on('show', () => {
       win.setContentProtection(stealthOn)
       if (win === mainWindow) applyDashboardVisibility()
+    })
+    win.on('close', (e) => {
+      if (isQuitting) return
+      e.preventDefault()
+      win.hide()
     })
   }
 
@@ -647,12 +665,31 @@ app.whenReady().then(async () => {
   // update" toast and drive the manual "Check for updates" button.
   initAutoUpdate(() => mainWindow)
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createMainWindow()
-      overlayWindow = createOverlayWindow()
-    }
+  app.on('activate', (_e, hasVisibleWindows) => {
+    if (!hasVisibleWindows) showDashboard()
   })
+})
+
+// Stop a running session and flush transcripts / RAG before the process exits,
+// otherwise the session keeps `endedAt: null` and loses its last seconds.
+async function finalizeBeforeQuit(): Promise<void> {
+  const state = sessionManager.getState()
+  const sessionId = state.kind === 'running' ? state.sessionId : null
+  await sessionManager.stop()
+  if (sessionId) await awaitSessionFinalized(sessionId)
+  await flushAll()
+  shutdownSync()
+  closeDb()
+}
+
+app.on('before-quit', (e) => {
+  isQuitting = true
+  if (quitFinalized) return
+  quitFinalized = true
+  e.preventDefault()
+  void raceTimeout(finalizeBeforeQuit(), QUIT_FINALIZE_TIMEOUT_MS, undefined).finally(() =>
+    app.quit()
+  )
 })
 
 /**

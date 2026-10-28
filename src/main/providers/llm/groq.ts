@@ -4,13 +4,16 @@ import { normalizeFinishReason } from './finishReason.js'
 interface GroqLike {
   chat: {
     completions: {
-      create(args: {
-        model: string
-        messages: Array<{ role: string; content: unknown }>
-        max_tokens?: number
-        temperature?: number
-        stream?: boolean
-      }): Promise<
+      create(
+        args: {
+          model: string
+          messages: Array<{ role: string; content: unknown }>
+          max_tokens?: number
+          temperature?: number
+          stream?: boolean
+        },
+        opts?: { signal?: AbortSignal }
+      ): Promise<
         | AsyncIterable<{
             choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>
           }>
@@ -54,13 +57,16 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
     label: 'Groq',
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
-      const res = (await c.chat.completions.create({
-        model: args.model,
-        messages: buildMessages(args),
-        max_tokens: args.maxOutputTokens ?? 1200,
-        temperature: args.temperature ?? 0.3,
-        stream: true
-      })) as AsyncIterable<{
+      const res = (await c.chat.completions.create(
+        {
+          model: args.model,
+          messages: buildMessages(args),
+          max_tokens: args.maxOutputTokens ?? 1200,
+          temperature: args.temperature ?? 0.3,
+          stream: true
+        },
+        { signal: args.signal }
+      )) as AsyncIterable<{
         choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>
       }>
       // Groq mirrors OpenAI's chat-completions shape: `finish_reason` lands on
@@ -76,13 +82,16 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
     },
     async generate(args) {
       const c = await client(apiKey)
-      const res = (await c.chat.completions.create({
-        model: args.model,
-        messages: buildMessages(args),
-        max_tokens: args.maxOutputTokens ?? 800,
-        temperature: args.temperature ?? 0.3,
-        stream: false
-      })) as { choices: Array<{ message: { content?: string } }> }
+      const res = (await c.chat.completions.create(
+        {
+          model: args.model,
+          messages: buildMessages(args),
+          max_tokens: args.maxOutputTokens ?? 800,
+          temperature: args.temperature ?? 0.3,
+          stream: false
+        },
+        { signal: args.signal }
+      )) as { choices: Array<{ message: { content?: string } }> }
       return (res.choices[0]?.message?.content ?? '').trim()
     }
   }

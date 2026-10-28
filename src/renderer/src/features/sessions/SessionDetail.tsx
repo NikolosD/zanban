@@ -464,14 +464,15 @@ ${q}
 </question>`
     setBusy(true)
     setText('')
+    const requestId = crypto.randomUUID()
+    useAi.getState().newRequest(`Q: ${q}`, requestId)
     try {
-      const { requestId } = await window.zanban.ai.ask({ prompt })
-      useAi.getState().newRequest(`Q: ${q}`, requestId)
+      await window.zanban.ai.ask({ requestId, prompt })
       toast.success(t('session_detail.asked_toast'))
     } catch (err) {
-      toast.error(t('session_detail.ask_failed'), {
-        description: err instanceof Error ? err.message : 'unknown'
-      })
+      const message = err instanceof Error ? err.message : 'unknown'
+      useAi.getState().failRequest(requestId, message)
+      toast.error(t('session_detail.ask_failed'), { description: message })
     } finally {
       setBusy(false)
     }

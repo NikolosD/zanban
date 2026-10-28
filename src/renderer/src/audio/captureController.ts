@@ -15,6 +15,10 @@ let mic: Handle | null = null
 let system: Handle | null = null
 let wired = false
 let lastArgs: StartArgs | null = null
+// Bumped on every stop. A getUserMedia that resolves after the session was
+// stopped compares generations and releases its device instead of leaking it.
+let generation = 0
+let healing = false
 
 export interface CaptureNotice {
   kind: 'mic-healed' | 'mic-lost'
@@ -32,16 +36,33 @@ function emitNotice(n: CaptureNotice): void {
 }
 
 export async function startCaptures(args: StartArgs): Promise<void> {
-  if (mic || system) return
+  if (lastArgs) return
   lastArgs = args
-  mic = await startMic(args.micDeviceId, args.vad)
-  if (args.systemEnabled) {
-    // No VAD on the system channel — see startCapturesFromSettings comment.
-    system = await startSystem(undefined)
+  const gen = generation
+  try {
+    const startedMic = await startMic(args.micDeviceId, args.vad)
+    if (gen !== generation) {
+      startedMic.stop()
+      return
+    }
+    mic = startedMic
+    if (args.systemEnabled) {
+      // No VAD on the system channel — see startCapturesFromSettings comment.
+      const startedSystem = await startSystem(undefined)
+      if (gen !== generation) {
+        startedSystem?.stop()
+        return
+      }
+      system = startedSystem
+    }
+  } catch (err) {
+    if (gen === generation) stopCaptures()
+    throw err
   }
 }
 
 export function stopCaptures(): void {
+  generation++
   mic?.stop()
   system?.stop()
   mic = null
@@ -55,9 +76,20 @@ export function stopCaptures(): void {
  * default device so the session keeps recording instead of going silent.
  */
 async function healMicIfDeviceLost(): Promise<void> {
-  if (!mic || !lastArgs) return
-  const wantedId = lastArgs.micDeviceId
+  const args = lastArgs
+  if (!mic || !args || healing) return
+  const wantedId = args.micDeviceId
   if (!wantedId) return // already on default — nothing pinned to lose
+  healing = true
+  const gen = generation
+  try {
+    await healMic(args, wantedId, gen)
+  } finally {
+    healing = false
+  }
+}
+
+async function healMic(args: StartArgs, wantedId: string, gen: number): Promise<void> {
   let devices: MediaDeviceInfo[]
   try {
     devices = await navigator.mediaDevices.enumerateDevices()
@@ -65,10 +97,18 @@ async function healMicIfDeviceLost(): Promise<void> {
     return
   }
   const stillThere = devices.some((d) => d.kind === 'audioinput' && d.deviceId === wantedId)
-  if (stillThere) return
+  if (stillThere || gen !== generation) return
   try {
-    mic.stop()
-    mic = await startMic(null, lastArgs.vad)
+    mic?.stop()
+    mic = null
+    const healed = await startMic(null, args.vad)
+    if (gen !== generation) {
+      healed.stop()
+      return
+    }
+    mic = healed
+    // Now on the default device — later device changes have nothing to heal.
+    lastArgs = { ...args, micDeviceId: null }
     emitNotice({
       kind: 'mic-healed',
       message: 'Микрофон отключён — переключился на устройство по умолчанию'

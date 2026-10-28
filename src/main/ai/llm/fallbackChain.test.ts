@@ -115,6 +115,20 @@ describe('streamWithFallback', () => {
     expect(secondary.stream).not.toHaveBeenCalled()
   })
 
+  it('does not fall back once the request was aborted', async () => {
+    const abort = new AbortController()
+    abort.abort()
+    const primary = makeProvider('anthropic', {
+      kind: 'throw-before',
+      error: new Error('aborted')
+    })
+    const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['unused'] })
+    await expect(
+      collect(streamWithFallback([primary, secondary], { ...ARGS, signal: abort.signal }))
+    ).rejects.toThrow('aborted')
+    expect(secondary.stream).not.toHaveBeenCalled()
+  })
+
   it('throws when the provider list is empty', async () => {
     await expect(collect(streamWithFallback([], ARGS))).rejects.toThrow('no providers supplied')
   })

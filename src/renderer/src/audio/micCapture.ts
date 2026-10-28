@@ -20,7 +20,14 @@ function getContext(): Promise<AudioContext> {
   if (workletReady) return workletReady
   workletReady = (async () => {
     const ctx = new AudioContext({ sampleRate: 16000 })
-    await ctx.audioWorklet.addModule(WORKLET_URL)
+    try {
+      await ctx.audioWorklet.addModule(WORKLET_URL)
+    } catch (err) {
+      // Don't cache the failure — the next capture attempt retries from scratch.
+      workletReady = null
+      void ctx.close()
+      throw err
+    }
     // Auto-resume if the OS suspends the context (laptop sleep, audio device
     // switch) — otherwise the singleton context goes silent mid-session and
     // capture only recovers on a full app restart.
@@ -110,15 +117,21 @@ export async function startMic(
       autoGainControl: false
     }
   })
-  return startCapture({ channel: 'mic', stream, vad })
+  try {
+    return await startCapture({ channel: 'mic', stream, vad })
+  } catch (err) {
+    for (const t of stream.getTracks()) t.stop()
+    throw err
+  }
 }
 
 export async function startSystem(vad?: {
   enabled: boolean
   threshold: number
 }): Promise<CaptureHandle | null> {
+  let stream: MediaStream | null = null
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    stream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: 1, height: 1, frameRate: 1 },
       audio: true
     })
@@ -128,8 +141,9 @@ export async function startSystem(vad?: {
       return null
     }
     const audioOnly = new MediaStream(stream.getAudioTracks())
-    return startCapture({ channel: 'system', stream: audioOnly, vad })
+    return await startCapture({ channel: 'system', stream: audioOnly, vad })
   } catch (err) {
+    for (const t of stream?.getTracks() ?? []) t.stop()
     console.warn('[audio] system loopback unavailable', err)
     return null
   }
