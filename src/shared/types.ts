@@ -195,8 +195,8 @@ export const STT_PROVIDERS: Array<{
   },
   {
     value: 'local-whisper',
-    label: 'Local Whisper (Privacy Mode)',
-    hint: 'Whisper-tiny via @xenova/transformers, on-device. Slower, lower quality.'
+    label: 'On-device (Privacy Mode)',
+    hint: 'Parakeet v3 on-device for 25 European languages incl. Russian, Whisper for the rest. ~670 MB download on first use.'
   }
 ]
 

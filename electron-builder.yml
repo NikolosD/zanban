@@ -53,6 +53,8 @@ asarUnpack:
   - node_modules/sqlite-vec-linux-arm64/**
   # better-sqlite3 native binding
   - node_modules/better-sqlite3/**
+  # sherpa-onnx's addon loads onnxruntime and its C API DLLs from its own folder.
+  - node_modules/sherpa-onnx-{win,darwin,linux}-*/**
 win:
   target:
     - target: nsis

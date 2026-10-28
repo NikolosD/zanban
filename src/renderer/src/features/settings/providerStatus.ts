@@ -16,7 +16,7 @@ const STT_PROVIDER_NAMES: Record<SttProvider, string> = {
   deepgram: 'Deepgram',
   elevenlabs: 'ElevenLabs',
   'openai-whisper': 'OpenAI Whisper',
-  'local-whisper': 'Local Whisper'
+  'local-whisper': 'On-device'
 }
 
 interface OllamaHealthLike {

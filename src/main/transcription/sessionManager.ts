@@ -9,6 +9,8 @@ import type {
 import { GoogleSttChannel } from './googleSttClient.js'
 import { DeepgramSttChannel } from './deepgramSttClient.js'
 import { LocalWhisperSttChannel } from './localWhisperClient.js'
+import { LocalParakeetSttChannel } from './localParakeetClient.js'
+import { PARAKEET_LANGUAGES } from '../ml/models.js'
 import { ElevenLabsSttChannel } from './elevenlabsSttClient.js'
 import { OpenAiWhisperSttChannel } from './openaiWhisperClient.js'
 import { StubSttChannel } from './stubSttClient.js'
@@ -91,8 +93,8 @@ export class SessionManager {
         throw new Error('OpenAI API key not set. Open Settings → Providers.')
       }
     }
-    // local-whisper has no key requirement; it just needs to load Xenova
-    // weights on first use. Validation happens inside the channel.
+    // local-whisper has no key requirement; it downloads its model on first
+    // use. Validation happens inside the channel.
     // Fresh session — drop any Q&A memory from previous calls. We always
     // clear, even on resume: the in-memory exchange buffer is just used for
     // recent-context priming, and stale entries from a different call would
@@ -184,12 +186,14 @@ export class SessionManager {
         })
         break
       case 'local-whisper':
-        ch = new LocalWhisperSttChannel({
-          language: settings.transcriptionLanguage,
-          channel,
-          onSegment,
-          onStatus
-        })
+        ch = PARAKEET_LANGUAGES.has(settings.transcriptionLanguage)
+          ? new LocalParakeetSttChannel({ channel, onSegment, onStatus })
+          : new LocalWhisperSttChannel({
+              language: settings.transcriptionLanguage,
+              channel,
+              onSegment,
+              onStatus
+            })
         break
       case 'elevenlabs':
         ch = new ElevenLabsSttChannel({
