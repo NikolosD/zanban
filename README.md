@@ -6,7 +6,7 @@ Desktop AI meeting assistant — a stealth overlay that captures your mic and th
 
 ## Stack
 
-- **Electron 33** + **electron-vite** + **TypeScript**
+- **Electron 44** + **electron-vite** + **TypeScript**
 - **React 19** + **TanStack Query** + **Tailwind 4** + **Zustand** + **Lucide**
 - **STT providers** — Deepgram Nova-3 (default), Google Cloud Speech, OpenAI Whisper, ElevenLabs Scribe, local Whisper (`@xenova/transformers`)
 - **LLM providers** — Vercel AI Gateway (default), Anthropic, OpenAI, Google Gemini, Groq, Ollama (local). Vision can ride a different provider than text.

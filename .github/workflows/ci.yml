@@ -32,9 +32,8 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # The postinstall hook runs electron-rebuild + a sqlite-vec sanity
-      # check that need native deps. Skipping the rebuild on CI keeps the
-      # install fast — we never run the binary, only typecheck/test/build.
+      # CI never runs the app, so native-dep install scripts and the
+      # sqlite-vec postinstall check are skipped to keep the install fast.
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Warning ratchet: lower the number as warnings get fixed, never raise it.
