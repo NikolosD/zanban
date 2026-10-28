@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Kbd } from '@renderer/components/ui/kbd'
 import type { StepProps } from '../types'
+import { StepFooter } from './StepFooter'
 
 const HEADLINE_KEYS = [
   'toggleOverlay',
@@ -43,12 +44,12 @@ export function HotkeysStep({ settings, goNext, goBack }: StepProps) {
           </div>
         ))}
       </div>
-      <div className="mt-2 flex justify-between">
+      <StepFooter>
         <Button variant="ghost" onClick={goBack}>
           {t('common.back')}
         </Button>
         <Button onClick={goNext}>{t('common.next')}</Button>
-      </div>
+      </StepFooter>
     </div>
   )
 }

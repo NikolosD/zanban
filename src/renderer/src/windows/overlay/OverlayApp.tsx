@@ -57,6 +57,7 @@ import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
+import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
@@ -301,6 +302,8 @@ export function OverlayApp() {
     try {
       stopCaptures()
       await window.zanban.session.stop()
+    } catch (err) {
+      toastSessionError(t('dashboard.toasts.could_not_stop'), err)
     } finally {
       setStoppingSession(false)
     }
@@ -343,7 +346,7 @@ export function OverlayApp() {
     const value = text.trim()
     const attached = image
     const ocrAttached = ocrText
-    if (!value && !attached) return
+    if ((!value && !attached) || busy) return
     setText('')
     setImage(null)
     setOcrText(null)
@@ -480,12 +483,21 @@ export function OverlayApp() {
                           {t('overlay.api_keys_missing_body', {
                             providers: missingProviders.join(', ')
                           })}{' '}
-                          <button
-                            className="underline underline-offset-2"
-                            onClick={() => void refreshSettings()}
-                          >
-                            {t('overlay.recheck')}
-                          </button>
+                          <span className="flex items-center gap-1.5">
+                            <button
+                              className="underline underline-offset-2"
+                              onClick={() => void openDashboardKeepSession()}
+                            >
+                              {t('overlay.open_dashboard')}
+                            </button>
+                            <span aria-hidden>·</span>
+                            <button
+                              className="underline underline-offset-2"
+                              onClick={() => void refreshSettings()}
+                            >
+                              {t('overlay.recheck')}
+                            </button>
+                          </span>
                         </AlertDescription>
                       </Alert>
                     )}
@@ -553,6 +565,19 @@ function StatusBar({
   onOpenDashboard: () => void
 }) {
   const { t } = useTranslation()
+  const stopConfirm = useConfirmClick(onStop)
+  const closeConfirm = useConfirmClick(onClose)
+  // Idle, the close button only returns to the dashboard; with a live session
+  // it also stops it, so it needs the same confirming second click as the timer.
+  const closeArmed = running && closeConfirm.armed
+  const closeLabel = closeArmed
+    ? t('overlay.confirm_stop_tooltip')
+    : running
+      ? t('overlay.stop_and_back_tooltip')
+      : t('overlay.back_to_dashboard')
+  const stopLabel = stopConfirm.armed
+    ? t('overlay.confirm_stop_tooltip')
+    : t('overlay.stop_recording_tooltip')
   return (
     <div
       className={cn(
@@ -595,22 +620,25 @@ function StatusBar({
             <TooltipTrigger asChild>
               <button
                 data-interactive
-                onClick={onStop}
+                onClick={stopConfirm.click}
                 disabled={busy}
+                aria-label={stopLabel}
                 className={cn(
                   'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-                  'border border-primary/30 bg-primary/10 font-mono text-[10px] text-primary',
-                  'hover:bg-primary/15 hover:border-primary/50 transition-colors'
+                  'border font-mono text-[10px] text-primary transition-colors',
+                  stopConfirm.armed
+                    ? 'border-primary/60 bg-primary/20'
+                    : 'border-primary/30 bg-primary/10 hover:border-primary/50 hover:bg-primary/15'
                 )}
               >
                 {/* Slower pulse (1.6s) — calmer than the default 1s; matches
                     the "doesn't want to be seen" stealth posture. */}
                 <span className="inline-flex size-1.5 rounded-full bg-primary motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]" />
-                {elapsed}
+                {stopConfirm.armed ? t('overlay.confirm_stop') : elapsed}
                 <Square className="ml-0.5 size-2.5 fill-current" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{t('overlay.stop_recording_tooltip')}</TooltipContent>
+            <TooltipContent>{stopLabel}</TooltipContent>
           </Tooltip>
         ) : (
           <span
@@ -656,14 +684,19 @@ function StatusBar({
             <Button
               data-interactive
               variant="ghost"
-              size="icon"
-              className="size-6 text-muted-foreground hover:text-foreground"
-              onClick={onClose}
+              size={closeArmed ? 'xs' : 'icon'}
+              aria-label={closeLabel}
+              className={
+                closeArmed
+                  ? 'font-mono text-[10px] text-primary hover:text-primary'
+                  : 'size-6 text-muted-foreground hover:text-foreground'
+              }
+              onClick={running ? closeConfirm.click : onClose}
             >
-              <X className="size-3" />
+              {closeArmed ? t('overlay.confirm_stop') : <X className="size-3" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{t('overlay.back_to_dashboard')}</TooltipContent>
+          <TooltipContent>{closeLabel}</TooltipContent>
         </Tooltip>
       </div>
     </div>
@@ -1064,6 +1097,7 @@ function InputPill({
               onClick={onStop}
               size="icon"
               variant="destructive"
+              aria-label={t('overlay.stop_generating')}
               style={noDrag}
               className="size-7 shrink-0 rounded-full"
             >
@@ -1079,6 +1113,7 @@ function InputPill({
           disabled={busy || (!text.trim() && !image)}
           size="icon"
           variant={text.trim() || image ? 'default' : 'ghost'}
+          aria-label={t('overlay.send')}
           style={noDrag}
           className="size-7 shrink-0 rounded-full"
         >
@@ -1148,6 +1183,36 @@ function AnswerPane({ message: m, onContinue }: { message: AskMessage; onContinu
       )}
     </div>
   )
+}
+
+/**
+ * Two-step trigger for destructive controls: the first click arms it for
+ * `windowMs`, a second click inside that window runs the action.
+ */
+function useConfirmClick(action: () => void, windowMs = 3000): { armed: boolean; click(): void } {
+  const [armed, setArmed] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    []
+  )
+
+  function click(): void {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = null
+    if (armed) {
+      setArmed(false)
+      action()
+      return
+    }
+    setArmed(true)
+    timerRef.current = setTimeout(() => setArmed(false), windowMs)
+  }
+
+  return { armed, click }
 }
 
 function useElapsed(running: boolean, t0?: number | null): string {

@@ -2,13 +2,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mic, Square, Loader2 } from 'lucide-react'
 import { useTranscript } from './store'
-import {
-  startCapturesFromSettings,
-  stopCaptures,
-  wireCaptureAutostop
-} from '@renderer/audio/captureController'
+import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { Button } from '@renderer/components/ui/button'
-import { toast } from 'sonner'
+import { startSessionWithCapture, toastSessionError } from './sessionStart'
 
 export function SessionControl() {
   const { t } = useTranslation()
@@ -23,15 +19,9 @@ export function SessionControl() {
   async function handleStart() {
     setBusy(true)
     try {
-      const settings = await window.zanban.settings.get()
-      await window.zanban.session.start()
-      await startCapturesFromSettings(settings)
+      await startSessionWithCapture()
     } catch (err) {
-      toast.error(t('dashboard.toasts.could_not_start'), {
-        description: err instanceof Error ? err.message : String(err)
-      })
-      stopCaptures()
-      await window.zanban.session.stop().catch(() => {})
+      toastSessionError(t('dashboard.toasts.could_not_start'), err)
     } finally {
       setBusy(false)
     }

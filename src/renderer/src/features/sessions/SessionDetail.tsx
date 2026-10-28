@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import i18n from 'i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Loader2, Play, Download, Pencil } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
-import { startCapturesFromSettings } from '@renderer/audio/captureController'
-import { useTranscript } from '@renderer/features/transcript/store'
+import { errorMessage } from '@renderer/lib/errors'
+import { resumeSession } from '@renderer/features/transcript/sessionStart'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import type { SessionDetailPayload, StoredSegment, StoredExchange } from '@shared/api'
@@ -18,23 +17,15 @@ import { toast } from 'sonner'
 
 type TabId = 'recap' | 'transcript' | 'usage'
 
-async function resume(id: string): Promise<void> {
-  if (useTranscript.getState().session.kind === 'running') {
-    toast.error(i18n.t('dashboard.session_running_elsewhere'))
-    return
-  }
-  try {
-    const settings = await window.zanban.settings.get()
-    await window.zanban.session.start({ resumeId: id })
-    await startCapturesFromSettings(settings)
-  } catch (err) {
-    toast.error(i18n.t('dashboard.could_not_resume'), {
-      description: err instanceof Error ? err.message : String(err)
-    })
-  }
-}
-
-export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack(): void }) {
+export function SessionDetail({
+  sessionId,
+  onBack,
+  onOpenSettings
+}: {
+  sessionId: string
+  onBack(): void
+  onOpenSettings?(): void
+}) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<TabId>('recap')
 
@@ -110,7 +101,7 @@ export function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack
       </div>
 
       {/* Bottom action bar */}
-      <BottomBar sessionId={data.id} />
+      <BottomBar sessionId={data.id} onOpenSettings={onOpenSettings} />
     </div>
   )
 }
@@ -155,7 +146,7 @@ function EditableTitle({
       }
     } catch (err) {
       toast.error(t('session_detail.rename_failed'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     } finally {
       setSaving(false)
@@ -252,7 +243,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
       if (path) toast.success(t('session_detail.exported_toast'), { description: path })
     } catch (err) {
       toast.error(t('session_detail.export_failed_toast'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     } finally {
       setBusy(false)
@@ -436,7 +427,7 @@ function Stat({ label, value, className }: { label: string; value: string; class
   )
 }
 
-function BottomBar({ sessionId }: { sessionId: string }) {
+function BottomBar({ sessionId, onOpenSettings }: { sessionId: string; onOpenSettings?(): void }) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
@@ -470,7 +461,7 @@ ${q}
       await window.zanban.ai.ask({ requestId, prompt })
       toast.success(t('session_detail.asked_toast'))
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'unknown'
+      const message = errorMessage(err)
       useAi.getState().failRequest(requestId, message)
       toast.error(t('session_detail.ask_failed'), { description: message })
     } finally {
@@ -484,7 +475,7 @@ ${q}
         variant="default"
         size="sm"
         className="shrink-0 gap-1.5 rounded-full"
-        onClick={() => void resume(sessionId)}
+        onClick={() => void resumeSession(sessionId, onOpenSettings)}
       >
         <Play className="size-3.5 fill-current" /> {t('session_detail.resume_session')}
       </Button>

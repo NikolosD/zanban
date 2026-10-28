@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Dialog,
@@ -31,15 +31,17 @@ export function OnboardingWizard({
   // the persisted provider on every click.
   const [draftProvider, setDraftProvider] = useState<LlmProvider>(settings.llmProvider)
 
-  // Re-runs from Settings should land on step one with the currently
-  // persisted provider as the default. Without this the second open keeps
-  // whichever step the user closed on.
-  useEffect(() => {
+  // Re-runs from Settings land on step one with the persisted provider. Reset
+  // only on the closed→open edge: choosing a provider saves it and main
+  // broadcasts the change, which must not bounce the user back to step one.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setStep('language')
       setDraftProvider(settings.llmProvider)
     }
-  }, [open, settings.llmProvider])
+  }
 
   async function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): Promise<void> {
     await window.zanban.settings.set({ [key]: value } as Partial<AppSettings>)
@@ -80,10 +82,11 @@ export function OnboardingWizard({
         if (!o) void complete()
       }}
     >
-      <DialogContent className="sm:max-w-xl gap-0 overflow-hidden p-0 max-h-[90vh] flex flex-col">
+      <DialogContent className="flex max-h-[calc(100vh-4rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <WizardTitles />
         <Stepper current={step} />
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
+        {/* No bottom padding: each step's StepFooter is sticky to this edge. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-5">
           {step === 'language' && <LanguageStep {...stepProps} />}
           {step === 'provider' && <ProviderStep {...stepProps} />}
           {step === 'keys' && <ApiKeysStep {...stepProps} />}
@@ -109,16 +112,21 @@ function WizardTitles() {
 function Stepper({ current }: { current: StepId }) {
   const { t } = useTranslation()
   const currentIdx = STEP_ORDER.indexOf(current)
+  // Only the active step shows its label so all six fit; pr-12 keeps the last
+  // step clear of the dialog's close button.
   return (
-    <div className="flex items-center gap-2 border-b border-border/60 px-6 py-3">
+    <ol className="flex shrink-0 items-center gap-1.5 border-b border-border/60 py-3 pr-12 pl-6">
       {STEP_ORDER.map((id, i) => {
         const done = i < currentIdx
         const active = i === currentIdx
+        const label = t(`onboarding.steps.${id}`)
         return (
-          <div key={id} className="flex items-center gap-2">
+          <li key={id} className="flex items-center gap-1.5">
             <div
+              title={active ? undefined : label}
+              aria-current={active ? 'step' : undefined}
               className={cn(
-                'flex size-5 items-center justify-center rounded-full font-mono text-[10px]',
+                'flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px]',
                 done && 'bg-primary text-primary-foreground',
                 active && 'bg-primary/20 text-primary ring-1 ring-primary/40',
                 !done && !active && 'bg-muted text-muted-foreground'
@@ -126,18 +134,17 @@ function Stepper({ current }: { current: StepId }) {
             >
               {i + 1}
             </div>
-            <div
-              className={cn(
-                'font-mono text-[10px] uppercase tracking-wider',
-                active ? 'text-foreground' : 'text-muted-foreground'
-              )}
-            >
-              {t(`onboarding.steps.${id}`)}
-            </div>
-            {i < STEP_ORDER.length - 1 && <div className="h-px w-4 bg-border/60" />}
-          </div>
+            {active ? (
+              <span className="font-mono text-[10px] uppercase tracking-wider text-foreground">
+                {label}
+              </span>
+            ) : (
+              <span className="sr-only">{label}</span>
+            )}
+            {i < STEP_ORDER.length - 1 && <div className="h-px w-3 bg-border/60" />}
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }

@@ -4,13 +4,17 @@ import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/atom-one-dark.css'
 import './streamingMarkdown.css'
 
-function isSafeUrl(href: string | undefined): href is string {
-  if (!href) return false
+const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+
+// Absolute URLs only: relative hrefs like `/C:/...` or `//host/share` would
+// resolve against the app origin or a UNC path, so they are dropped.
+function safeUrl(href: string | null | undefined): string | null {
+  if (!href) return null
   try {
-    const url = new URL(href, 'http://placeholder/')
-    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:'
+    const url = new URL(href)
+    return SAFE_PROTOCOLS.has(url.protocol) ? url.href : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -62,16 +66,21 @@ const components = {
     return <ol className="my-1 list-decimal pl-4">{props.children}</ol>
   },
   p(props: { children?: React.ReactNode }) {
-    return <p className="my-1 leading-snug">{props.children}</p>
+    return <p className="my-1">{props.children}</p>
+  },
+  // Never fetch images from model output: a prompt-injected answer could
+  // smuggle transcript text out in an image URL the moment it renders.
+  img(props: { alt?: string }) {
+    return props.alt ? <span className="text-muted-foreground">{props.alt}</span> : null
   },
   a(props: { href?: string; children?: React.ReactNode }) {
-    const safeHref = isSafeUrl(props.href) ? props.href : undefined
+    const safeHref = safeUrl(props.href) ?? undefined
     return (
       <a
         href={safeHref}
         onClick={(e) => {
           e.preventDefault()
-          if (safeHref) window.open(safeHref, '_blank', 'noopener,noreferrer')
+          if (safeHref) void window.zanban.openExternal(safeHref)
         }}
         className="text-primary underline-offset-2 hover:underline"
       >
@@ -83,11 +92,12 @@ const components = {
 
 export default function StreamingMarkdownImpl({ text }: { text: string }) {
   return (
-    <div className="min-w-0 text-xs leading-relaxed text-foreground break-words">
+    <div className="min-w-0 text-[13px] leading-[1.5] text-foreground break-words">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
         components={components as never}
+        urlTransform={safeUrl}
       >
         {text}
       </ReactMarkdown>

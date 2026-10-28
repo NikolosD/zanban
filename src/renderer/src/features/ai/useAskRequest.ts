@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { useAi } from './store'
-import { useTranscript } from '@renderer/features/transcript/store'
 import { SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
+import { useTranscript } from '@renderer/features/transcript/store'
+import { errorMessage } from '@renderer/lib/errors'
 
 /**
  * Wait briefly for STT to flush the latest partial before we send the prompt.
@@ -85,7 +86,7 @@ export function useAskRequest(): UseAskRequest {
         ...(opts.modelOverride ? { modelOverride: opts.modelOverride } : {})
       })
     } catch (err) {
-      useAi.getState().failRequest(requestId, err instanceof Error ? err.message : 'failed')
+      useAi.getState().failRequest(requestId, errorMessage(err))
     } finally {
       busyRef.current = false
       setBusy(false)

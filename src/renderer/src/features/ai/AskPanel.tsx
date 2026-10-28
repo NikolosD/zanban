@@ -33,9 +33,12 @@ import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 
 export function AskPanel({
   autoFocusKey = 0,
+  initialPrompt,
   className
 }: {
   autoFocusKey?: number
+  /** A question typed elsewhere (dashboard search), asked once per autoFocusKey. */
+  initialPrompt?: string
   className?: string
 }) {
   const { t } = useTranslation()
@@ -64,6 +67,15 @@ export function AskPanel({
   useEffect(() => {
     inputRef.current?.focus()
   }, [autoFocusKey])
+
+  // Keyed on autoFocusKey so StrictMode's double effect run doesn't ask twice.
+  const askedKeyRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!initialPrompt || askedKeyRef.current === autoFocusKey) return
+    askedKeyRef.current = autoFocusKey
+    lastReqRef.current = { prompt: initialPrompt, image: null, ocr: null }
+    void run({ prompt: initialPrompt })
+  }, [autoFocusKey, initialPrompt, run])
 
   // Background OCR for an instant snapshot landed — fold it in if the
   // attachment is still the one we captured.

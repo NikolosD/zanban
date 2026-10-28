@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import type { StepProps } from '../types'
+import { StepFooter } from './StepFooter'
 
 export function LanguageStep({ settings, update, goNext }: StepProps) {
   const { t } = useTranslation()
@@ -33,9 +34,9 @@ export function LanguageStep({ settings, update, goNext }: StepProps) {
           />
         </div>
       </div>
-      <div className="mt-2 flex justify-end">
+      <StepFooter className="justify-end">
         <Button onClick={goNext}>{t('common.next')}</Button>
-      </div>
+      </StepFooter>
     </div>
   )
 }

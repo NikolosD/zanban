@@ -6,6 +6,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { cn } from '@renderer/lib/utils'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import type { StepProps } from '../types'
+import { StepFooter } from './StepFooter'
 
 type SttOption = 'deepgram' | 'google' | 'local-whisper'
 type FieldShape = 'input' | 'textarea'
@@ -211,14 +212,14 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         )}
       </div>
 
-      <div className="mt-2 flex justify-between">
+      <StepFooter>
         <Button variant="ghost" onClick={goBack} disabled={saving}>
           {t('common.back')}
         </Button>
         <Button onClick={() => void saveAndNext()} disabled={saving}>
           {saving ? t('common.saving') : t('common.next')}
         </Button>
-      </div>
+      </StepFooter>
     </div>
   )
 }

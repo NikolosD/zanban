@@ -3,6 +3,7 @@ import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import type { LlmProvider } from '@shared/types'
 import type { StepProps } from '../types'
+import { StepFooter } from './StepFooter'
 
 type BadgeKey = 'recommended' | 'no_key'
 
@@ -73,7 +74,7 @@ export function ProviderStep({
           </button>
         ))}
       </div>
-      <div className="mt-2 flex justify-between">
+      <StepFooter>
         <Button variant="ghost" onClick={goBack}>
           {t('common.back')}
         </Button>
@@ -85,7 +86,7 @@ export function ProviderStep({
         >
           {t('common.next')}
         </Button>
-      </div>
+      </StepFooter>
     </div>
   )
 }

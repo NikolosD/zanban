@@ -18,18 +18,23 @@
     "api_keys_missing_title": "API keys not configured",
     "api_keys_missing_body": "Open the dashboard → Settings and add credentials for: {{providers}}.",
     "recheck": "re-check",
+    "open_dashboard": "open dashboard",
     "transcription_error": "Transcription error",
     "open_dashboard_keep_session": "Open dashboard · session keeps running",
-    "ask_placeholder": "Ask anything on screen or conversation, or",
+    "ask_placeholder": "Ask about your screen or the conversation…",
     "ask_about_screenshot": "Ask about the screenshot…",
     "idle": "idle",
     "stealth_on": "stealth on",
     "stealth_off": "stealth off",
     "stealth_on_tooltip": "Invisible to screen-share. Click to expose.",
     "stealth_off_tooltip": "Visible to screen-share — others can see this. Click to hide.",
-    "stop_recording_tooltip": "Click to stop recording",
+    "stop_recording_tooltip": "Click twice to stop recording",
     "stop_generating": "Stop generating",
     "back_to_dashboard": "Back to dashboard",
+    "stop_and_back_tooltip": "Stop session and go back to the dashboard (click twice)",
+    "confirm_stop": "stop?",
+    "confirm_stop_tooltip": "Click again to stop the session",
+    "send": "Send",
     "more": "more",
     "rolling": {
       "listening": "listening…",
@@ -138,7 +143,7 @@
     "start_session": "Start session",
     "stop_session": "Stop session",
     "no_sessions_label": "no sessions yet",
-    "no_sessions_body": "Hit <0>Start session</0> in the header. Each session is saved locally as Markdown when you stop — nothing leaves your machine.",
+    "no_sessions_body": "Hit <0>Start session</0> in the header. When you stop, the session is saved on this machine as Markdown.",
     "settings": "Settings",
     "loading": "Loading…",
     "load_failed": "failed to load",
@@ -169,6 +174,7 @@
     },
     "toasts": {
       "could_not_start": "Could not start session",
+      "could_not_stop": "Could not stop session",
       "exported": "Exported",
       "export_failed": "Export failed",
       "stop_before_delete": "Stop the live session before deleting.",
@@ -183,6 +189,7 @@
     "footer_note": "Changes apply automatically. Secrets stored in your OS keychain.",
     "saving": "Saving…",
     "saved": "Saved",
+    "save_failed": "Failed to save",
     "tabs": {
       "general": "General",
       "ai": "AI",
@@ -548,7 +555,7 @@
     },
     "language": {
       "title": "Welcome to Zanban",
-      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes locally, and answers questions for you. Everything is on your machine — API calls only when you ask the LLM.",
+      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes it with the speech-to-text provider you pick, and answers questions for you. Audio goes to that provider (local Whisper keeps it on-device); sessions are stored on your machine.",
       "section_label": "interface language",
       "english_label": "English",
       "english_sublabel": "Full support today.",
@@ -589,7 +596,7 @@
     },
     "keys": {
       "title": "Add your keys",
-      "body": "Stored encrypted with your OS keychain. Nothing leaves the machine until you start a session.",
+      "body": "Stored encrypted with your OS keychain. Each key is sent only to the provider it belongs to.",
       "transcription_label": "transcription",
       "stt_picker_label": "transcription engine",
       "stt_options": {
@@ -663,6 +670,8 @@
     },
     "done": {
       "title": "You're set",
+      "missing_title": "Almost set",
+      "missing_body": "These providers still have no credentials, so sessions and answers won't work yet. Go back to the Keys step or add them later in Settings:",
       "body": "Hit <0>Start session</0> in the dashboard header to begin recording. The overlay floats on top of your call and is invisible to screen-share by default. Stop by Settings any time to swap providers, edit hotkeys, or re-run this wizard."
     },
     "persona": {
@@ -688,9 +697,7 @@
     "open_folder_tooltip": "Open the sessions folder",
     "refresh": "Refresh",
     "continue": "Continue",
-    "resume_tooltip": "Resume this session — new audio appends to the same file",
-    "session_running": "A session is already running. Stop it first.",
-    "could_not_resume": "Could not resume session"
+    "resume_tooltip": "Resume this session — new audio appends to the same file"
   },
   "session_detail": {
     "stats": {
