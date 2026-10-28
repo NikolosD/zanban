@@ -244,7 +244,8 @@ export class GoogleSttChannel {
           const endSec = Number(result.resultEndOffset?.seconds ?? 0)
           const endNanos = Number(result.resultEndOffset?.nanos ?? 0)
           const endMs = Math.round(endSec * 1000 + endNanos / 1_000_000)
-          console.log(`[google-stt:${this.opts.channel}] final=${isFinal} text="${text}"`)
+          // Never write transcript text to zanban.log — users attach it to bug reports.
+          console.debug(`[google-stt:${this.opts.channel}] final=${isFinal} chars=${text.length}`)
           this.opts.onSegment({
             id: randomUUID(),
             channel: this.opts.channel,

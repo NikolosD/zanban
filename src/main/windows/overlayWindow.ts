@@ -2,9 +2,9 @@ import { BrowserWindow, screen } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { getAppIcon } from '../appIcon.js'
+import { DEV_SERVER_URL } from '../security.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 export function createOverlayWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
@@ -59,8 +59,8 @@ export function createOverlayWindow(): BrowserWindow {
     console.error('[overlay] preload-error', preloadPath, err)
   })
 
-  if (isDev) {
-    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`)
+  if (DEV_SERVER_URL) {
+    win.loadURL(`${DEV_SERVER_URL}/overlay.html`)
   } else {
     win.loadFile(join(__dirname, '../renderer/overlay.html'))
   }

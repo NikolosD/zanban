@@ -41,9 +41,13 @@ export function createAutoTrigger(deps: AutoTriggerDeps): AutoTrigger {
         if (existing && !existing.partial) return
       }
       try {
-        await deps.trackJob(`recap-${sessionId}`, 'Generating meeting recap', 'other', () =>
-          deps.generate(sessionId, {})
-        )
+        await deps.trackJob(`recap-${sessionId}`, 'Generating meeting recap', 'other', async () => {
+          const result = await deps.generate(sessionId, {})
+          if (!result.ok) {
+            console.warn(`[recap] auto-generate failed (${result.code}): ${result.message}`)
+          }
+          return result
+        })
       } catch {
         // Swallow — auto-trigger is best-effort. The user did not request
         // this explicitly, so surfacing a modal/toast would be noise.

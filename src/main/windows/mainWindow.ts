@@ -1,10 +1,10 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { getAppIcon } from '../appIcon.js'
+import { DEV_SERVER_URL } from '../security.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const isDev = !!process.env.ELECTRON_RENDERER_URL
 
 export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -37,7 +37,7 @@ export function createMainWindow(): BrowserWindow {
 
   win.once('ready-to-show', () => {
     win.show()
-    if (isDev) win.webContents.openDevTools({ mode: 'detach' })
+    if (DEV_SERVER_URL) win.webContents.openDevTools({ mode: 'detach' })
   })
 
   // Prevent the renderer's <title> from re-populating the native title bar.
@@ -53,13 +53,8 @@ export function createMainWindow(): BrowserWindow {
     console.error('[main] preload-error', preloadPath, err)
   })
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  if (isDev) {
-    win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/index.html`)
+  if (DEV_SERVER_URL) {
+    win.loadURL(`${DEV_SERVER_URL}/index.html`)
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }

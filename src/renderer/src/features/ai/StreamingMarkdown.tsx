@@ -16,7 +16,7 @@ export function StreamingMarkdown({ text }: { text: string }) {
 
 function MarkdownFallback({ text }: { text: string }) {
   return (
-    <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90 font-mono">
+    <div className="whitespace-pre-wrap text-[13px] leading-[1.5] text-foreground/90 font-mono">
       {text}
     </div>
   )

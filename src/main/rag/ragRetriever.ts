@@ -38,16 +38,23 @@ function snippet(text: string): string {
   return t.length > SNIPPET_CHARS ? `${t.slice(0, SNIPPET_CHARS).trimEnd()}…` : t
 }
 
+// A fragment containing the closing tag could end the block early and have
+// the rest of its text read as if it were outside the reference data.
+function escapeBlockEnd(text: string): string {
+  return text.replace(/<\s*\/\s*retrieved_context\s*>/gi, '&lt;/retrieved_context&gt;')
+}
+
 function formatHit(h: RetrievedChunk): string {
+  const text = escapeBlockEnd(h.text)
   if (h.sourceKind === 'doc') {
-    return `[document · ${h.sourceLabel ?? 'untitled'}]\n${h.text}`
+    return `[document · ${h.sourceLabel ?? 'untitled'}]\n${text}`
   }
   const when = new Date(h.ts).toISOString().slice(0, 10)
   if (h.sourceKind === 'recap') {
-    return `[recap · ${when}]\n${h.text}`
+    return `[recap · ${when}]\n${text}`
   }
   const who = h.speaker ?? '?'
-  return `[session ${h.sourceId.slice(0, 8)} · ${when} · ${who}]\n${h.text}`
+  return `[session ${h.sourceId.slice(0, 8)} · ${when} · ${who}]\n${text}`
 }
 
 /**

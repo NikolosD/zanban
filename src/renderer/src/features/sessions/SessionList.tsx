@@ -3,26 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { FolderOpen, Play } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
-import { startCapturesFromSettings } from '@renderer/audio/captureController'
-import { useTranscript } from '@renderer/features/transcript/store'
-import { toast } from 'sonner'
-import i18n from 'i18next'
-
-async function resumeSession(id: string): Promise<void> {
-  if (useTranscript.getState().session.kind === 'running') {
-    toast.error(i18n.t('session_list.session_running'))
-    return
-  }
-  try {
-    const settings = await window.zanban.settings.get()
-    await window.zanban.session.start({ resumeId: id })
-    await startCapturesFromSettings(settings)
-  } catch (err) {
-    toast.error(i18n.t('session_list.could_not_resume'), {
-      description: err instanceof Error ? err.message : String(err)
-    })
-  }
-}
+import { resumeSession } from '@renderer/features/transcript/sessionStart'
 
 export function SessionList({ onSelect }: { onSelect?(id: string): void } = {}) {
   const { t } = useTranslation()

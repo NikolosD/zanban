@@ -30,6 +30,7 @@ import {
   type ResponseLanguage
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
+import { errorMessage } from '@renderer/lib/errors'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
 import { PersonasTab } from './PersonasTab'
@@ -48,6 +49,7 @@ import {
 } from '@renderer/components/ui/select'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import i18n from 'i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 
@@ -266,7 +268,7 @@ export function SettingsPanel({
         })
         .catch((err) => {
           setSavingState('idle')
-          toast.error('Failed to save', { description: String(err) })
+          toast.error(i18n.t('settings.save_failed'), { description: errorMessage(err) })
         })
     }, 350)
     return () => {

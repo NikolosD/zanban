@@ -16,6 +16,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { cn } from '@renderer/lib/utils'
+import { errorMessage } from '@renderer/lib/errors'
 
 interface Props {
   settings: AppSettings
@@ -64,7 +65,7 @@ export function PersonasTab({ settings, update }: Props) {
       toast.success(t('settings.personas.toast_export_success'))
     } catch (err) {
       toast.error(t('settings.personas.toast_export_failed'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     }
   }
@@ -86,7 +87,7 @@ export function PersonasTab({ settings, update }: Props) {
       await refresh()
     } catch (err) {
       toast.error(t('settings.personas.toast_import_failed'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     }
   }

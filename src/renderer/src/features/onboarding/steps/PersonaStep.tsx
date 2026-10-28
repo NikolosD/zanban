@@ -13,6 +13,7 @@ import { cn } from '@renderer/lib/utils'
 import type { Persona, ResponseLanguage } from '@shared/types'
 import { RESPONSE_LANGUAGES } from '@shared/types'
 import type { StepProps } from '../types'
+import { StepFooter } from './StepFooter'
 
 /**
  * "What do you do?" — picks an assistant persona (built-in role) plus the
@@ -103,7 +104,7 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
         </Select>
       </div>
 
-      <div className="mt-2 flex justify-between">
+      <StepFooter>
         <Button variant="ghost" onClick={goBack} disabled={saving}>
           {t('common.back')}
         </Button>
@@ -115,7 +116,7 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
             {saving ? t('common.saving') : t('common.next')}
           </Button>
         </div>
-      </div>
+      </StepFooter>
     </div>
   )
 }

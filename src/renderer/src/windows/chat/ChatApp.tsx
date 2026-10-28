@@ -7,6 +7,7 @@ import { useAi, wireAiIpc } from '@renderer/features/ai/store'
 import { useAskRequest } from '@renderer/features/ai/useAskRequest'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { ZanbanMark } from '@renderer/components/brand'
+import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 
 /**
  * Standalone chat window — talks to the AI without any meeting / transcript
@@ -21,18 +22,14 @@ export function ChatApp() {
   const { run, stop, busy } = useAskRequest()
   const streaming = latest?.status === 'streaming'
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  // Follows the streaming answer only while the user is at the bottom, so
+  // scrolling up to re-read mid-stream isn't yanked back on every chunk.
+  const { rootRef: scrollRef } = useStickToBottom<HTMLDivElement>(latest?.id, latest?.answer.length)
 
   useEffect(() => {
     const off = wireAiIpc()
     return () => off()
   }, [])
-
-  // Scroll to bottom on new messages.
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages])
 
   async function send() {
     const text = input.trim()
@@ -59,7 +56,10 @@ export function ChatApp() {
           size="sm"
           className="h-6 gap-1 px-2 text-[11px] text-muted-foreground"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          onClick={() => useAi.getState().reset()}
+          onClick={() => {
+            if (busy || streaming) stop()
+            useAi.getState().reset()
+          }}
         >
           <Trash2 className="size-3" /> {t('chat.clear')}
         </Button>

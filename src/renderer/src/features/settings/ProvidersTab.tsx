@@ -21,6 +21,7 @@ import { ProviderCard, SecretKeyField } from './ProviderCard'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
+import { errorMessage } from '@renderer/lib/errors'
 
 interface Props {
   settings: AppSettings
@@ -293,7 +294,7 @@ function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; dis
       const res = await window.zanban.providers.testConnection(provider)
       setResult(res)
     } catch (err) {
-      setResult({ ok: false, message: err instanceof Error ? err.message : String(err) })
+      setResult({ ok: false, message: errorMessage(err) })
     } finally {
       setState('idle')
     }
@@ -374,7 +375,7 @@ function OllamaModelManager({
       if (!ok) setError(t('settings.providers.ollama_pull_failed', { name }))
       onRefresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorMessage(err))
     } finally {
       setPulling(null)
     }

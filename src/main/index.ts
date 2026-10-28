@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import './devEnv.js'
 import { randomUUID } from 'node:crypto'
 import {
   app,
@@ -9,8 +9,7 @@ import {
   Menu,
   nativeTheme,
   screen,
-  session,
-  shell
+  session
 } from 'electron'
 import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
@@ -23,6 +22,7 @@ import type { AppSettings, AudioChannel } from '../shared/types.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
 import { raceTimeout } from './ai/raceTimeout.js'
+import { hardenWebContents, isAppUrl } from './security.js'
 import { captureInstant, getActiveDisplay } from './screenshot/index.js'
 import { cssRectToCroppedPx } from './screenshot/cropGeometry.js'
 import { runOcr, terminateOcrWorker } from './screenshot/ocrPipeline.js'
@@ -89,6 +89,8 @@ let isQuitting = false
 let quitFinalized = false
 const QUIT_FINALIZE_TIMEOUT_MS = 8000
 
+app.on('web-contents-created', (_e, contents) => hardenWebContents(contents))
+
 app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -133,16 +135,20 @@ app.whenReady().then(async () => {
   // Seed in-memory stealth state from persisted settings.
   stealthOn = !getSettings().detectable
 
-  // Auto-grant microphone / camera / display media — we own this app.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+  // Auto-grant microphone / camera / display media — but only to our own pages.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
     const granted = ['media', 'mediaKeySystem', 'display-capture', 'audioCapture', 'videoCapture']
-    callback(granted.includes(permission))
+    callback(granted.includes(permission) && isAppUrl(details.requestingUrl))
   })
-  session.defaultSession.setPermissionCheckHandler(() => true)
+  session.defaultSession.setPermissionCheckHandler((wc) => !!wc && isAppUrl(wc.getURL()))
 
   // System audio capture: bypass picker, give renderer the loopback audio.
   session.defaultSession.setDisplayMediaRequestHandler(
-    (_req, callback) => {
+    (req, callback) => {
+      if (!isAppUrl(req.frame?.url ?? '')) {
+        callback({})
+        return
+      }
       desktopCapturer
         .getSources({ types: ['screen'] })
         .then((sources) => {
@@ -427,10 +433,6 @@ app.whenReady().then(async () => {
     registerAiWindow(win)
     registerSyncWindow(win)
     registerJobsWindow(win)
-    win.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
-      return { action: 'deny' }
-    })
     // Setting setContentProtection BEFORE the first show on Windows is a
     // documented Electron flake — the call returns success but the HWND
     // hasn't been bound to a display affinity yet, so the protection silently
@@ -597,7 +599,7 @@ app.whenReady().then(async () => {
       handleCropperSubmit(rect)
   )
 
-  registerShortcuts({
+  const { failed: failedHotkeys } = registerShortcuts({
     onToggleOverlay: () => {
       if (!overlayWindow) return
       if (overlayWindow.isVisible()) overlayWindow.hide()
@@ -630,6 +632,9 @@ app.whenReady().then(async () => {
     // low-profile posture until the next session boundary.
     onShowDashboard: () => showDashboard()
   })
+  if (failedHotkeys.length > 0) {
+    console.warn('[shortcuts] could not register at startup', failedHotkeys)
+  }
 
   // System tray — the reliable way back to the app when stealth +
   // hideWidget + hideFromAppSwitcher have dropped the dashboard from the

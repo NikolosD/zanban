@@ -39,12 +39,16 @@ export async function extractFromPath(filePath: string): Promise<ExtractResult> 
 }
 
 async function extractPdf(buf: Buffer): Promise<string> {
-  const mod = await import('pdf-parse')
-  const pdfParse =
-    (mod as { default?: (b: Buffer) => Promise<{ text: string }> }).default ??
-    (mod as unknown as (b: Buffer) => Promise<{ text: string }>)
-  const out = await pdfParse(buf)
-  return out.text.trim()
+  const { PDFParse } = await import('pdf-parse')
+  const parser = new PDFParse({ data: buf })
+  try {
+    // An empty joiner drops the default "-- N of M --" page markers, which would
+    // otherwise end up inside the indexed RAG chunks.
+    const out = await parser.getText({ pageJoiner: '' })
+    return out.text.trim()
+  } finally {
+    await parser.destroy()
+  }
 }
 
 async function extractDocx(buf: Buffer): Promise<string> {

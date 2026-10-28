@@ -34,11 +34,15 @@ import { wireAiIpc } from '@renderer/features/ai/store'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import {
-  startCapturesFromSettings,
   stopCaptures,
   wireCaptureAutostop,
   onCaptureNotice
 } from '@renderer/audio/captureController'
+import {
+  resumeSession,
+  startSessionWithCapture,
+  toastSessionError
+} from '@renderer/features/transcript/sessionStart'
 import { Button } from '@renderer/components/ui/button'
 import {
   Dialog,
@@ -51,6 +55,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useTranslation, Trans } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { errorMessage } from '@renderer/lib/errors'
 import {
   formatDuration,
   formatFallbackTitle,
@@ -71,12 +76,23 @@ export function DashboardApp() {
   const [version, setVersion] = useState<string>('')
   const [selected, setSelected] = useState<string | null>(null)
   const [askOpen, setAskOpen] = useState(false)
+  const [askPrompt, setAskPrompt] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('general')
   const [askKey, setAskKey] = useState(0)
   const [onboardingOpen, setOnboardingOpen] = useState(false)
   const settings = useSettingsStore((s) => s.settings)
   const queryClient = useQueryClient()
+
+  function openSettings(tab: SettingsTabId = 'general'): void {
+    setSettingsTab(tab)
+    setSettingsOpen(true)
+  }
+
+  // Lives at the root, not in the header button, so capture auto-stop and the
+  // tray Start/Stop listeners stay mounted while a past meeting is open. Start
+  // failures that need credentials are STT keys, which sit on the Audio tab.
+  const sessionControl = useSessionControl(() => openSettings('audio'))
 
   // Open the wizard when settings load and `onboardingCompleted` is still
   // false. We don't reset on subsequent loads — the user can dismiss it and
@@ -134,49 +150,38 @@ export function DashboardApp() {
     }
   }, [queryClient, t])
 
-  if (selected) {
-    return (
-      <div className="min-h-screen bg-background text-foreground">
-        <main className="mx-auto max-w-4xl px-10 pt-8 pb-8">
-          <SessionDetail sessionId={selected} onBack={() => setSelected(null)} />
-        </main>
-        <Toaster richColors theme="dark" />
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <main className="mx-auto max-w-5xl px-10 pt-10 pb-16">
-        <Header
-          version={version}
-          onAsk={() => {
-            setAskKey((k) => k + 1)
-            setAskOpen(true)
-          }}
-          onSelectSession={setSelected}
-          onOpenSettingsTab={(t) => {
-            setSettingsTab(t)
-            setSettingsOpen(true)
-          }}
-          onSettings={() => {
-            setSettingsTab('general')
-            setSettingsOpen(true)
-          }}
-        />
-        <div className="mt-10">
-          <GlobalActionItems onSelect={setSelected} />
-        </div>
-        <div className="mt-10">
-          <MeetingsList
-            onSelect={setSelected}
-            onOpenSettings={() => {
-              setSettingsTab('general')
-              setSettingsOpen(true)
-            }}
+      {selected ? (
+        <main className="mx-auto max-w-4xl px-10 pt-8 pb-8">
+          <SessionDetail
+            sessionId={selected}
+            onBack={() => setSelected(null)}
+            onOpenSettings={() => openSettings('audio')}
           />
-        </div>
-      </main>
+        </main>
+      ) : (
+        <main className="mx-auto max-w-5xl px-10 pt-10 pb-16">
+          <Header
+            version={version}
+            session={sessionControl}
+            onAsk={(question) => {
+              setAskPrompt(question || null)
+              setAskKey((k) => k + 1)
+              setAskOpen(true)
+            }}
+            onSelectSession={setSelected}
+            onOpenSettingsTab={openSettings}
+            onSettings={() => openSettings()}
+          />
+          <div className="mt-10">
+            <GlobalActionItems onSelect={setSelected} />
+          </div>
+          <div className="mt-10">
+            <MeetingsList onSelect={setSelected} onOpenSettings={(tab) => openSettings(tab)} />
+          </div>
+        </main>
+      )}
 
       <Dialog open={askOpen} onOpenChange={setAskOpen}>
         <DialogContent className="sm:max-w-2xl p-0 overflow-hidden">
@@ -185,7 +190,11 @@ export function DashboardApp() {
             Ask anything about the current call.
           </DialogDescription>
           <div className="p-4 h-[520px]">
-            <AskPanel autoFocusKey={askKey} className="h-full" />
+            <AskPanel
+              autoFocusKey={askKey}
+              initialPrompt={askPrompt ?? undefined}
+              className="h-full"
+            />
           </div>
         </DialogContent>
       </Dialog>
@@ -223,13 +232,15 @@ export function DashboardApp() {
 
 function Header({
   version,
+  session,
   onAsk,
   onSelectSession,
   onOpenSettingsTab,
   onSettings
 }: {
   version: string
-  onAsk(): void
+  session: SessionControl
+  onAsk(question?: string): void
   onSelectSession(id: string): void
   onOpenSettingsTab(tab: SettingsTabId): void
   onSettings(): void
@@ -247,7 +258,7 @@ function Header({
           </span>
         }
       />
-      <SessionStartButton />
+      <SessionStartButton session={session} />
       <SearchPill
         onAsk={onAsk}
         onSelectSession={onSelectSession}
@@ -274,7 +285,7 @@ function SearchPill({
   onSelectSession,
   onOpenSettingsTab
 }: {
-  onAsk(): void
+  onAsk(question?: string): void
   onSelectSession(id: string): void
   onOpenSettingsTab(tab: SettingsTabId): void
 }) {
@@ -368,7 +379,7 @@ function SearchPill({
     } else {
       setOpen(false)
       setText('')
-      onAsk()
+      onAsk(text.trim())
     }
   }
 
@@ -552,11 +563,17 @@ function SearchPill({
   )
 }
 
-function SessionStartButton() {
+interface SessionControl {
+  running: boolean
+  busy: boolean
+  start(): Promise<void>
+  stop(): Promise<void>
+}
+
+function useSessionControl(onOpenSettings: () => void): SessionControl {
   const { t } = useTranslation()
-  const session = useTranscript((s) => s.session)
+  const running = useTranscript((s) => s.session.kind === 'running')
   const [busy, setBusy] = useState(false)
-  const running = session.kind === 'running'
 
   // Keep the latest handlers in refs so the tray IPC subscription (mounted
   // once) always calls the current closure without re-subscribing on every
@@ -582,28 +599,24 @@ function SessionStartButton() {
     }
   }, [])
 
-  async function handleStart() {
+  async function start(): Promise<void> {
     setBusy(true)
     try {
-      const settings = await window.zanban.settings.get()
-      await window.zanban.session.start()
-      await startCapturesFromSettings(settings)
+      await startSessionWithCapture()
     } catch (err) {
-      toast.error(t('dashboard.toasts.could_not_start'), {
-        description: err instanceof Error ? err.message : String(err)
-      })
-      stopCaptures()
-      await window.zanban.session.stop().catch(() => {})
+      toastSessionError(t('dashboard.toasts.could_not_start'), err, onOpenSettings)
     } finally {
       setBusy(false)
     }
   }
 
-  async function handleStop() {
+  async function stop(): Promise<void> {
     setBusy(true)
     try {
       stopCaptures()
       await window.zanban.session.stop()
+    } catch (err) {
+      toastSessionError(t('dashboard.toasts.could_not_stop'), err)
     } finally {
       setBusy(false)
     }
@@ -616,16 +629,23 @@ function SessionStartButton() {
   // mirroring the button's own disabled/guard behavior.
   useEffect(() => {
     startRef.current = () => {
-      if (!busy && !running) void handleStart()
+      if (!busy && !running) void start()
     }
     stopRef.current = () => {
-      if (!busy && running) void handleStop()
+      if (!busy && running) void stop()
     }
   })
 
+  return { running, busy, start, stop }
+}
+
+function SessionStartButton({ session }: { session: SessionControl }) {
+  const { t } = useTranslation()
+  const { running, busy } = session
+
   return (
     <Button
-      onClick={running ? handleStop : handleStart}
+      onClick={() => void (running ? session.stop() : session.start())}
       disabled={busy}
       size="default"
       variant={running ? 'destructive' : 'default'}
@@ -657,7 +677,7 @@ function MeetingsList({
   onOpenSettings
 }: {
   onSelect(id: string): void
-  onOpenSettings(): void
+  onOpenSettings(tab?: SettingsTabId): void
 }) {
   const { t } = useTranslation()
   const { data, isLoading, error } = useQuery({
@@ -679,7 +699,7 @@ function MeetingsList({
     )
   }
   if (!data || data.length === 0) {
-    return <EmptyMeetings onOpenSettings={onOpenSettings} />
+    return <EmptyMeetings onOpenSettings={() => onOpenSettings()} />
   }
 
   return (
@@ -695,6 +715,7 @@ function MeetingsList({
                 key={s.id}
                 session={s}
                 onSelect={onSelect}
+                onOpenSettings={() => onOpenSettings('audio')}
                 isLast={i === g.items.length - 1}
               />
             ))}
@@ -708,16 +729,16 @@ function MeetingsList({
 function MeetingRow({
   session,
   onSelect,
+  onOpenSettings,
   isLast
 }: {
   session: SessionListItem
   onSelect(id: string): void
+  onOpenSettings(): void
   isLast: boolean
 }) {
   const { t } = useTranslation()
-  const liveSession = useTranscript((s) => s.session)
   const queryClient = useQueryClient()
-  const isRunningElsewhere = liveSession.kind === 'running'
   const date = new Date(session.startedAt)
   const dur = formatDuration(session.durationMs)
   const time = formatTime(date)
@@ -725,29 +746,13 @@ function MeetingRow({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  async function resume(): Promise<void> {
-    if (isRunningElsewhere) {
-      toast.error(t('dashboard.session_running_elsewhere'))
-      return
-    }
-    try {
-      const settings = await window.zanban.settings.get()
-      await window.zanban.session.start({ resumeId: session.id })
-      await startCapturesFromSettings(settings)
-    } catch (err) {
-      toast.error(t('dashboard.could_not_resume'), {
-        description: err instanceof Error ? err.message : String(err)
-      })
-    }
-  }
-
   async function exportMd(): Promise<void> {
     try {
       const path = await window.zanban.sessions.exportMarkdown(session.id)
       if (path) toast.success(t('dashboard.toasts.exported'), { description: path })
     } catch (err) {
       toast.error(t('dashboard.toasts.export_failed'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     }
   }
@@ -777,7 +782,7 @@ function MeetingRow({
       }
     } catch (err) {
       toast.error(t('dashboard.toasts.delete_failed'), {
-        description: err instanceof Error ? err.message : String(err)
+        description: errorMessage(err)
       })
     } finally {
       setDeleting(false)
@@ -827,7 +832,7 @@ function MeetingRow({
             className="size-7 text-muted-foreground/55 group-hover:text-foreground transition-colors"
             onClick={(e) => {
               e.stopPropagation()
-              void resume()
+              void resumeSession(session.id, onOpenSettings)
             }}
             title={t('dashboard.session_actions.resume_tooltip')}
           >
