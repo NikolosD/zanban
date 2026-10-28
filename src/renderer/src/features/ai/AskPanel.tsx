@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import {
   Send,
   Quote,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useAi } from './store'
 import { useAskRequest } from './useAskRequest'
+import { useScreenshotAttachment } from './useScreenshotAttachment'
 import { ModelReaskMenu } from './ModelReaskMenu'
 import { StreamingMarkdown } from './StreamingMarkdown'
 import { useSettingsStore } from '@renderer/features/settings/store'
@@ -30,6 +32,7 @@ import type { AiSource, LlmProvider } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
+import { queryKeys } from '@renderer/lib/queryKeys'
 
 export function AskPanel({
   autoFocusKey = 0,
@@ -46,9 +49,8 @@ export function AskPanel({
   const latest = messages.at(-1)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState('')
-  const [snapping, setSnapping] = useState(false)
-  const [image, setImage] = useState<string | null>(null)
-  const [ocrText, setOcrText] = useState<string | null>(null)
+  const attachment = useScreenshotAttachment()
+  const { image } = attachment
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const { run, stop, busy } = useAskRequest()
   const streaming = latest?.status === 'streaming'
@@ -60,9 +62,6 @@ export function AskPanel({
     image: string | null
     ocr: string | null
   } | null>(null)
-  // Tracks the in-flight instant snapshot so a late OCR result folds into the
-  // current attachment, not a stale one (F1/F5 — same path as the overlay).
-  const snapshotIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -77,14 +76,6 @@ export function AskPanel({
     void run({ prompt: initialPrompt })
   }, [autoFocusKey, initialPrompt, run])
 
-  // Background OCR for an instant snapshot landed — fold it in if the
-  // attachment is still the one we captured.
-  useEffect(() => {
-    return window.zanban.screenshot.onOcr((result) => {
-      if (result.snapshotId === snapshotIdRef.current) setOcrText(result.ocrText)
-    })
-  }, [])
-
   // Keep the latest answer visible while it streams. Radix ScrollArea
   // scrolls a descendant viewport, not the root, so we resolve it.
   const { rootRef: scrollRef } = useStickToBottom<HTMLDivElement>(
@@ -96,28 +87,22 @@ export function AskPanel({
   async function send(prompt?: string) {
     const p = (prompt ?? text).trim()
     const attached = image
-    const ocrAttached = ocrText
+    const ocrAttached = attachment.ocrText
     if (!p && !attached) return
     if (busy) return
     if (!prompt) setText('')
-    setImage(null)
-    setOcrText(null)
-    snapshotIdRef.current = null
+    attachment.clear()
     lastReqRef.current = { prompt: p, image: attached, ocr: ocrAttached }
     await run({ prompt: p, image: attached, ocr: ocrAttached, modelOverride })
   }
 
   async function answerLast() {
     if (busy) return
-    lastReqRef.current = {
-      prompt: ANSWER_LAST_PROMPT,
-      label: 'Answer last question',
-      image: null,
-      ocr: null
-    }
+    const label = t('overlay.labels.answer_last')
+    lastReqRef.current = { prompt: ANSWER_LAST_PROMPT, label, image: null, ocr: null }
     await run({
       prompt: ANSWER_LAST_PROMPT,
-      label: 'Answer last question',
+      label,
       waitForTranscript: true,
       modelOverride
     })
@@ -134,24 +119,6 @@ export function AskPanel({
       ocr: last.ocr,
       modelOverride: modelId ?? modelOverride
     })
-  }
-
-  async function snap() {
-    if (snapping) return
-    setSnapping(true)
-    try {
-      // F5: same OCR-capable instant path as the overlay — image attaches at
-      // once, OCR text folds in via the onOcr subscription. Previously this
-      // used screenshot.capture() (no OCR), so the model got only the image.
-      const snap = await window.zanban.screenshot.captureInstant()
-      if (snap) {
-        snapshotIdRef.current = snap.snapshotId
-        setImage(snap.dataUrl)
-        setOcrText(snap.ocrText)
-      }
-    } finally {
-      setSnapping(false)
-    }
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -192,7 +159,7 @@ export function AskPanel({
           <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-1.5">
             <img
               src={image}
-              alt="screenshot"
+              alt={t('overlay.input.screenshot_alt')}
               className="h-12 w-auto rounded border border-border/50 object-cover"
             />
             <span className="font-mono text-[10px] text-muted-foreground">
@@ -202,12 +169,9 @@ export function AskPanel({
               variant="ghost"
               size="icon"
               className="ml-auto size-6"
-              onClick={() => {
-                setImage(null)
-                setOcrText(null)
-                snapshotIdRef.current = null
-              }}
+              onClick={attachment.clear}
               title={t('ask_panel.remove_screenshot')}
+              aria-label={t('ask_panel.remove_screenshot')}
             >
               <X className="size-3" />
             </Button>
@@ -226,14 +190,15 @@ export function AskPanel({
             className="min-h-[28px] max-h-20 border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
           <Button
-            onClick={() => void snap()}
-            disabled={snapping || busy}
+            onClick={() => void attachment.snap()}
+            disabled={attachment.snapping || busy}
             size="icon"
             variant="ghost"
             title={t('ask_panel.attach_screenshot_tooltip')}
+            aria-label={t('ask_panel.attach_screenshot_tooltip')}
             className="size-8 shrink-0"
           >
-            {snapping ? (
+            {attachment.snapping ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <ImageIcon className="size-3.5" />
@@ -271,6 +236,7 @@ export function AskPanel({
               disabled={busy || (!text.trim() && !image)}
               size="icon"
               variant={text.trim() || image ? 'default' : 'ghost'}
+              aria-label={t('overlay.send')}
               className="size-8 shrink-0"
             >
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
@@ -433,6 +399,7 @@ export function AskCard({
         )}
         {m.status === 'done' && onAskFollowUp && m.answer.length > 0 && (
           <FollowUpChips
+            messageId={m.id}
             question={m.prompt}
             answer={m.answer}
             onAsk={onAskFollowUp}
@@ -465,10 +432,15 @@ function SourcesList({ sources }: { sources: AiSource[] }) {
   return (
     <div className="mt-2 border-t border-border/40 pt-1.5">
       <button
+        type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80 hover:text-foreground"
       >
-        <ChevronDown className={cn('size-3 transition-transform', !open && '-rotate-90')} />
+        <ChevronDown
+          aria-hidden
+          className={cn('size-3 transition-transform', !open && '-rotate-90')}
+        />
         {t('ask_panel.sources', { count: sources.length })}
       </button>
       {open && (
@@ -498,40 +470,32 @@ function SourcesList({ sources }: { sources: AiSource[] }) {
 }
 
 /**
- * Clickable follow-up question chips shown under a completed answer. Fetches up
- * to 3 short suggestions from the helper LLM once, on mount. Renders nothing
- * while loading or when the LLM returns none — so a flaky/disabled helper just
- * means no chips, never an error.
+ * Clickable follow-up question chips shown under a completed answer. Up to 3
+ * short suggestions from the helper LLM — a paid call, so they are cached per
+ * message for the life of the window and never refetched or retried. Renders
+ * nothing while loading or when the helper fails or returns none.
  */
 function FollowUpChips({
+  messageId,
   question,
   answer,
   onAsk,
   disabled
 }: {
+  messageId: string
   question: string
   answer: string
   onAsk: (q: string) => void
   disabled?: boolean
 }) {
   const { t } = useTranslation()
-  const [chips, setChips] = useState<string[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    void window.zanban.ai
-      .followUps(question, answer)
-      .then((qs) => {
-        if (!cancelled) setChips(qs)
-      })
-      .catch(() => {
-        /* helper LLM unavailable — just show no chips */
-      })
-    return () => {
-      cancelled = true
-    }
-    // Suggestions depend on the finished answer; refetch only if it changes.
-  }, [question, answer])
+  const { data: chips = [] } = useQuery({
+    queryKey: queryKeys.followUps(messageId),
+    queryFn: () => window.zanban.ai.followUps(question, answer),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false
+  })
 
   if (chips.length === 0) return null
   return (

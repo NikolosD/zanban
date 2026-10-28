@@ -1,7 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import en from '@shared/locales/en.json'
 import { KeyRecorder } from './KeyRecorder'
+
+void i18n.use(initReactI18next).init({
+  lng: 'en',
+  resources: { en: { translation: en } },
+  interpolation: { escapeValue: false }
+})
 
 function renderRecorder(overrides: { value?: string; defaultValue?: string } = {}) {
   const onChange = vi.fn()

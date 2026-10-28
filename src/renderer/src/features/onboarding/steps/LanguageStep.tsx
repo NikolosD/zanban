@@ -54,6 +54,8 @@ function LangCard({
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         'flex flex-1 flex-col items-start gap-1 rounded-md border px-3 py-2 text-left transition-colors',

@@ -7,6 +7,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { cn } from '@renderer/lib/utils'
+import { queryKeys } from '@renderer/lib/queryKeys'
 import { PROMPT_VERSION } from '@shared/recap-types'
 import type { SessionDetailPayload } from '@shared/api'
 import type { RecapPayload, RecapResult } from '@shared/recap-types'
@@ -22,24 +23,30 @@ import { isActionItemChecked, setActionItemChecked } from './actionItemState'
 export function RecapTab({ session }: { session: SessionDetailPayload }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const queryKey = ['recap', session.id]
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const { data: recap } = useQuery<RecapPayload | null>({
-    queryKey,
+    queryKey: queryKeys.recap(session.id),
     queryFn: () => window.zanban.recap.get(session.id)
   })
 
   useEffect(() => {
     return window.zanban.recap.onUpdated((sessionId) => {
-      if (sessionId === session.id) qc.invalidateQueries({ queryKey })
+      if (sessionId === session.id)
+        void qc.invalidateQueries({ queryKey: queryKeys.recap(sessionId) })
     })
-  }, [qc, queryKey, session.id])
+  }, [qc, session.id])
+
+  // A recap write can add or drop the dashboard's "owner: you" action items.
+  function invalidateRecap(): void {
+    void qc.invalidateQueries({ queryKey: queryKeys.recap(session.id) })
+    void qc.invalidateQueries({ queryKey: queryKeys.globalActionItems })
+  }
 
   const generate = useMutation<RecapResult, Error>({
     mutationFn: () => window.zanban.recap.generate(session.id),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey })
+      invalidateRecap()
       if (!result.ok) setErrorMessage(recapErrorMessage(result.code, result.message, t))
       else setErrorMessage(null)
     },
@@ -48,7 +55,7 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
 
   const remove = useMutation<void, Error>({
     mutationFn: () => window.zanban.recap.delete(session.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey })
+    onSuccess: invalidateRecap
   })
 
   if (!recap && generate.isPending) return <RecapSkeleton />
@@ -242,6 +249,7 @@ function ActionItem({
   sessionId: string
   item: { text: string; owner: 'you' | 'them' | 'unknown'; dueHint?: string }
 }) {
+  const { t } = useTranslation()
   const [checked, setChecked] = useState<boolean>(() => isActionItemChecked(sessionId, item))
   // Re-sync when the item's text changes under the same row (regenerate).
   useEffect(() => {
@@ -252,7 +260,12 @@ function ActionItem({
     setChecked(next)
     setActionItemChecked(sessionId, item, next)
   }
-  const ownerLabel = item.owner === 'you' ? 'You' : item.owner === 'them' ? 'Them' : '?'
+  const ownerLabel =
+    item.owner === 'you'
+      ? t('session_detail.speaker.you')
+      : item.owner === 'them'
+        ? t('session_detail.speaker.them')
+        : '?'
   const ownerColor =
     item.owner === 'you'
       ? 'text-blue-400 border-blue-500/40'
@@ -285,13 +298,16 @@ function FollowUpSection({ followUp }: { followUp: { subject: string; body: stri
     <div className="flex flex-col gap-2">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 px-1 text-left"
       >
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           {t('session_detail.recap.follow_up')}
         </span>
-        <span className="text-muted-foreground">{open ? '▾' : '▸'}</span>
+        <span aria-hidden className="text-muted-foreground">
+          {open ? '▾' : '▸'}
+        </span>
       </button>
       {open && (
         <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">

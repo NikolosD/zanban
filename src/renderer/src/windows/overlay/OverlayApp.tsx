@@ -31,6 +31,7 @@ import {
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
 import { useAskRequest } from '@renderer/features/ai/useAskRequest'
+import { useScreenshotAttachment } from '@renderer/features/ai/useScreenshotAttachment'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import { missingProviderNames } from '@renderer/features/settings/providerStatus'
@@ -69,13 +70,8 @@ export function OverlayApp() {
   const [text, setText] = useState('')
   const { run: runAsk, stop: stopAsk, busy } = useAskRequest()
   const [stoppingSession, setStoppingSession] = useState(false)
-  const [snapping, setSnapping] = useState(false)
-  const [image, setImage] = useState<string | null>(null)
-  const [ocrText, setOcrText] = useState<string | null>(null)
-  // Tracks the in-flight instant snapshot so a late-arriving OCR result folds
-  // into the *current* attachment and not a stale one the user already cleared
-  // or replaced (F1).
-  const snapshotIdRef = useRef<string | null>(null)
+  const attachment = useScreenshotAttachment()
+  const { image, attach: attachSnapshot, clear: clearAttachment } = attachment
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -240,9 +236,7 @@ export function OverlayApp() {
     const offAnswerLast = window.zanban.overlay.onAnswerLast(handleAnswer)
 
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
-      snapshotIdRef.current = snap.snapshotId
-      setImage(snap.dataUrl)
-      setOcrText(snap.ocrText)
+      attachSnapshot(snap)
       inputRef.current?.focus()
     })
 
@@ -259,14 +253,6 @@ export function OverlayApp() {
       )
     })
 
-    // Background OCR for an instant snapshot landed — fold it in only if the
-    // attachment the user is looking at is still the one we captured.
-    const offOcr = window.zanban.screenshot.onOcr((result) => {
-      if (result.snapshotId === snapshotIdRef.current) {
-        setOcrText(result.ocrText)
-      }
-    })
-
     const offStealth = window.zanban.overlay.onStealthChanged((next) => {
       setStealth(next)
     })
@@ -280,12 +266,11 @@ export function OverlayApp() {
       offAnswerLast()
       offSnapshot()
       offSnapshotAnswer()
-      offOcr()
       offStealth()
       offSettings()
       window.removeEventListener('mousemove', onMove)
     }
-  }, [handleAnswer])
+  }, [handleAnswer, attachSnapshot])
 
   async function toggleStealth(): Promise<void> {
     const next = await window.zanban.overlay.setStealth(!stealth)
@@ -344,36 +329,20 @@ export function OverlayApp() {
 
   function clearInput(): void {
     setText('')
-    setImage(null)
-    setOcrText(null)
-    snapshotIdRef.current = null
+    clearAttachment()
   }
 
   async function send(): Promise<void> {
     const value = text.trim()
     const attached = image
-    const ocrAttached = ocrText
+    const ocrAttached = attachment.ocrText
     if ((!value && !attached) || busy) return
     clearInput()
     await runPrompt(value, undefined, attached ?? undefined, false, ocrAttached)
   }
 
   async function snap(): Promise<void> {
-    if (snapping) return
-    setSnapping(true)
-    try {
-      // Instant image, background OCR (F1/F5): the image attaches immediately;
-      // the OCR text folds in via the onOcr subscription above.
-      const snap = await window.zanban.screenshot.captureInstant()
-      if (snap) {
-        snapshotIdRef.current = snap.snapshotId
-        setImage(snap.dataUrl)
-        setOcrText(snap.ocrText)
-        inputRef.current?.focus()
-      }
-    } finally {
-      setSnapping(false)
-    }
+    if (await attachment.snap()) inputRef.current?.focus()
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -510,18 +479,14 @@ export function OverlayApp() {
               image={image}
               busy={busy}
               streaming={streaming}
-              snapping={snapping}
+              snapping={attachment.snapping}
               inputRef={inputRef}
               onTextChange={setText}
               onKey={onKey}
               onSend={() => void send()}
               onStop={stopAsk}
               onSnap={() => void snap()}
-              onClearImage={() => {
-                setImage(null)
-                setOcrText(null)
-                snapshotIdRef.current = null
-              }}
+              onClearImage={clearAttachment}
               modelOverride={modelOverride}
               onModelChange={setModelOverride}
               activeProvider={settings?.llmProvider ?? 'vercel-gateway'}

@@ -8,7 +8,8 @@
     "loading": "Loading…",
     "saving": "Saving…",
     "open_settings": "Open Settings",
-    "copied": "Copied"
+    "copied": "Copied",
+    "unknown_error": "unknown error"
   },
   "overlay": {
     "streaming": "streaming…",
@@ -81,7 +82,8 @@
       "snap_hotkey_tooltip": "Press {{chord}} to snap the full screen and attach it",
       "screenshot_alt": "Attached screenshot"
     },
-    "continue_tooltip": "Submit a 'continue' prompt to resume the answer"
+    "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
+    "resize_answer": "Answer pane height"
   },
   "capture": {
     "mic_lost": "Microphone disconnected and couldn't reconnect — your side isn't being transcribed",
@@ -91,14 +93,23 @@
   },
   "jobs": {
     "working_one": "{{count}} working",
-    "working_other": "{{count}} working"
+    "working_other": "{{count}} working",
+    "kind": {
+      "rag": "indexing",
+      "ocr": "text recognition",
+      "pull": "downloading model",
+      "export": "exporting",
+      "other": "background task"
+    }
   },
   "chat": {
     "title": "zanban · chat",
     "clear": "Clear",
     "empty": "Ask anything. The active persona, RAG history, reference docs, and web search (if enabled) all apply here too.",
     "placeholder": "Ask Zanban anything…",
-    "stop_generating": "Stop generating"
+    "stop_generating": "Stop generating",
+    "content_filtered": "The provider's content filter blocked this answer. Rephrase the question or try another model.",
+    "empty_answer": "The model returned an empty answer. Try again or pick another model."
   },
   "tray": {
     "tooltip_idle": "Zanban — idle",
@@ -176,7 +187,8 @@
       "no_match_before": "Nothing matches — press",
       "no_match_after": "to ask Zanban instead.",
       "ask_anything": "Ask Zanban anything…",
-      "ask_with_text": "Ask Zanban:"
+      "ask_with_text": "Ask Zanban:",
+      "aria_label": "Search sessions and settings, or ask Zanban"
     },
     "session_actions": {
       "resume_tooltip": "Resume — append new audio to this session",
@@ -198,6 +210,15 @@
       "session_deleted": "Session deleted",
       "could_not_delete": "Could not delete session",
       "delete_failed": "Delete failed"
+    },
+    "ask_dialog": {
+      "title": "Ask",
+      "description": "Ask anything about the current call."
+    },
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "this_week": "Earlier this week"
     }
   },
   "settings": {
@@ -337,7 +358,14 @@
       "ollama_pull_title": "Download {{name}}",
       "ollama_installed_title": "Already installed",
       "ollama_pull_failed": "Could not pull {{name}}",
-      "ollama_privacy_no_models": "Privacy Mode uses Ollama, but no models are installed. Pull one below or the assistant will fail on the first prompt."
+      "ollama_privacy_no_models": "Privacy Mode uses Ollama, but no models are installed. Pull one below or the assistant will fail on the first prompt.",
+      "key_configured": "configured · {{mask}}",
+      "status": {
+        "ok": "Configured — use Test to verify",
+        "missing": "Not configured",
+        "unknown": "Status unknown",
+        "error": "Last attempt failed"
+      }
     },
     "personas": {
       "title": "Personas",
@@ -416,7 +444,10 @@
       "open_sessions_folder": "Open sessions folder",
       "setup_title": "setup",
       "setup_hint": "Replay the first-run wizard to swap providers or re-add keys.",
-      "rerun_onboarding": "Re-run onboarding"
+      "rerun_onboarding": "Re-run onboarding",
+      "opacity_label": "Interface opacity",
+      "opacity_hint": "Blend the floating overlay into the screen background. Useful when a meeting tile is bright. 100% = solid.",
+      "opacity_preview": "{{percent}}% preview"
     },
     "ai": {
       "models_card_title": "models per role",
@@ -429,8 +460,8 @@
       "detailed_answers_hint": "Raise the output limit so answers truncate less often. Slightly slower. Off by default for short, snappy replies.",
       "streaming_label": "Streaming answers",
       "streaming_hint": "Ask hotkey, Answer last, and any text question. Pick the lowest-latency model you trust — this is what the user feels.",
-      "question_detector_label": "Question detector",
-      "question_detector_hint": "Cheap classifier that scans the other speaker's transcript and decides 'is this a question?' Runs constantly — keep it cheap and fast.",
+      "follow_up_model_label": "Follow-up suggestions model",
+      "follow_up_model_hint": "Suggests follow-up questions under each finished answer. Runs after every answer — a small, cheap model is enough.",
       "session_title_label": "Session title",
       "session_title_hint": "Generates a short title at the end of a recorded call. Quality matters more than latency.",
       "vision_title": "Vision (screenshots)",
@@ -443,7 +474,8 @@
       "reset_to_default": "Reset to default",
       "default_chip": "default",
       "reset_to_defaults": "Reset to defaults",
-      "advanced_overrides_label": "Advanced model overrides"
+      "advanced_overrides_label": "Advanced model overrides",
+      "showing_models": "Showing models for <0>{{provider}}</0>. Each provider keeps its own per-role IDs — switching providers above doesn't lose what you typed here."
     },
     "audio": {
       "capture_title": "audio capture",
@@ -561,6 +593,35 @@
         "label": "Force-show dashboard",
         "hint": "Brings back the dashboard window when stealth + hide-widget mode would otherwise leave it unreachable."
       }
+    },
+    "dialog_description": "API keys, audio devices, hotkeys.",
+    "search_keywords": {
+      "general": "general, privacy, stealth, detectable, hide widget, app switcher, transcript window, sessions folder, dock, taskbar, opacity, appearance, language, answer language, onboarding",
+      "ai": "ai, models, llm, gateway, vercel, api key, openai, gpt, claude, gemini, groq, ollama, anthropic, tavily, web search, fallback, follow-up, summary, vision, screenshots, token, secret, privacy mode, providers, detailed answers",
+      "audio": "audio, mic, microphone, system audio, loopback, device, vad, silence, transcription, language, stt, speech to text, multilingual, deepgram, whisper, elevenlabs, google",
+      "identity": "identity, persona, preset, response language, reply language, system prompt, documents, reference, pdf, docx, txt, context, resume, spec, brief, rag",
+      "recap": "recap, post-meeting, summary, auto generate, tone, concise, friendly, formal, language, model override, action items",
+      "hotkeys": "hotkeys, keybinds, keyboard, shortcut, shortcuts, accelerator, rebind",
+      "about": "about, version, changelog, updates, logs, bug, diagnostics"
+    },
+    "response_languages": {
+      "auto": "Auto · match the question",
+      "en": "English",
+      "ru": "Russian · Русский",
+      "es": "Spanish · Español",
+      "de": "German · Deutsch",
+      "fr": "French · Français",
+      "it": "Italian · Italiano",
+      "pt": "Portuguese · Português",
+      "ja": "Japanese · 日本語",
+      "ko": "Korean · 한국어",
+      "zh": "Chinese · 中文"
+    },
+    "key_recorder": {
+      "placeholder": "click to record…",
+      "recording": "press keys… (Esc cancel · ⌫ clear)",
+      "reset_to": "Reset to {{accelerator}}",
+      "clear": "Clear binding"
     }
   },
   "onboarding": {
@@ -712,16 +773,6 @@
     "title_other": "Your action items · {{count}}",
     "mark_done": "Mark done"
   },
-  "session_list": {
-    "no_sessions": "No sessions yet — sessions are saved locally when you stop a recording.",
-    "count_one": "{{count}} session",
-    "count_other": "{{count}} sessions",
-    "open_folder": "Open folder",
-    "open_folder_tooltip": "Open the sessions folder",
-    "refresh": "Refresh",
-    "continue": "Continue",
-    "resume_tooltip": "Resume this session — new audio appends to the same file"
-  },
   "session_detail": {
     "stats": {
       "duration": "Duration",
@@ -733,7 +784,9 @@
       "ai_exchanges": "AI exchanges",
       "avg_answer": "Avg answer length",
       "models_used": "Models used",
-      "last_activity": "Last activity"
+      "last_activity": "Last activity",
+      "chars_one": "{{count}} char",
+      "chars_other": "{{count}} chars"
     },
     "recent_ai_exchanges": "Recent AI exchanges",
     "ask_placeholder": "Ask about this meeting…",
@@ -784,6 +837,23 @@
     },
     "export_pdf": "Export PDF",
     "exported_toast": "Exported",
-    "export_failed_toast": "Export failed"
+    "export_failed_toast": "Export failed",
+    "speaker": {
+      "you": "You",
+      "them": "Them"
+    },
+    "question_label": "Q: {{question}}",
+    "no_transcript": "No transcript saved.",
+    "export_title_fallback": "Session {{date}}",
+    "today_at": "Today at {{time}}",
+    "yesterday_at": "Yesterday at {{time}}"
+  },
+  "error_boundary": {
+    "title": "Render error",
+    "retry": "Try again"
+  },
+  "cropper": {
+    "idle_hint": "Drag to select a region · Esc to cancel",
+    "selection_hint": "{{width}} × {{height}} — release to capture · Esc to cancel"
   }
 }

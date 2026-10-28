@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, Trash2, Square } from 'lucide-react'
+import { Send, Loader2, Trash2, Square, ArrowDownToLine } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
@@ -39,6 +39,10 @@ export function ChatApp() {
     inputRef.current?.focus()
   }
 
+  function continueAnswer() {
+    void run({ prompt: 'continue', label: t('overlay.labels.continue') })
+  }
+
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header
@@ -72,7 +76,7 @@ export function ChatApp() {
           </div>
         ) : (
           <ul className="flex flex-col gap-5">
-            {messages.map((m) => (
+            {messages.map((m, i) => (
               <li key={m.id} className="flex flex-col gap-2">
                 <div className="rounded-md bg-white/[0.04] px-3 py-2 text-[13px]">{m.prompt}</div>
                 <div className="px-1 text-[13px]">
@@ -82,6 +86,13 @@ export function ChatApp() {
                   )}
                   {m.status === 'error' && <span className="text-red-400">{m.error}</span>}
                 </div>
+                {m.status === 'done' && (
+                  <FinishNotice
+                    finishReason={m.finishReason}
+                    answer={m.answer}
+                    onContinue={i === messages.length - 1 && !busy ? continueAnswer : undefined}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -118,12 +129,65 @@ export function ChatApp() {
             size="icon"
             onClick={() => void send()}
             disabled={busy || !input.trim()}
+            aria-label={t('overlay.send')}
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         )}
       </div>
       <Toaster richColors position="bottom-right" />
+    </div>
+  )
+}
+
+const CONTENT_FILTER_REASONS = new Set(['content', 'content-filter'])
+
+/**
+ * Why a finished answer stopped short: truncated at the token cap (offers
+ * Continue on the latest answer), blocked by the provider's content filter, or
+ * empty. A user Stop also finishes as 'stop' and needs no notice.
+ */
+function FinishNotice({
+  finishReason,
+  answer,
+  onContinue
+}: {
+  finishReason?: string
+  answer: string
+  onContinue?: () => void
+}) {
+  const { t } = useTranslation()
+  if (finishReason === 'length') {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
+        <span className="flex-1">{t('overlay.answer_truncated')}</span>
+        {onContinue && (
+          <button
+            type="button"
+            onClick={onContinue}
+            title={t('overlay.continue_tooltip')}
+            className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
+          >
+            <ArrowDownToLine className="size-3" aria-hidden />
+            {t('overlay.continue')}
+          </button>
+        )}
+      </div>
+    )
+  }
+  const notice =
+    finishReason && CONTENT_FILTER_REASONS.has(finishReason)
+      ? t('chat.content_filtered')
+      : !answer.trim() && finishReason !== 'stop'
+        ? t('chat.empty_answer')
+        : null
+  if (!notice) return null
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[12px] text-amber-200"
+    >
+      {notice}
     </div>
   )
 }

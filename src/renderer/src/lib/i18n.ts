@@ -19,6 +19,9 @@ export function initI18n(initialLocale: UiLocale = 'en'): typeof i18n {
     }
     return i18n
   }
+  i18n.on('languageChanged', (lng) => {
+    document.documentElement.lang = lng
+  })
   void i18n.use(initReactI18next).init({
     resources: {
       en: { translation: en },

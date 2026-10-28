@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   Loader2,
   RefreshCw,
@@ -48,7 +48,8 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { toast } from 'sonner'
-import { useTranslation } from 'react-i18next'
+import { Tabs } from 'radix-ui'
+import { Trans, useTranslation } from 'react-i18next'
 import i18n from 'i18next'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
@@ -79,120 +80,6 @@ function resolveTab(id: SettingsTabId): TabId {
   return id
 }
 
-export const SETTINGS_TABS: Array<{
-  id: SettingsTabId
-  label: string
-  keywords: string[]
-}> = [
-  {
-    id: 'general',
-    label: 'General',
-    keywords: [
-      'general',
-      'privacy',
-      'stealth',
-      'detectable',
-      'hide widget',
-      'auto detect questions',
-      'transcript window',
-      'sessions folder',
-      'dock',
-      'opacity',
-      'appearance'
-    ]
-  },
-  {
-    id: 'ai',
-    label: 'AI',
-    keywords: [
-      'ai',
-      'models',
-      'llm',
-      'gateway',
-      'vercel',
-      'api key',
-      'openai',
-      'gpt',
-      'claude',
-      'gemini',
-      'groq',
-      'ollama',
-      'anthropic',
-      'tavily',
-      'elevenlabs',
-      'fast',
-      'filter',
-      'summary',
-      'vision',
-      'token',
-      'secret',
-      'privacy mode',
-      'providers'
-    ]
-  },
-  {
-    id: 'audio',
-    label: 'Audio',
-    keywords: [
-      'audio',
-      'mic',
-      'microphone',
-      'system audio',
-      'loopback',
-      'device',
-      'vad',
-      'transcription',
-      'language',
-      'stt',
-      'speech to text',
-      'multilingual'
-    ]
-  },
-  {
-    id: 'identity',
-    label: 'Identity',
-    keywords: [
-      'persona',
-      'preset',
-      'response language',
-      'reply language',
-      'meeting context',
-      'system prompt',
-      'documents',
-      'reference',
-      'pdf',
-      'docx',
-      'txt',
-      'context',
-      'resume',
-      'spec',
-      'brief'
-    ]
-  },
-  {
-    id: 'recap',
-    label: 'Recap',
-    keywords: [
-      'recap',
-      'post-meeting',
-      'summary',
-      'auto generate',
-      'tone',
-      'concise',
-      'friendly',
-      'formal',
-      'language',
-      'model override'
-    ]
-  },
-  {
-    id: 'hotkeys',
-    label: 'Hotkeys',
-    keywords: ['hotkeys', 'keybinds', 'keyboard', 'shortcut', 'shortcuts', 'accelerator', 'rebind']
-  },
-  { id: 'about', label: 'About', keywords: ['about', 'version', 'changelog'] }
-]
-
 const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'general', icon: SlidersHorizontal },
   { id: 'ai', icon: Cpu },
@@ -202,6 +89,9 @@ const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }>
   { id: 'hotkeys', icon: Keyboard },
   { id: 'about', icon: Info }
 ]
+
+/** Tab ids the dashboard search matches against (localized labels + keywords). */
+export const SETTINGS_TAB_IDS: TabId[] = TABS.map((tab) => tab.id)
 
 export function SettingsPanel({
   initialTab,
@@ -291,7 +181,7 @@ export function SettingsPanel({
       for (const t of stream.getTracks()) t.stop()
       setMics(await enumerateMics())
     } catch (err) {
-      setMicsError(err instanceof Error ? err.message : 'unknown')
+      setMicsError(err instanceof Error ? err.message : i18n.t('common.unknown_error'))
     }
   }
 
@@ -308,48 +198,51 @@ export function SettingsPanel({
   if (!settings) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        <Loader2 className="mr-2 size-3.5 animate-spin" /> Loading…
+        <Loader2 className="mr-2 size-3.5 animate-spin" /> {t('common.loading')}
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      <SettingsSidebar tab={tab} setTab={setTab} />
+    <Tabs.Root
+      value={tab}
+      onValueChange={(v) => setTab(v as TabId)}
+      orientation="vertical"
+      className="flex h-full min-h-0"
+    >
+      <SettingsSidebar tab={tab} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-8 py-7">
-          {tab === 'general' && (
+          <Tabs.Content value="general">
             <GeneralTab settings={settings} update={update} onReRunOnboarding={onReRunOnboarding} />
-          )}
-          {tab === 'ai' && (
-            <>
-              <ProvidersTab settings={settings} update={update} />
-              <Section
-                title={t('settings.ai.models_card_title')}
-                hint={t('settings.ai.models_card_hint')}
+          </Tabs.Content>
+          <Tabs.Content value="ai">
+            <ProvidersTab settings={settings} update={update} />
+            <Section
+              title={t('settings.ai.models_card_title')}
+              hint={t('settings.ai.models_card_hint')}
+            >
+              <ModelsTab settings={settings} update={update} />
+            </Section>
+            <Section
+              title={t('settings.ai.web_search_title')}
+              hint={t('settings.ai.web_search_hint')}
+            >
+              <WebSearchCard settings={settings} update={update} />
+            </Section>
+            <Section title={t('settings.ai.answers_title')} hint={t('settings.ai.answers_hint')}>
+              <Row
+                label={t('settings.ai.detailed_answers_label')}
+                hint={t('settings.ai.detailed_answers_hint')}
               >
-                <ModelsTab settings={settings} update={update} />
-              </Section>
-              <Section
-                title={t('settings.ai.web_search_title')}
-                hint={t('settings.ai.web_search_hint')}
-              >
-                <WebSearchCard settings={settings} update={update} />
-              </Section>
-              <Section title={t('settings.ai.answers_title')} hint={t('settings.ai.answers_hint')}>
-                <Row
-                  label={t('settings.ai.detailed_answers_label')}
-                  hint={t('settings.ai.detailed_answers_hint')}
-                >
-                  <Switch
-                    checked={settings.detailedAnswers}
-                    onCheckedChange={(v) => update('detailedAnswers', v)}
-                  />
-                </Row>
-              </Section>
-            </>
-          )}
-          {tab === 'audio' && (
+                <Switch
+                  checked={settings.detailedAnswers}
+                  onCheckedChange={(v) => update('detailedAnswers', v)}
+                />
+              </Row>
+            </Section>
+          </Tabs.Content>
+          <Tabs.Content value="audio">
             <AudioTab
               settings={settings}
               update={update}
@@ -357,29 +250,31 @@ export function SettingsPanel({
               micsError={micsError}
               onRescan={() => void rescanMics()}
             />
-          )}
-          {tab === 'identity' && (
-            <>
-              <PersonasTab settings={settings} update={update} />
-              <div className="mt-10 mb-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/[0.06]" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {t('settings.identity.reference_documents_divider')}
-                </span>
-                <div className="h-px flex-1 bg-white/[0.06]" />
-              </div>
-              <ReferenceDocsTab />
-            </>
-          )}
-          {tab === 'recap' && <RecapSettingsTab settings={settings} update={update} />}
-          {tab === 'hotkeys' && (
+          </Tabs.Content>
+          <Tabs.Content value="identity">
+            <PersonasTab settings={settings} update={update} />
+            <div className="mt-10 mb-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/[0.06]" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                {t('settings.identity.reference_documents_divider')}
+              </span>
+              <div className="h-px flex-1 bg-white/[0.06]" />
+            </div>
+            <ReferenceDocsTab />
+          </Tabs.Content>
+          <Tabs.Content value="recap">
+            <RecapSettingsTab settings={settings} update={update} />
+          </Tabs.Content>
+          <Tabs.Content value="hotkeys">
             <HotkeysTab
               settings={settings}
               updateHotkey={updateHotkey}
               resetAll={() => update('hotkeys', { ...DEFAULT_SETTINGS.hotkeys })}
             />
-          )}
-          {tab === 'about' && <AboutTab version={version} />}
+          </Tabs.Content>
+          <Tabs.Content value="about">
+            <AboutTab version={version} />
+          </Tabs.Content>
         </div>
         <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-8 py-3">
           <div className="text-[11px] text-muted-foreground">{t('settings.footer_note')}</div>
@@ -399,24 +294,28 @@ export function SettingsPanel({
           </div>
         </div>
       </div>
-    </div>
+    </Tabs.Root>
   )
 }
 
-function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
+function SettingsSidebar({ tab }: { tab: TabId }) {
   const { t: tr } = useTranslation()
+  const titleId = useId()
   return (
     <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+      <h2
+        id={titleId}
+        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+      >
         {tr('settings.sidebar_title')}
       </h2>
-      <nav className="flex flex-col">
+      <Tabs.List aria-labelledby={titleId} className="flex flex-col">
         {TABS.map((t) => {
           const active = tab === t.id
           return (
-            <button
+            <Tabs.Trigger
               key={t.id}
-              onClick={() => setTab(t.id)}
+              value={t.id}
               className={cn(
                 // Underline-tab analogue for the vertical axis: 1px leading
                 // border that lights up on active. No filled pill background —
@@ -430,10 +329,10 @@ function SettingsSidebar({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }
             >
               <t.icon className="size-3.5 opacity-80" />
               {tr(`settings.tabs.${t.id}`)}
-            </button>
+            </Tabs.Trigger>
           )
         })}
-      </nav>
+      </Tabs.List>
     </aside>
   )
 }
@@ -463,6 +362,12 @@ function Section({
   )
 }
 
+interface FieldControlProps {
+  id: string
+  'aria-describedby'?: string
+}
+
+/** Label + hint column beside a control; spread `control` onto the control. */
 function Field({
   label,
   hint,
@@ -470,15 +375,25 @@ function Field({
 }: {
   label: string
   hint?: string
-  children: React.ReactNode
+  children(control: FieldControlProps): React.ReactNode
 }) {
+  const id = useId()
+  const hintId = `${id}-hint`
   return (
     <div className="grid grid-cols-[180px_1fr] items-start gap-4">
       <div className="pt-1.5">
-        <div className="text-[13px] text-foreground/85">{label}</div>
-        {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
+        <label htmlFor={id} className="block text-[13px] text-foreground/85">
+          {label}
+        </label>
+        {hint && (
+          <div id={hintId} className="mt-0.5 text-[11px] text-muted-foreground">
+            {hint}
+          </div>
+        )}
       </div>
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">
+        {children({ id, 'aria-describedby': hint ? hintId : undefined })}
+      </div>
     </div>
   )
 }
@@ -499,12 +414,26 @@ function GeneralTab({
         title={t('settings.general.appearance_title')}
         hint={t('settings.general.appearance_hint')}
       >
-        <OpacityField
-          // Clamp stored value into the slider's range so legacy/manual sub-min
-          // values display correctly and don't desync the thumb position.
-          value={Math.max(0.4, Math.min(1, settings.overlayOpacity ?? 1))}
-          onChange={(v) => update('overlayOpacity', v)}
-        />
+        <Field
+          label={t('settings.general.opacity_label')}
+          hint={t('settings.general.opacity_hint')}
+        >
+          {(control) => {
+            // Clamp stored value into the slider's range so legacy/manual sub-min
+            // values display correctly and don't desync the thumb position.
+            const opacity = Math.max(0.4, Math.min(1, settings.overlayOpacity ?? 1))
+            return (
+              <div className="flex min-w-0 flex-col gap-3">
+                <OpacitySlider
+                  {...control}
+                  value={opacity}
+                  onChange={(v) => update('overlayOpacity', v)}
+                />
+                <OverlayPreview opacity={opacity} />
+              </div>
+            )
+          }}
+        </Field>
       </Section>
       <Section
         title={t('settings.general.language_title')}
@@ -514,7 +443,7 @@ function GeneralTab({
           value={settings.uiLocale ?? 'en'}
           onValueChange={(v) => update('uiLocale', v as 'en' | 'ru')}
         >
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-44" aria-label={t('settings.general.language_title')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -531,13 +460,13 @@ function GeneralTab({
           value={settings.responseLanguage ?? 'auto'}
           onValueChange={(v) => update('responseLanguage', v as ResponseLanguage)}
         >
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="w-56" aria-label={t('settings.general.answer_language_title')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {RESPONSE_LANGUAGES.map((l) => (
               <SelectItem key={l.value} value={l.value}>
-                {l.label}
+                {t(`settings.response_languages.${l.value}`, { defaultValue: l.label })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -583,10 +512,13 @@ function GeneralTab({
           label={t('settings.general.transcript_window_label')}
           hint={t('settings.general.transcript_window_hint')}
         >
-          <TranscriptWindowInput
-            value={settings.contextSeconds}
-            onCommit={(n) => update('contextSeconds', n)}
-          />
+          {(control) => (
+            <TranscriptWindowInput
+              {...control}
+              value={settings.contextSeconds}
+              onCommit={(n) => update('contextSeconds', n)}
+            />
+          )}
         </Field>
       </Section>
       <Section
@@ -712,12 +644,15 @@ function ModelsTab({
   // Reveal the override cards when the user opts in OR already has an override
   // stored (so saved config is never hidden behind a collapsed disclosure).
   const showAdvanced = advancedOpen || hasAnyOverride
+  const visionProviderId = useId()
+  const visionModelLabelId = useId()
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
+          aria-expanded={showAdvanced}
           onClick={() => setAdvancedOpen((o) => !o)}
           className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
         >
@@ -741,9 +676,11 @@ function ModelsTab({
       {showAdvanced && (
         <>
           <p className="text-[12px] leading-relaxed text-muted-foreground">
-            Showing models for <span className="font-mono text-foreground">{provider}</span>. Each
-            provider keeps its own per-role IDs — switching providers above doesn't lose what you
-            typed here.
+            <Trans
+              i18nKey="settings.ai.showing_models"
+              values={{ provider }}
+              components={{ 0: <span className="font-mono text-foreground" /> }}
+            />
           </p>
 
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
@@ -758,8 +695,8 @@ function ModelsTab({
               />
               <Divider />
               <ModelRoleField
-                label={t('settings.ai.question_detector_label')}
-                hint={t('settings.ai.question_detector_hint')}
+                label={t('settings.ai.follow_up_model_label')}
+                hint={t('settings.ai.follow_up_model_hint')}
                 value={providerOverrides.filter ?? ''}
                 fallback={providerDefaults.filter}
                 options={fastOptionsFor(provider)}
@@ -793,7 +730,7 @@ function ModelsTab({
             {/* Two-row sub-grid: provider picker + provider's vision-model picker. */}
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-                <label className="text-[11px] text-muted-foreground">
+                <label htmlFor={visionProviderId} className="text-[11px] text-muted-foreground">
                   {t('settings.ai.provider_label')}
                 </label>
                 <Select
@@ -805,7 +742,7 @@ function ModelsTab({
                     )
                   }
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={visionProviderId} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -821,10 +758,11 @@ function ModelsTab({
                 </Select>
               </div>
               <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-                <label className="text-[11px] text-muted-foreground">
+                <span id={visionModelLabelId} className="text-[11px] text-muted-foreground">
                   {t('settings.ai.model_label')}
-                </label>
+                </span>
                 <ModelOptionSelect
+                  labelledBy={visionModelLabelId}
                   value={visionOverrides.vision ?? ''}
                   fallback={visionDefaults.vision}
                   options={visionOptionsFor(visionProvider)}
@@ -859,23 +797,34 @@ function ModelRoleField({
   options: string[]
   onChange(value: string): void
 }) {
+  const labelId = useId()
   return (
     <div className="grid grid-cols-[180px_1fr] items-start gap-4">
       <div className="pt-1">
-        <div className="text-[12.5px] font-medium text-foreground/90">{label}</div>
+        <div id={labelId} className="text-[12.5px] font-medium text-foreground/90">
+          {label}
+        </div>
         <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{hint}</div>
       </div>
-      <ModelOptionSelect value={value} fallback={fallback} options={options} onChange={onChange} />
+      <ModelOptionSelect
+        labelledBy={labelId}
+        value={value}
+        fallback={fallback}
+        options={options}
+        onChange={onChange}
+      />
     </div>
   )
 }
 
 function ModelOptionSelect({
+  labelledBy,
   value,
   fallback,
   options,
   onChange
 }: {
+  labelledBy: string
   value: string
   fallback: string
   options: string[]
@@ -888,7 +837,7 @@ function ModelOptionSelect({
   return (
     <div className="flex flex-col gap-1.5">
       <Select value={matched} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
+        <SelectTrigger aria-labelledby={labelledBy} className="w-full">
           <SelectValue placeholder={t('settings.ai.default_placeholder', { model: fallback })} />
         </SelectTrigger>
         <SelectContent>
@@ -906,6 +855,7 @@ function ModelOptionSelect({
       </Select>
       <div className="flex items-center gap-2">
         <Input
+          aria-labelledby={labelledBy}
           className="font-mono text-[11px]"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -946,38 +896,44 @@ function AudioTab({
     <>
       <Section title={t('settings.audio.capture_title')} hint={t('settings.audio.capture_hint')}>
         <Field label={t('settings.audio.mic_label')}>
-          <div className="flex items-center gap-2">
-            <Select
-              value={settings.audio.micDeviceId ?? 'default'}
-              onValueChange={(v) =>
-                update('audio', {
-                  ...settings.audio,
-                  micDeviceId: v === 'default' ? null : v
-                })
-              }
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">{t('settings.audio.default_device')}</SelectItem>
-                {mics.map((m) => (
-                  <SelectItem key={m.deviceId} value={m.deviceId}>
-                    {m.label || t('settings.audio.device_unnamed', { id: m.deviceId.slice(0, 8) })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              title={t('settings.audio.rescan_tooltip')}
-              onClick={onRescan}
-            >
-              <RefreshCw className="size-3.5" />
-            </Button>
-          </div>
-          {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
+          {(control) => (
+            <>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={settings.audio.micDeviceId ?? 'default'}
+                  onValueChange={(v) =>
+                    update('audio', {
+                      ...settings.audio,
+                      micDeviceId: v === 'default' ? null : v
+                    })
+                  }
+                >
+                  <SelectTrigger {...control} className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t('settings.audio.default_device')}</SelectItem>
+                    {mics.map((m) => (
+                      <SelectItem key={m.deviceId} value={m.deviceId}>
+                        {m.label ||
+                          t('settings.audio.device_unnamed', { id: m.deviceId.slice(0, 8) })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('settings.audio.rescan_tooltip')}
+                  aria-label={t('settings.audio.rescan_tooltip')}
+                  onClick={onRescan}
+                >
+                  <RefreshCw className="size-3.5" />
+                </Button>
+              </div>
+              {micsError && <p className="mt-2 text-xs text-destructive">{micsError}</p>}
+            </>
+          )}
         </Field>
         <Row label={t('settings.audio.system_label')} hint={t('settings.audio.system_hint')}>
           <Switch
@@ -1057,40 +1013,42 @@ function TranscriptionLanguageSection({
       }
     >
       <Field label={t('settings.transcription.language_label')}>
-        <Select
-          value={settings.transcriptionLanguage}
-          onValueChange={(v) => update('transcriptionLanguage', v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue>
-              {current
-                ? `${current.flag}  ${t(`settings.transcription.lang.${current.value}`)}`
-                : settings.transcriptionLanguage}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t('settings.transcription.popular')}
-            </div>
-            {TRANSCRIPTION_LANGUAGES_POPULAR.filter(
-              (l) => l.value !== 'multi' || supportsMulti
-            ).map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                <span className="mr-2">{l.flag}</span>
-                {t(`settings.transcription.lang.${l.value}`)}
-              </SelectItem>
-            ))}
-            <div className="mt-1 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t('settings.transcription.other')}
-            </div>
-            {TRANSCRIPTION_LANGUAGES_OTHER.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                <span className="mr-2">{l.flag}</span>
-                {t(`settings.transcription.lang.${l.value}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {(control) => (
+          <Select
+            value={settings.transcriptionLanguage}
+            onValueChange={(v) => update('transcriptionLanguage', v)}
+          >
+            <SelectTrigger {...control} className="w-full">
+              <SelectValue>
+                {current
+                  ? `${current.flag}  ${t(`settings.transcription.lang.${current.value}`)}`
+                  : settings.transcriptionLanguage}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {t('settings.transcription.popular')}
+              </div>
+              {TRANSCRIPTION_LANGUAGES_POPULAR.filter(
+                (l) => l.value !== 'multi' || supportsMulti
+              ).map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  <span className="mr-2">{l.flag}</span>
+                  {t(`settings.transcription.lang.${l.value}`)}
+                </SelectItem>
+              ))}
+              <div className="mt-1 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {t('settings.transcription.other')}
+              </div>
+              {TRANSCRIPTION_LANGUAGES_OTHER.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  <span className="mr-2">{l.flag}</span>
+                  {t(`settings.transcription.lang.${l.value}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </Field>
       <p className="text-[11px] text-muted-foreground">
         {t('settings.transcription.switch_provider_note_before')}{' '}
@@ -1137,28 +1095,31 @@ function HotkeysTab({
             label={t(`settings.hotkey.${k}.label`)}
             hint={t(`settings.hotkey.${k}.hint`)}
           >
-            <div className="flex flex-col gap-1">
-              <KeyRecorder
-                value={settings.hotkeys[k]}
-                defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
-                onChange={(v) => {
-                  // Clear this action's conflict flag on edit — the user is
-                  // actively picking a new chord; re-flag only if it fails again.
-                  setConflicts((prev) => {
-                    if (!prev.has(k)) return prev
-                    const next = new Set(prev)
-                    next.delete(k)
-                    return next
-                  })
-                  updateHotkey(k, v)
-                }}
-              />
-              {conflicts.has(k) && (
-                <span className="text-[10px] font-medium text-amber-400">
-                  {t('settings.hotkeys_section.conflict_badge')}
-                </span>
-              )}
-            </div>
+            {(control) => (
+              <div className="flex flex-col gap-1">
+                <KeyRecorder
+                  {...control}
+                  value={settings.hotkeys[k]}
+                  defaultValue={DEFAULT_SETTINGS.hotkeys[k]}
+                  onChange={(v) => {
+                    // Clear this action's conflict flag on edit — the user is
+                    // actively picking a new chord; re-flag only if it fails again.
+                    setConflicts((prev) => {
+                      if (!prev.has(k)) return prev
+                      const next = new Set(prev)
+                      next.delete(k)
+                      return next
+                    })
+                    updateHotkey(k, v)
+                  }}
+                />
+                {conflicts.has(k) && (
+                  <span className="text-[10px] font-medium text-amber-400">
+                    {t('settings.hotkeys_section.conflict_badge')}
+                  </span>
+                )}
+              </div>
+            )}
           </Field>
         ))}
       </div>
@@ -1318,7 +1279,11 @@ function Row({
   )
 }
 
-function TranscriptWindowInput({ value, onCommit }: { value: number; onCommit(v: number): void }) {
+function TranscriptWindowInput({
+  value,
+  onCommit,
+  ...control
+}: FieldControlProps & { value: number; onCommit(v: number): void }) {
   // Uncontrolled-ish: user can type freely (including clearing the field).
   // Persistence + clamping happens on blur/Enter so we don't fight the user's
   // keystrokes. Re-syncs to props if external value changes.
@@ -1334,6 +1299,7 @@ function TranscriptWindowInput({ value, onCommit }: { value: number; onCommit(v:
   }
   return (
     <Input
+      {...control}
       type="number"
       className="w-28 font-mono"
       value={draft}
@@ -1346,36 +1312,22 @@ function TranscriptWindowInput({ value, onCommit }: { value: number; onCommit(v:
   )
 }
 
-function OpacityField({ value, onChange }: { value: number; onChange(v: number): void }) {
-  return (
-    <div className="grid grid-cols-[180px_1fr] items-start gap-4">
-      <div className="pt-1.5">
-        <div className="text-[13px] text-foreground/85">Interface opacity</div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground">
-          Blend the floating overlay into the screen background. Useful when a meeting tile is
-          bright. 100% = solid.
-        </div>
-      </div>
-      <div className="flex min-w-0 flex-col gap-3">
-        <OpacitySlider value={value} onChange={onChange} />
-        <OverlayPreview opacity={value} />
-      </div>
-    </div>
-  )
-}
-
 function OverlayPreview({ opacity }: { opacity: number }) {
   // Preview canvas: a faked desktop tile with the REAL overlay chrome on top,
   // rendered at native size (max-w 680px) and scaled down via CSS transform
   // so the user judges opacity against pixel-perfect chrome rather than a
   // stylized approximation. The mockup shares its JSX/classes with
   // OverlayApp.tsx — see OverlayMockup.tsx.
+  const { t } = useTranslation()
   const clamped = Math.min(1, Math.max(0.4, opacity))
   // Native overlay content is ~720px wide (max-w 680 + p-3). Pick a scale
   // that fits a comfortable preview tile width without becoming illegible.
   const scale = 0.55
   return (
+    // A static mockup: its fake buttons must not be reachable or announced.
     <div
+      aria-hidden
+      inert
       className="relative w-full overflow-hidden rounded-md border border-white/[0.06]"
       style={{
         height: 320,
@@ -1415,13 +1367,17 @@ function OverlayPreview({ opacity }: { opacity: number }) {
       {/* corner readout — confirms the % the user is dragging without making
           them look up at the slider's tail. */}
       <div className="absolute bottom-1.5 right-2 font-mono text-[9px] text-muted-foreground/70">
-        {Math.round(clamped * 100)}% preview
+        {t('settings.general.opacity_preview', { percent: Math.round(clamped * 100) })}
       </div>
     </div>
   )
 }
 
-function OpacitySlider({ value, onChange }: { value: number; onChange(v: number): void }) {
+function OpacitySlider({
+  value,
+  onChange,
+  ...control
+}: FieldControlProps & { value: number; onChange(v: number): void }) {
   // Floor mirrors the clamp in main/index.ts → applyOverlayOpacity. Letting the
   // user drag below this would risk dragging the overlay below visibility on
   // glance-and-recover.
@@ -1431,7 +1387,9 @@ function OpacitySlider({ value, onChange }: { value: number; onChange(v: number)
   return (
     <div className="flex items-center gap-3">
       <input
+        {...control}
         type="range"
+        aria-valuetext={`${pct}%`}
         min={min}
         max={max}
         step={0.05}
@@ -1450,7 +1408,10 @@ function OpacitySlider({ value, onChange }: { value: number; onChange(v: number)
         )}
         style={{ accentColor: 'oklch(0.78 0.13 145)' }}
       />
-      <span className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+      <span
+        aria-hidden
+        className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground"
+      >
         {pct}%
       </span>
     </div>

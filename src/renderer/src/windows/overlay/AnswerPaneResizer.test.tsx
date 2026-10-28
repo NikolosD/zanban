@@ -91,4 +91,32 @@ describe('AnswerPaneResizer', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith(420)
   })
+
+  it('is focusable and exposes its value range', () => {
+    const { handle } = renderResizer({ value: 400, hardCap: 700 })
+    expect(handle.tabIndex).toBe(0)
+    expect(handle.getAttribute('aria-valuenow')).toBe('400')
+    expect(handle.getAttribute('aria-valuemin')).toBe(String(MIN_ANSWER_MAX_HEIGHT))
+    expect(handle.getAttribute('aria-valuemax')).toBe('700')
+  })
+
+  it('arrow keys resize by a step and commit, Shift by a larger step', () => {
+    const { handle, onChange, onCommit } = renderResizer({ value: 320 })
+    fireEvent.keyDown(handle, { key: 'ArrowDown' })
+    expect(onChange).toHaveBeenLastCalledWith(340)
+    expect(onCommit).toHaveBeenLastCalledWith(340)
+    fireEvent.keyDown(handle, { key: 'ArrowUp', shiftKey: true })
+    expect(onCommit).toHaveBeenLastCalledWith(240)
+  })
+
+  it('Home and End jump to the bounds; no commit when already there', () => {
+    const { handle, onCommit } = renderResizer({ value: 320, hardCap: 700 })
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(onCommit).toHaveBeenLastCalledWith(700)
+    fireEvent.keyDown(handle, { key: 'Home' })
+    expect(onCommit).toHaveBeenLastCalledWith(MIN_ANSWER_MAX_HEIGHT)
+    const atMin = renderResizer({ value: MIN_ANSWER_MAX_HEIGHT })
+    fireEvent.keyDown(atMin.handle, { key: 'ArrowUp' })
+    expect(atMin.onCommit).not.toHaveBeenCalled()
+  })
 })
