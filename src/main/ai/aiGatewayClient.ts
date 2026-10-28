@@ -2,13 +2,21 @@ import { createGateway } from '@ai-sdk/gateway'
 import { streamText } from 'ai'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
+import {
+  ANSWER_LAST_PROMPT,
+  FOLLOW_UP_PROMPT,
+  RECAP_PROMPT,
+  SCREENSHOT_DEFAULT_PROMPT,
+  SHORTEN_PROMPT,
+  WHAT_TO_ANSWER_PROMPT
+} from '../../shared/prompts.js'
 import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
 import type { TranscriptSegment } from '../../shared/types.js'
 import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './prompts.js'
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
-import { retrieve, type RetrievedSource } from '../rag/index.js'
+import { retrieve, type RetrievalResult } from '../rag/index.js'
 import type { IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
@@ -24,6 +32,28 @@ import { modelFor, fastMaxOutputTokens } from './models.js'
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
 const STREAM_IDLE_TIMEOUT_MS = 30_000
+const STREAM_TIMEOUT_MESSAGE = 'LLM stream timed out (no response for 30s)'
+
+const RETRIEVAL_TIMEOUT_MS = 1500
+const RETRIEVAL_QUERY_MAX_WORDS = 60
+
+// Vision answers can be code-heavy: a kata solution + explanation + edge cases
+// easily runs past 1.5k tokens, after which the stream truncates mid-line.
+// Providers bill only on what is emitted, so the high ceiling isn't wasteful.
+const VISION_MAX_OUTPUT_TOKENS = 8000
+
+const GATEWAY_NAME = 'Vercel AI Gateway'
+
+const FIXED_PROMPTS = new Set([
+  ANSWER_LAST_PROMPT,
+  SCREENSHOT_DEFAULT_PROMPT,
+  FOLLOW_UP_PROMPT,
+  RECAP_PROMPT,
+  WHAT_TO_ANSWER_PROMPT,
+  SHORTEN_PROMPT
+])
+
+type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
 
 /**
  * In-flight requests, keyed by requestId. Lets `stop()` abort a specific
@@ -127,6 +157,74 @@ function gateway() {
   return createGateway({ apiKey: settings.vercelApiKey })
 }
 
+/**
+ * Query for RAG + web search. Hotkeys and chips send fixed instruction prompts
+ * ("Answer the last question…"), and searching for that text matches nothing
+ * useful — so for those, search for what was just said, preferring the other
+ * speaker's channel.
+ */
+export function retrievalQueryFor(prompt: string, segments: TranscriptSegment[]): string {
+  if (!FIXED_PROMPTS.has(prompt.trim())) return prompt
+  const finals = segments.filter((s) => s.isFinal && s.text.trim())
+  const theirs = finals.filter((s) => s.channel === 'system')
+  const pool = theirs.length > 0 ? theirs : finals
+  const words: string[] = []
+  for (let i = pool.length - 1; i >= 0 && words.length < RETRIEVAL_QUERY_MAX_WORDS; i--) {
+    words.unshift(...pool[i]!.text.trim().split(/\s+/))
+  }
+  return words.slice(-RETRIEVAL_QUERY_MAX_WORDS).join(' ')
+}
+
+/**
+ * User-facing text for a provider failure. SDKs put the raw HTTP body in the
+ * message (e.g. `401 {"type":"error","error":{…}}`), which is noise in a toast.
+ */
+export function describeProviderError(err: unknown, providerName: string): string {
+  const raw = rawErrorMessage(err)
+  const status = errorStatus(err, raw)
+  if (status === 401 || status === 403) {
+    return `${providerName} rejected the API key (${status}). Check it in Settings → AI.`
+  }
+  const detail = jsonErrorDetail(raw)
+  if (!detail) return raw
+  return status ? `${providerName}: ${detail} (${status})` : `${providerName}: ${detail}`
+}
+
+function rawErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  try {
+    return JSON.stringify(err) ?? 'unknown provider error'
+  } catch {
+    return 'unknown provider error'
+  }
+}
+
+function errorStatus(err: unknown, message: string): number | undefined {
+  if (err && typeof err === 'object') {
+    const { status, statusCode } = err as { status?: unknown; statusCode?: unknown }
+    if (typeof status === 'number') return status
+    if (typeof statusCode === 'number') return statusCode
+  }
+  const m = message.match(/^(\d{3})\b/)
+  return m ? Number(m[1]) : undefined
+}
+
+function jsonErrorDetail(message: string): string | null {
+  const start = message.indexOf('{')
+  if (start < 0) return null
+  let body: { message?: unknown; error?: unknown }
+  try {
+    body = JSON.parse(message.slice(start)) as typeof body
+  } catch {
+    return null
+  }
+  if (typeof body.error === 'string') return body.error
+  const inner = body.error as { message?: unknown } | null | undefined
+  if (typeof inner?.message === 'string') return inner.message
+  return typeof body.message === 'string' ? body.message : null
+}
+
 export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   const settings = getSettings()
   // Don't reject early on a missing Vercel key — the user may have switched
@@ -138,24 +236,6 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   inFlight.set(requestId, entry)
   ;(async () => {
     try {
-      // Optional web search via Tavily. Triggered only when the user has
-      // both autoWebSearch enabled AND a Tavily key, AND the prompt looks
-      // factual (≥4 words). Failures swallowed — the prompt still goes out.
-      let webSearchBlock = ''
-      const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
-      if (webProvider && opts.prompt.trim().split(/\s+/).length >= 4) {
-        type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
-        const hits = await raceTimeout(
-          webProvider.search(opts.prompt, { topK: 3 }),
-          800,
-          [] as SearchHit[]
-        )
-        if (hits.length > 0) {
-          const lines = hits.map((h) => `[${h.title}](${h.url})\n${h.snippet}`).join('\n\n')
-          webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
-        }
-      }
-
       // Active persona (if any) wins over the legacy free-form
       // settings.assistantPersona — the prompt builder still receives a
       // single string, so callers don't need to know which one came in.
@@ -172,14 +252,45 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // (handy for brainstorm-style personas that benefit from a clean slate).
       // retrieve() now ranks across transcript history, reference documents, and
       // structured recaps — full docs are no longer dumped into the prompt.
+      // It runs concurrently with web search, each bounded so optional
+      // augmentation never holds up the answer (the embedder can take seconds
+      // to load on first use).
+      const searchQuery = retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
       const ragStrategy = activePersona?.ragStrategy
-      const retrieval =
-        ragStrategy?.useRag === false
-          ? { prompt: '', sources: [] as RetrievedSource[] }
-          : await retrieve(opts.prompt, {
-              topK: ragStrategy?.topK,
-              distanceThreshold: ragStrategy?.distanceThreshold
-            }).catch(() => ({ prompt: '', sources: [] as RetrievedSource[] }))
+      const noRetrieval: RetrievalResult = { prompt: '', sources: [] }
+      const retrievalTask =
+        ragStrategy?.useRag === false || !searchQuery.trim()
+          ? Promise.resolve(noRetrieval)
+          : raceTimeout(
+              retrieve(searchQuery, {
+                topK: ragStrategy?.topK,
+                distanceThreshold: ragStrategy?.distanceThreshold
+              }).catch((err: unknown) => {
+                console.warn('[ai] retrieval failed', err)
+                return noRetrieval
+              }),
+              RETRIEVAL_TIMEOUT_MS,
+              noRetrieval
+            )
+
+      // Optional web search via Tavily. Triggered only when the user has
+      // both autoWebSearch enabled AND a Tavily key, AND the query looks
+      // factual (≥4 words). Failures swallowed — the prompt still goes out.
+      const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
+      const webSearchTask =
+        webProvider && searchQuery.trim().split(/\s+/).length >= 4
+          ? raceTimeout(webProvider.search(searchQuery, { topK: 3 }), 800, [] as SearchHit[])
+          : Promise.resolve([] as SearchHit[])
+
+      const [retrieval, hits] = await Promise.all([retrievalTask, webSearchTask])
+      let webSearchBlock = ''
+      if (hits.length > 0) {
+        const lines = hits
+          .map((h) => `[${h.title}](${h.url})\n${h.snippet}`)
+          .join('\n\n')
+          .replace(/<\s*\/\s*web_search\s*>/gi, '&lt;/web_search&gt;')
+        webSearchBlock = `\n\n<web_search>\nLive results from a web search performed just now. Cite URLs when you use a fact from here.\n\n${lines}\n</web_search>`
+      }
 
       // Surface what was retrieved so the renderer can show a "Sources" list
       // under the answer. Sent before the answer streams; an empty list clears
@@ -199,9 +310,9 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
 
       const hasImage = !!opts.imageDataUrl
       const modelId = hasImage ? modelFor('vision') : modelFor('fast')
-      // Text answers honor the "Detailed answers" toggle; vision answers keep
-      // their own wider 8k ceiling (code-heavy diagnoses need the room).
-      const maxOutputTokens = fastMaxOutputTokens(settings.detailedAnswers)
+      const maxOutputTokens = hasImage
+        ? VISION_MAX_OUTPUT_TOKENS
+        : fastMaxOutputTokens(settings.detailedAnswers)
 
       // Resolution order: per-request modelOverride > persona.defaultModel >
       // settings/role default. The override layer lets the user pick a model
@@ -262,10 +373,11 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         }
 
         const timeout = armStreamTimeout(abort)
-        // Hoisted so the catch can finalize the partial answer on a Stop.
+        // Hoisted so the catch can finalize the partial answer on a Stop and
+        // name the provider that actually failed.
         let fullAnswer = ''
+        let chosenProviderId: string = altProvider.id
         try {
-          let chosenProviderId: string = altProvider.id
           const stream = streamWithFallback(providers, {
             model: overrideModel,
             system: hasImage
@@ -330,12 +442,10 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
             return
           }
-          const aborted = abort.signal.aborted
-          const message = aborted
-            ? 'LLM stream timed out (no response for 30s)'
-            : err instanceof Error
-              ? err.message
-              : 'unknown provider error'
+          const failed = providers.find((p) => p.id === chosenProviderId) ?? altProvider
+          const message = abort.signal.aborted
+            ? STREAM_TIMEOUT_MESSAGE
+            : describeProviderError(err, failed.label)
           console.error('[ai] alt provider failed', err)
           broadcast(IPC.ai.error, { requestId, message })
           return
@@ -357,9 +467,6 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       const streamArgs = hasImage
         ? {
             model: gw(overrideModel),
-            // Vision answers (code solutions, error diagnoses) need more room
-            // than the brevity-capped text answers — coding-kata solutions
-            // alone routinely run 200-400 tokens.
             system: buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale),
             messages: [
               {
@@ -371,11 +478,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
               }
             ],
             abortSignal: abort.signal,
-            // Vision answers can be code-heavy: a kata solution + explanation +
-            // edge cases easily runs past 1.5k tokens, after which the stream
-            // truncates mid-line. 8k is a safe ceiling — Gemini 2.5 Flash
-            // bills only on what it actually emits, so this isn't wasteful.
-            maxOutputTokens: 8000,
+            maxOutputTokens: maxOutputTokens,
             temperature: 0.3
           }
         : {
@@ -390,46 +493,56 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       const result = streamText(streamArgs)
       const gwTimeout = armStreamTimeout(abort)
 
+      // fullStream rather than textStream: textStream silently drops error
+      // parts, and an abort just closes it, so a bad key or the idle timeout
+      // used to end as an empty answer with a normal `done`.
       let fullAnswer = ''
-      let stoppedEarly = false
+      let finishReason: string | undefined
       try {
-        for await (const text of result.textStream) {
-          // User-initiated Stop finalizes the partial answer below; a timeout
-          // abort still bails to the catch as an error.
-          if (abort.signal.aborted) {
-            if (entry.stoppedByUser) {
-              stoppedEarly = true
-              break
-            }
-            throw new Error('LLM stream timed out (no response for 30s)')
-          }
+        for await (const part of result.fullStream) {
+          if (abort.signal.aborted) break
           gwTimeout.reset()
-          if (text) {
-            fullAnswer += text
-            broadcast(IPC.ai.chunk, { requestId, text })
+          if (part.type === 'text-delta') {
+            if (part.text) {
+              fullAnswer += part.text
+              broadcast(IPC.ai.chunk, { requestId, text: part.text })
+            }
+          } else if (part.type === 'error') {
+            throw part.error instanceof Error
+              ? part.error
+              : new Error(describeProviderError(part.error, GATEWAY_NAME))
+          } else if (part.type === 'finish') {
+            finishReason = part.finishReason
           }
         }
       } finally {
         gwTimeout.clear()
       }
-      // `finishReason` is resolved once the stream completes. We surface it
-      // so the UI can flag length-truncations (the model hit maxOutputTokens
-      // and stopped mid-thought) — that was the failure mode the user hit
-      // when a vision answer cut off in the middle of a code block. On an
-      // explicit Stop we broke early, so flag it as a clean 'stop'.
-      const finishReason = stoppedEarly
-        ? 'stop'
-        : await Promise.resolve(result.finishReason).catch(() => undefined)
+      if (!entry.stoppedByUser) {
+        if (abort.signal.aborted) throw new Error(STREAM_TIMEOUT_MESSAGE)
+        if (!fullAnswer.trim()) {
+          throw new Error(
+            `The model returned an empty answer (finish reason: ${finishReason ?? 'unknown'}). Try again or pick another model.`
+          )
+        }
+      }
       recordExchange(opts.prompt, fullAnswer)
       void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
-      broadcast(IPC.ai.done, { requestId, finishReason })
+      // finishReason lets the UI flag length-truncations (the model hit
+      // maxOutputTokens and stopped mid-thought).
+      broadcast(IPC.ai.done, {
+        requestId,
+        finishReason: entry.stoppedByUser ? 'stop' : finishReason
+      })
     } catch (err) {
       // An explicit Stop can throw an AbortError from the SDK — finalize
       // cleanly rather than showing an error toast.
       if (entry.stoppedByUser) {
         broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
       } else {
-        const message = err instanceof Error ? err.message : 'unknown error'
+        const message = abort.signal.aborted
+          ? STREAM_TIMEOUT_MESSAGE
+          : describeProviderError(err, GATEWAY_NAME)
         broadcast(IPC.ai.error, { requestId, message })
       }
     } finally {

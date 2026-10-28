@@ -52,17 +52,20 @@ export function makeOllamaProvider(host: string = DEFAULT_HOST): ILlmProvider {
         buf = lines.pop() ?? ''
         for (const line of lines) {
           if (!line.trim()) continue
-          try {
-            const obj = JSON.parse(line) as {
-              message?: { content?: string }
-              done?: boolean
-              done_reason?: string
-            }
-            if (obj.done_reason) doneReason = obj.done_reason
-            if (obj.message?.content) yield obj.message.content
-          } catch {
-            /* tolerate partial chunks */
+          let obj: {
+            message?: { content?: string }
+            done?: boolean
+            done_reason?: string
+            error?: string
           }
+          try {
+            obj = JSON.parse(line) as typeof obj
+          } catch {
+            continue // tolerate partial chunks
+          }
+          if (obj.error) throw new Error(`Ollama error: ${obj.error}`)
+          if (obj.done_reason) doneReason = obj.done_reason
+          if (obj.message?.content) yield obj.message.content
         }
       }
       return normalizeFinishReason(doneReason)
