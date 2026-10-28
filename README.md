@@ -55,11 +55,13 @@ The release publish target is wired in `electron-builder.yml` (provider: github 
 
 ## Hotkeys (default; rebindable in Settings → Hotkeys)
 
+- `Ctrl+Shift+Alt+R` — start / stop a session
 - `Ctrl+\` — toggle overlay
 - `Ctrl+Shift+Space` — focus AI input
-- `Ctrl+Shift+Enter` — answer the last detected question
+- `Ctrl+Shift+Enter` — answer the other speaker's most recent question from the transcript
 - `Ctrl+Shift+H` — toggle stealth (visible / invisible to screen-share)
 - `Ctrl+Shift+S` — full-screen screenshot → Ask
+- `Ctrl+Shift+A` — full-screen screenshot → instant answer
 - `Ctrl+Shift+Alt+S` — drag a region → OCR Ask
 - `Ctrl+Shift+G` — open the standalone chat window
 - `Ctrl+Shift+D` — force-show the dashboard (escape hatch from stealth + hide-widget)

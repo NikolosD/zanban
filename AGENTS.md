@@ -11,7 +11,7 @@ Run from repo root.
 pnpm dev          # electron-vite dev — main + preload + 4 renderer entries
 pnpm build        # production build
 pnpm typecheck    # tsc --noEmit on both web + node configs
-pnpm test         # vitest run (32 tests across pure functions)
+pnpm test         # vitest run (co-located *.test.ts / *.dom.test.tsx)
 pnpm test:watch   # interactive
 pnpm lint         # eslint . (flat config, react-hooks + ts-eslint)
 pnpm format       # prettier --write .
@@ -20,7 +20,8 @@ pnpm analyze      # ANALYZE=1 build → out/bundle-stats.html treemap
 
 Always run `typecheck`, `test`, and `build` before declaring a change done.
 `lint` currently has known warnings (pre-existing react-hooks v7 patterns) —
-add no new ones.
+add no new ones. CI runs `pnpm lint --max-warnings <n>` as a ratchet: when you
+fix warnings, lower `<n>` in `.github/workflows/ci.yml`; never raise it.
 
 ## Layout
 
@@ -52,7 +53,7 @@ src/
       jobs/              Background-job badge
       sessions/          List + detail
       settings/          SettingsPanel + tabs (Providers, Personas, ...)
-      transcript/        Live transcript, question detection
+      transcript/        Live transcript, session start/stop controls
     lib/                 Pure helpers: utils, dateFormat, hotkeys, audio
     windows/             Per-window app shells (dashboard, overlay, cropper, chat)
   shared/                Cross-process contracts
@@ -168,6 +169,14 @@ top. Mock electron-bound modules with `vi.mock(...)` + `vi.hoisted(...)` (see
   flushes queued segments to disk + writes the session markdown.
 - **RAG cleanup.** Deleting a session also deletes its sqlite-vec rows
   (best-effort — RAG may be unavailable; non-fatal).
+- **Packaged renderers load over `file://`.** Dev serves pages from the Vite
+  server, but packaged builds open `out/renderer/*.html` from disk. Asset and
+  page paths must be relative — a leading `/` resolves to the filesystem root
+  and the asset 404s only in the installed app.
+- **Renderer-only packages live in `devDependencies`.** Vite bundles them into
+  `out/renderer`, and electron-builder ships `dependencies` into the asar.
+  Anything imported from `src/main` or `src/preload` must stay in
+  `dependencies` — `externalizeDepsPlugin()` leaves those as runtime imports.
 
 ## Security posture
 
@@ -178,10 +187,10 @@ attacking themselves*.
 - **`contextIsolation: true`** on every `BrowserWindow`. Renderer code never
   touches Node APIs directly — everything goes through the typed
   `window.zanban` bridge in `src/preload/index.ts`.
-- **`sandbox: false`** on every window. We need the preload to use
-  `node:fs`, `electron.webUtils.getPathForFile`, and audio worklet plumbing
-  that sandboxed renderers can't reach. Acceptable because all renderer code
-  is first-party and the preload only exposes the IPC surface declared in
+- **`sandbox: true`** on every window. The preload is built as CommonJS
+  (sandboxed preloads can't load ESM) and only requires `electron` — file
+  reads, native modules, and everything else Node-side happen in main behind
+  IPC. The preload exposes exactly the surface declared in
   `src/shared/api.ts`.
 - **`nodeIntegration: false`** (Electron default; never overridden).
 - **CSP meta tag** on every renderer entry HTML (`src/renderer/*.html`).
