@@ -1,11 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { TranscriptSegment } from '../../shared/types.js'
-import { loadEmbedder } from './embeddingProvider.js'
+import { createMlTasks } from '../ml/tasks.js'
 import { DEFAULT_DISTANCE_THRESHOLD } from './ragRetriever.js'
 import { chunkSegments, chunkText } from './semanticChunker.js'
 import { cleanSegments } from './transcriptCleaner.js'
-
-vi.mock('electron', () => ({ app: { getPath: () => 'node_modules/.cache/zanban-rag-eval' } }))
 
 // Opt-in: loads the real encoder (downloaded on first run into node_modules/.cache).
 // Run with `RAG_EVAL=1 pnpm vitest run src/main/rag/retrievalEval.test.ts`.
@@ -193,7 +191,8 @@ function l2(cos: number): number {
 
 describe.skipIf(!ENABLED)('retrieval eval', () => {
   it('keeps recall@6 at or above the committed baseline', async () => {
-    const embedder = await loadEmbedder()
+    const tasks = createMlTasks('node_modules/.cache/zanban-rag-eval/models')
+    const embedder = { embed: (texts: string[]) => tasks.run({ kind: 'embed', texts }) }
     const chunks = corpus()
     const vectors = await embedder.embed(chunks.map((c) => c.text))
     const rank = async (query: string): Promise<Array<{ source: string; distance: number }>> => {
