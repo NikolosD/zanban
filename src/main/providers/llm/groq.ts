@@ -8,8 +8,9 @@ interface GroqLike {
         args: {
           model: string
           messages: Array<{ role: string; content: unknown }>
-          max_tokens?: number
+          max_completion_tokens?: number
           temperature?: number
+          reasoning_effort?: 'none' | 'low'
           stream?: boolean
         },
         opts?: { signal?: AbortSignal }
@@ -23,7 +24,7 @@ interface GroqLike {
   }
 }
 
-// Groq's vision-capable models (llama-3.2-*-vision) accept the same OpenAI-style
+// Groq's vision-capable models (qwen/qwen3.8-27b) accept the same OpenAI-style
 // image_url content blocks that OpenAI itself does. Non-vision models will
 // reject the multimodal content with a 400 — that's expected, the user should
 // pair the vision model ID with image input.
@@ -42,6 +43,14 @@ function buildMessages(args: LlmStreamArgs): Array<{ role: string; content: unkn
     ]
   }
   return [sys, { role: 'user', content: args.prompt }]
+}
+
+// gpt-oss can only turn reasoning down, not off. Qwen writes its reasoning into
+// `content` as <think> tags unless reasoning is off.
+function reasoningEffort(model: string): 'none' | 'low' | undefined {
+  if (model.startsWith('openai/gpt-oss')) return 'low'
+  if (model.startsWith('qwen/')) return 'none'
+  return undefined
 }
 
 // One SDK instance per API key so its HTTP keep-alive pool is reused across
@@ -71,8 +80,9 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
         {
           model: args.model,
           messages: buildMessages(args),
-          max_tokens: args.maxOutputTokens ?? 1200,
+          max_completion_tokens: args.maxOutputTokens ?? 1200,
           temperature: args.temperature ?? 0.3,
+          reasoning_effort: reasoningEffort(args.model),
           stream: true
         },
         { signal: args.signal }
@@ -96,8 +106,9 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
         {
           model: args.model,
           messages: buildMessages(args),
-          max_tokens: args.maxOutputTokens ?? 800,
+          max_completion_tokens: args.maxOutputTokens ?? 800,
           temperature: args.temperature ?? 0.3,
+          reasoning_effort: reasoningEffort(args.model),
           stream: false
         },
         { signal: args.signal }
