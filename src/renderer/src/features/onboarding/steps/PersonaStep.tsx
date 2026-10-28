@@ -4,6 +4,7 @@ import { Check } from 'lucide-react'
 import type { Persona } from '@shared/types'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
+import { personaBlurb, personaName } from '@renderer/features/settings/personaLabels'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
@@ -17,7 +18,8 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [selected, setSelected] = useState<string | null>(settings.activePersonaId)
   const [saving, setSaving] = useState(false)
-  const selectedName = personas.find((p) => p.id === selected)?.name
+  const selectedPersona = personas.find((p) => p.id === selected)
+  const selectedName = selectedPersona ? personaName(selectedPersona, t) : undefined
 
   useEffect(() => {
     void window.zanban.personas.list().then(setPersonas)
@@ -72,11 +74,11 @@ export function PersonaStep({ settings, update, goNext, goBack }: StepProps) {
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-body">{p.name}</span>
+                  <span className="text-body">{personaName(p, t)}</span>
                   {active && <Check className="size-3.5 text-primary" aria-hidden />}
                 </div>
                 <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-muted-foreground">
-                  {p.systemPrompt}
+                  {personaBlurb(p, t)}
                 </div>
               </div>
             </button>

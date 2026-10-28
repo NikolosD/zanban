@@ -34,3 +34,5 @@ export type MlRequest = MlTask & { id: number }
 export type MlResponse =
   | { id: number; ok: true; result: MlResults[MlTask['kind']] }
   | { id: number; ok: false; error: string }
+  // A request still in flight (a model download) reports how far it got, 0–1.
+  | { id: number; progress: number }

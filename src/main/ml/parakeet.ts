@@ -44,7 +44,8 @@ interface SpeechStream {
 }
 
 export interface Parakeet {
-  load(): Promise<void>
+  /** `onProgress` gets the share of a first-run download done so far, 0–1. */
+  load(onProgress?: (fraction: number) => void): Promise<void>
   feed(stream: string, samples: Float32Array): Promise<SpeechSegment[]>
   end(stream: string): Promise<SpeechSegment[]>
 }
@@ -59,10 +60,10 @@ export function createParakeet(modelsDir: string): Parakeet {
   const streams = new Map<string, SpeechStream>()
   let loading: Promise<{ sherpa: SherpaModule; recognizer: SherpaRecognizer }> | null = null
 
-  function load(): NonNullable<typeof loading> {
+  function load(onProgress?: (fraction: number) => void): NonNullable<typeof loading> {
     if (!loading) {
       const attempt = (async () => {
-        await ensureFiles(dir)
+        await ensureFiles(dir, onProgress)
         // A CommonJS package: Node's static scan finds only some of its exports, so
         // take them from module.exports.
         const sherpa = ((await import('sherpa-onnx-node')) as { default: SherpaModule }).default
@@ -119,8 +120,8 @@ export function createParakeet(modelsDir: string): Parakeet {
   }
 
   return {
-    load: async () => {
-      await load()
+    load: async (onProgress) => {
+      await load(onProgress)
     },
     feed: async (id, samples) => {
       const { sherpa, recognizer } = await load()
@@ -167,21 +168,39 @@ function toMs(sample: number): number {
   return Math.round((sample / SAMPLE_RATE) * 1000)
 }
 
-async function ensureFiles(dir: string): Promise<void> {
+async function ensureFiles(dir: string, onProgress?: (fraction: number) => void): Promise<void> {
   await mkdir(dir, { recursive: true })
+  const missing = []
   for (const file of PARAKEET_FILES) {
-    const dest = join(dir, file.name)
-    const present = await access(dest).then(
+    const present = await access(join(dir, file.name)).then(
       () => true,
       () => false
     )
-    if (!present) await download(file.url, dest, file.sha256)
+    if (!present) missing.push(file)
+  }
+  const total = missing.reduce((sum, file) => sum + file.bytes, 0)
+  let done = 0
+  let reported = -1
+  for (const file of missing) {
+    await download(file.url, join(dir, file.name), file.sha256, (bytes) => {
+      done += bytes
+      // Whole percents only: a chunk arrives every few KB.
+      const percent = Math.floor((done / total) * 100)
+      if (percent === reported) return
+      reported = percent
+      onProgress?.(Math.min(1, done / total))
+    })
   }
 }
 
 // Written to a .part file and renamed only once the checksum matches, so a
 // file under its final name is always complete.
-async function download(url: string, dest: string, sha256: string): Promise<void> {
+async function download(
+  url: string,
+  dest: string,
+  sha256: string,
+  onBytes: (bytes: number) => void
+): Promise<void> {
   const res = await fetch(url)
   if (!res.ok || !res.body) throw new Error(`Speech model download failed (${res.status}): ${url}`)
   const hash = createHash('sha256')
@@ -191,6 +210,7 @@ async function download(url: string, dest: string, sha256: string): Promise<void
     new Transform({
       transform(chunk: Buffer, _encoding, done) {
         hash.update(chunk)
+        onBytes(chunk.length)
         done(null, chunk)
       }
     }),

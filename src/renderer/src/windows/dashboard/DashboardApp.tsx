@@ -127,6 +127,8 @@ export function DashboardApp() {
     const offSession = window.zanban.session.onState((state) => {
       if (state.kind === 'idle') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.sessions })
+        // An open live session stops polling once idle; fetch its final tail.
+        void queryClient.invalidateQueries({ queryKey: ['session-detail-local'] })
       }
     })
     // Any recap write (manual, or the auto-recap after a session stops) can
@@ -824,11 +826,29 @@ function MeetingsList({
     queryFn: () => window.zanban.sessions.list(),
     refetchOnWindowFocus: true
   })
+  const live = useTranscript((s) => (s.session.kind === 'running' ? s.session : null))
+
+  // The record is first written a few seconds into the call; until the list
+  // has it, the running session comes from the live state.
+  const items = useMemo(() => {
+    const list = data ?? []
+    if (!live || list.some((s) => s.id === live.sessionId)) return list
+    return [
+      {
+        id: live.sessionId,
+        startedAt: live.startedAt,
+        endedAt: null,
+        title: null,
+        durationMs: null
+      },
+      ...list
+    ]
+  }, [data, live])
 
   const groups = useMemo(
     () =>
       groupByDay(
-        data ?? [],
+        items,
         {
           today: t('dashboard.groups.today'),
           yesterday: t('dashboard.groups.yesterday'),
@@ -836,7 +856,7 @@ function MeetingsList({
         },
         i18n.language
       ),
-    [data, t, i18n.language]
+    [items, t, i18n.language]
   )
 
   if (isLoading) {
@@ -849,7 +869,7 @@ function MeetingsList({
       </p>
     )
   }
-  if (!data || data.length === 0) {
+  if (items.length === 0) {
     return <EmptyMeetings onOpenSettings={() => onOpenSettings()} />
   }
 
@@ -995,8 +1015,8 @@ function MeetingRow({
             </div>
           )}
         </button>
-        <span className="w-12 text-right font-mono text-small tabular-nums text-muted-foreground">
-          {dur}
+        <span className="w-24 text-right font-mono text-small tabular-nums text-muted-foreground">
+          {isLive ? <span className="text-signal">{t('dashboard.row.live')}</span> : dur}
         </span>
         <span className="w-24 text-right font-mono text-small tabular-nums text-muted-foreground">
           {stamp}
@@ -1005,18 +1025,20 @@ function MeetingRow({
             on row hover. Hover-only icons trigger phantom interactions with
             trackpad scroll on long lists. */}
         <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-small font-normal text-muted-foreground group-hover:text-foreground transition-colors"
-            onClick={(e) => {
-              e.stopPropagation()
-              void resumeSession(session.id, onOpenSettings)
-            }}
-            title={t('dashboard.session_actions.resume_tooltip')}
-          >
-            {t('dashboard.session_actions.resume')}
-          </Button>
+          {!isLive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-small font-normal text-muted-foreground group-hover:text-foreground transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                void resumeSession(session.id, onOpenSettings)
+              }}
+              title={t('dashboard.session_actions.resume_tooltip')}
+            >
+              {t('dashboard.session_actions.resume')}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

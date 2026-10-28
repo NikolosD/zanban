@@ -16,6 +16,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { cn } from '@renderer/lib/utils'
+import { personaBlurb, personaName } from './personaLabels'
 import { errorMessage } from '@renderer/lib/errors'
 
 interface Props {
@@ -148,7 +149,7 @@ export function PersonasTab({ settings, update }: Props) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-body">{p.name}</span>
+                    <span className="truncate text-body">{personaName(p, t)}</span>
                     {p.builtin && (
                       <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-meta uppercase text-muted-foreground">
                         {t('settings.personas.builtin_badge')}
@@ -156,7 +157,7 @@ export function PersonasTab({ settings, update }: Props) {
                     )}
                   </div>
                   <div className="mt-0.5 truncate text-small text-muted-foreground">
-                    {p.systemPrompt.slice(0, 80) || t('settings.personas.empty_prompt_placeholder')}
+                    {personaBlurb(p, t) || t('settings.personas.empty_prompt_placeholder')}
                   </div>
                 </div>
                 {active && <Check className="size-4 text-success" />}

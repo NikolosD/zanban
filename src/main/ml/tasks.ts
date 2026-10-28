@@ -22,12 +22,17 @@ const WHISPER_IDLE_MS = 60_000
 // flush), so it is dropped between them and reloaded from the disk cache.
 const EMBEDDER_IDLE_MS = 5 * 60_000
 
+type OnProgress = (fraction: number) => void
+
 type Handlers = {
-  [K in MlTask['kind']]: (task: Extract<MlTask, { kind: K }>) => Promise<MlResults[K]>
+  [K in MlTask['kind']]: (
+    task: Extract<MlTask, { kind: K }>,
+    onProgress?: OnProgress
+  ) => Promise<MlResults[K]>
 }
 
 export interface MlTasks {
-  run<T extends MlTask>(task: T): Promise<MlResults[T['kind']]>
+  run<T extends MlTask>(task: T, onProgress?: OnProgress): Promise<MlResults[T['kind']]>
 }
 
 /** The on-device models and document extractors the ML utility process serves. */
@@ -55,16 +60,14 @@ export function createMlTasks(cacheDir: string): MlTasks {
 
   const parakeet = createParakeet(cacheDir)
 
-  const loaders: Record<MlModel, () => Promise<void>> = {
+  const loaders: Record<MlModel, (onProgress?: OnProgress) => Promise<void>> = {
     whisper: () => whisper.use(async () => {}),
     embedder: () => embedder.use(async () => {}),
-    parakeet: async () => {
-      await parakeet.load()
-    }
+    parakeet: (onProgress) => parakeet.load(onProgress)
   }
 
   const handlers: Handlers = {
-    load: (task) => loaders[task.model](),
+    load: (task, onProgress) => loaders[task.model](onProgress),
     transcribe: (task) =>
       whisper.use(async (asr) => {
         const r = await asr(task.samples, {
@@ -81,7 +84,11 @@ export function createMlTasks(cacheDir: string): MlTasks {
   }
 
   return {
-    run: (task) => (handlers[task.kind] as (task: MlTask) => Promise<never>)(task)
+    run: (task, onProgress) =>
+      (handlers[task.kind] as (task: MlTask, onProgress?: OnProgress) => Promise<never>)(
+        task,
+        onProgress
+      )
   }
 }
 

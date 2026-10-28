@@ -12,10 +12,12 @@ import { queryKeys } from '@renderer/lib/queryKeys'
 import { formatDuration } from '@renderer/lib/dateFormat'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { resumeSession } from '@renderer/features/transcript/sessionStart'
+import { useTranscript } from '@renderer/features/transcript/store'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import type { SessionDetailPayload, StoredSegment, StoredExchange } from '@shared/api'
 import { RecapTab } from './RecapTab'
+import { quickActionLabel } from './quickActionLabel'
 import type { SessionExportPayload } from '@shared/types'
 import type { RecapPayload } from '@shared/recap-types'
 import { toast } from 'sonner'
@@ -32,12 +34,23 @@ export function SessionDetail({
   onOpenSettings?(): void
 }) {
   const { t, i18n } = useTranslation()
-  const [tab, setTab] = useState<TabId>('recap')
+  const [tab, setTab] = useState<TabId | null>(null)
+  const live = useTranscript(
+    (s) => s.session.kind === 'running' && s.session.sessionId === sessionId
+  )
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.sessionDetail(sessionId),
-    queryFn: () => window.zanban.sessions.read(sessionId)
+    queryFn: () => window.zanban.sessions.read(sessionId),
+    // During the call the record on disk grows every few seconds.
+    refetchInterval: live ? 3000 : false
   })
+  const { data: recap } = useQuery({
+    queryKey: queryKeys.recap(sessionId),
+    queryFn: () => window.zanban.recap.get(sessionId)
+  })
+  // Until a recap exists the transcript is the useful view.
+  const activeTab = tab ?? (recap === null ? 'transcript' : 'recap')
 
   if (isLoading) {
     return (
@@ -59,7 +72,9 @@ export function SessionDetail({
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="size-3.5" /> {t('session_detail.back')}
         </Button>
-        <p className="text-body text-muted-foreground">{t('session_detail.not_found')}</p>
+        <p className="text-body text-muted-foreground">
+          {live ? t('session_detail.live_pending') : t('session_detail.not_found')}
+        </p>
       </div>
     )
   }
@@ -90,11 +105,11 @@ export function SessionDetail({
       <EditableTitle
         sessionId={data.id}
         title={data.title}
-        fallback={formatFallbackTitle(started, i18n.language)}
+        fallback={t('dashboard.row.untitled')}
       />
 
       <Tabs.Root
-        value={tab}
+        value={activeTab}
         onValueChange={(v) => setTab(v as TabId)}
         className="flex min-h-0 flex-1 flex-col gap-5"
       >
@@ -199,7 +214,10 @@ function EditableTitle({
   return (
     <div className="group flex items-center gap-2">
       <h1
-        className="text-display font-semibold tracking-tight cursor-text"
+        className={cn(
+          'text-display font-semibold tracking-tight cursor-text',
+          !title && 'text-muted-foreground'
+        )}
         onDoubleClick={() => setEditing(true)}
         title={t('session_detail.rename_label')}
       >
@@ -497,7 +515,8 @@ function ExchangeRow({ exchange: ex, stamp }: { exchange: StoredExchange; stamp:
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-body">
-            {t('session_detail.question_label', { question: ex.prompt })}
+            {quickActionLabel(ex.prompt, t) ??
+              t('session_detail.question_label', { question: ex.prompt })}
           </div>
           <div className="font-mono text-meta text-muted-foreground">
             {stamp}
@@ -661,15 +680,6 @@ function formatDateLine(d: Date, t: TFunction, locale: string): string {
   if (diffDays === 1) return t('session_detail.yesterday_at', { time })
   return d.toLocaleString(locale, {
     month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })
-}
-
-function formatFallbackTitle(d: Date, locale: string): string {
-  return d.toLocaleString(locale, {
-    month: 'long',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit'

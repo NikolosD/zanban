@@ -263,13 +263,11 @@ function MicPicker({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="default">{t('settings.audio.default_device')}</SelectItem>
-        {mics
-          .filter((m) => m.deviceId !== 'default')
-          .map((m) => (
-            <SelectItem key={m.deviceId} value={m.deviceId}>
-              {m.label || t('settings.audio.device_unnamed', { id: m.deviceId.slice(0, 8) })}
-            </SelectItem>
-          ))}
+        {mics.map((m) => (
+          <SelectItem key={m.deviceId} value={m.deviceId}>
+            {m.label || t('settings.audio.device_unnamed', { id: m.deviceId.slice(0, 8) })}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   )

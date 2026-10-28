@@ -9,7 +9,7 @@ import { isRedactedSecret, isValidOllamaHost, redactedSecretMask } from '@shared
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
-type SttOption = 'deepgram' | 'google' | 'local-whisper'
+type SttOption = 'deepgram' | 'elevenlabs' | 'google' | 'local-whisper'
 type FieldShape = 'input' | 'textarea'
 
 interface KeyField {
@@ -31,15 +31,16 @@ const LLM_FIELD: Record<LlmProvider, KeyField> = {
   ollama: { i18n: 'ollama', settingsKey: 'ollamaHost', placeholder: 'http://127.0.0.1:11434' }
 }
 
-// Onboarding only surfaces the three STT engines that are actually wired up
-// today. ElevenLabs / OpenAI Whisper are listed in shared/types as future
-// work — leaving them out of the wizard avoids dead-end paths during setup.
-const STT_OPTIONS: SttOption[] = ['deepgram', 'google', 'local-whisper']
+// OpenAI's transcription model is being retired, so the wizard doesn't offer it;
+// it stays available in Settings.
+const STT_OPTIONS: SttOption[] = ['deepgram', 'elevenlabs', 'google', 'local-whisper']
 
 function sttFieldsFor(stt: SttOption): KeyField[] {
   switch (stt) {
     case 'deepgram':
       return [{ i18n: 'deepgram_key', settingsKey: 'deepgramApiKey', placeholder: '' }]
+    case 'elevenlabs':
+      return [{ i18n: 'elevenlabs_key', settingsKey: 'elevenlabsApiKey', placeholder: 'sk_...' }]
     case 'google':
       return [
         {
@@ -79,6 +80,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   const SEEDED_KEYS: Array<keyof AppSettings> = [
     llmField.settingsKey,
     'deepgramApiKey',
+    'elevenlabsApiKey',
     'googleProjectId',
     'googleServiceAccountJson'
   ]

@@ -323,7 +323,7 @@ function SettingsSidebar({ tab }: { tab: TabId }) {
   const { t: tr } = useTranslation()
   const titleId = useId()
   return (
-    <aside className="flex w-52 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
+    <aside className="flex w-56 shrink-0 flex-col gap-3 border-r border-white/[0.06] bg-white/[0.012] py-5 pl-5 pr-2">
       <h2
         id={titleId}
         className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground"
@@ -342,13 +342,13 @@ function SettingsSidebar({ tab }: { tab: TabId }) {
                 // border that lights up on active. No filled pill background —
                 // keeps the panel quieter and the active state unambiguous
                 // even from the corner of the eye.
-                'group relative flex items-center gap-2.5 border-l py-2 pl-3 pr-2 text-body transition-colors',
+                'group relative flex items-center gap-2.5 border-l py-2 pl-3 pr-2 text-left text-body transition-colors',
                 active
                   ? 'border-foreground/80 text-foreground'
                   : 'border-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground'
               )}
             >
-              <t.icon className="size-3.5 opacity-80" />
+              <t.icon className="size-3.5 shrink-0 opacity-80" />
               {tr(`settings.tabs.${t.id}`)}
             </Tabs.Trigger>
           )

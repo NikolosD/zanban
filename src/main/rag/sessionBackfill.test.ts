@@ -4,6 +4,7 @@ import type { Chunk } from './semanticChunker.js'
 
 const state = vi.hoisted(() => ({
   embedderReady: true,
+  embedderLoads: 0,
   liveSessionId: null as string | null,
   present: new Set<string>(),
   sessions: [] as Array<Omit<SessionDetailPayload, 'filePath'>>,
@@ -20,7 +21,10 @@ vi.mock('./db.js', () => ({
   }
 }))
 vi.mock('./embeddingProvider.js', () => ({
-  getLocalEmbedder: async () => (state.embedderReady ? {} : null)
+  getLocalEmbedder: async () => {
+    state.embedderLoads++
+    return state.embedderReady ? {} : null
+  }
 }))
 vi.mock('./vectorStore.js', () => ({
   hasSource: async (kind: string, id: string) => state.present.has(`${kind}:${id}`),
@@ -74,6 +78,7 @@ function session(id: string, startedAt = Date.UTC(2026, 0, 5)): (typeof state.se
 
 beforeEach(() => {
   state.embedderReady = true
+  state.embedderLoads = 0
   state.liveSessionId = null
   state.present = new Set()
   state.sessions = []
@@ -105,6 +110,12 @@ describe('backfillSessions', () => {
     await backfillSessions()
     expect([...state.indexed.keys()]).toEqual([])
     expect([...state.recapIndexed.keys()]).toEqual(['half'])
+  })
+
+  it('clears the flag without loading the embedder when there are no meetings', async () => {
+    await backfillSessions()
+    expect(state.embedderLoads).toBe(0)
+    expect(state.cleared).toBe(1)
   })
 
   it('keeps the flag set when the embedder is unavailable', async () => {

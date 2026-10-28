@@ -16,6 +16,11 @@ export function RollingTranscript() {
   const partials = useTranscript((s) => s.partials)
   const micError = useTranscript((s) => s.status.mic?.kind === 'error')
   const systemError = useTranscript((s) => s.status.system?.kind === 'error')
+  // undefined: speech recognition is up; null: connecting; a number: model download share.
+  const loading = useTranscript((s) => {
+    const status = [s.status.mic, s.status.system].find((st) => st?.kind === 'connecting')
+    return status?.kind === 'connecting' ? (status.progress ?? null) : undefined
+  })
 
   const latest = useMemo(() => buildLane({ finals, partials, limit: 1 }).at(0), [finals, partials])
 
@@ -39,7 +44,13 @@ export function RollingTranscript() {
             </span>
           </>
         ) : (
-          <span className="text-muted-foreground">{t('overlay.rolling.listening')}</span>
+          <span className="text-muted-foreground">
+            {loading === undefined
+              ? t('overlay.rolling.listening')
+              : loading === null
+                ? t('overlay.rolling.connecting')
+                : t('overlay.rolling.downloading_model', { percent: Math.round(loading * 100) })}
+          </span>
         )}
       </p>
       {micError && <CaptureErrorDot channel="mic" />}

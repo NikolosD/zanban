@@ -37,8 +37,11 @@ export class LocalParakeetSttChannel {
 
   constructor(private readonly opts: LocalParakeetOptions) {
     this.opts.onStatus({ kind: 'connecting', channel: opts.channel })
-    this.loaded = trackJob('parakeet-load', 'Parakeet · loading speech model', 'other', () =>
-      speechWorker.request({ kind: 'load', model: 'parakeet' }, LOAD_TIMEOUT_MS)
+    this.loaded = trackJob('parakeet-load', 'Parakeet · loading speech model', 'pull', () =>
+      speechWorker.request({ kind: 'load', model: 'parakeet' }, LOAD_TIMEOUT_MS, (progress) => {
+        if (!this.closed)
+          this.opts.onStatus({ kind: 'connecting', channel: opts.channel, progress })
+      })
     ).then(
       () => {
         this.ready = true

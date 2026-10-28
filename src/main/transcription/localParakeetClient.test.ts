@@ -11,8 +11,9 @@ const worker = vi.hoisted(() => ({
 
 vi.mock('../ml/index.js', () => ({
   speechWorker: {
-    request: async (task: MlTask) => {
+    request: async (task: MlTask, _timeoutMs: number, onProgress?: (p: number) => void) => {
       if (task.kind === 'load') {
+        onProgress?.(0.5)
         await worker.ready
         if (worker.failLoad) throw new Error('download failed')
         return undefined
@@ -110,6 +111,12 @@ describe('LocalParakeetSttChannel', () => {
     expect(worker.requests.map((r) => r.kind)).toEqual(['speechFeed', 'speechEnd'])
     expect(segments[0]?.text).toBe('last words')
     expect(statuses.at(-1)?.kind).toBe('closed')
+  })
+
+  it('shows the first-run download progress while connecting', async () => {
+    const { statuses } = openChannel()
+    await vi.waitFor(() => expect(statuses.at(-1)?.kind).toBe('open'))
+    expect(statuses).toContainEqual({ kind: 'connecting', channel: 'system', progress: 0.5 })
   })
 
   it('reports a failed model load and stops sending audio', async () => {

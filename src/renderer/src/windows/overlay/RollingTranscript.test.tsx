@@ -113,4 +113,29 @@ describe('RollingTranscript', () => {
     const { container } = render(<RollingTranscript />)
     expect(container.querySelector('[data-channel]')).toBeNull()
   })
+
+  it('says what speech recognition is doing before the first words arrive', () => {
+    makeRunning()
+    useTranscript.setState({
+      status: { mic: { kind: 'connecting', channel: 'mic', progress: 0.42 }, system: null }
+    })
+    const { getByTestId, rerender } = render(<RollingTranscript />)
+    expect(getByTestId('overlay-rolling-transcript').textContent).toContain(
+      'overlay.rolling.downloading_model'
+    )
+
+    useTranscript.setState({
+      status: { mic: { kind: 'connecting', channel: 'mic' }, system: null }
+    })
+    rerender(<RollingTranscript />)
+    expect(getByTestId('overlay-rolling-transcript').textContent).toContain(
+      'overlay.rolling.connecting'
+    )
+
+    useTranscript.setState({ status: { mic: { kind: 'open', channel: 'mic' }, system: null } })
+    rerender(<RollingTranscript />)
+    expect(getByTestId('overlay-rolling-transcript').textContent).toContain(
+      'overlay.rolling.listening'
+    )
+  })
 })
