@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { TranscriptSegment } from '../../shared/types.js'
 import { createMlTasks } from '../ml/tasks.js'
 import { DEFAULT_DISTANCE_THRESHOLD } from './ragRetriever.js'
 import { chunkSegments, chunkText } from './semanticChunker.js'
 import { cleanSegments } from './transcriptCleaner.js'
+
+// ragRetriever → vectorStore → db imports electron, whose binary isn't
+// installed when CI runs `pnpm install --ignore-scripts`.
+vi.mock('electron', () => ({ app: {} }))
 
 // Opt-in: loads the real encoder (downloaded on first run into node_modules/.cache).
 // Run with `RAG_EVAL=1 pnpm vitest run src/main/rag/retrievalEval.test.ts`.
