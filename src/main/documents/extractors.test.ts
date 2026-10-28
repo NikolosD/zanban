@@ -1,8 +1,16 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { MlTask } from '../ml/protocol.js'
 import { extractFromPath } from './extractors.js'
+
+// Runs the worker's extraction in-process; the utility process needs Electron.
+vi.mock('../ml/index.js', async () => {
+  const { createMlTasks } = await import('../ml/tasks.js')
+  const tasks = createMlTasks('unused')
+  return { mlWorker: { request: (task: MlTask) => tasks.run(task) } }
+})
 
 function minimalPdf(pages: string[]): Buffer {
   const fontId = 3 + pages.length * 2

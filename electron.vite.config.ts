@@ -35,7 +35,11 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: resolve('src/main/index.ts') }
+        input: {
+          index: resolve('src/main/index.ts'),
+          // Utility-process entry; forked from src/main/ml/index.ts as out/main/mlWorker.js.
+          mlWorker: resolve('src/main/ml/worker.ts')
+        }
       }
     }
   },

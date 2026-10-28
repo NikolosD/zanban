@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import type { ReferenceDocKind } from '../../shared/types.js'
+import { mlWorker } from '../ml/index.js'
 
 export interface ExtractResult {
   kind: ReferenceDocKind
@@ -10,6 +11,8 @@ export interface ExtractResult {
 
 const MAX_DOC_BYTES = 50 * 1024 * 1024
 const ALLOWED_EXTS = new Set(['.pdf', '.docx', '.md', '.txt'])
+// A large PDF parses slowly, and may queue behind a model load in the worker.
+const EXTRACT_TIMEOUT_MS = 5 * 60_000
 
 export async function extractFromPath(filePath: string): Promise<ExtractResult> {
   const ext = extname(filePath).toLowerCase()
@@ -26,9 +29,9 @@ export async function extractFromPath(filePath: string): Promise<ExtractResult> 
   const buf = await readFile(filePath)
   switch (ext) {
     case '.pdf':
-      return { kind: 'pdf', text: await extractPdf(buf), bytes: buf.byteLength }
+      return { kind: 'pdf', text: await extractInWorker('pdf', buf), bytes: buf.byteLength }
     case '.docx':
-      return { kind: 'docx', text: await extractDocx(buf), bytes: buf.byteLength }
+      return { kind: 'docx', text: await extractInWorker('docx', buf), bytes: buf.byteLength }
     case '.md':
       return { kind: 'md', text: buf.toString('utf-8'), bytes: buf.byteLength }
     case '.txt':
@@ -38,15 +41,6 @@ export async function extractFromPath(filePath: string): Promise<ExtractResult> 
   }
 }
 
-async function extractPdf(buf: Buffer): Promise<string> {
-  const { extractText } = await import('unpdf')
-  // PDF.js rejects Node Buffers; it wants a plain Uint8Array.
-  const out = await extractText(new Uint8Array(buf), { mergePages: true })
-  return out.text.trim()
-}
-
-async function extractDocx(buf: Buffer): Promise<string> {
-  const mammoth = await import('mammoth')
-  const out = await mammoth.extractRawText({ buffer: buf })
-  return out.value.trim()
+function extractInWorker(format: 'pdf' | 'docx', data: Buffer): Promise<string> {
+  return mlWorker.request({ kind: 'extract', format, data }, EXTRACT_TIMEOUT_MS)
 }

@@ -15,6 +15,7 @@ export default tseslint.config(
       'dist/**',
       'release/**',
       'node_modules/**',
+      '.claude/**',
       'pnpm-lock.yaml',
       // Tailwind brings its own preflight; lint our source only.
       'src/renderer/public/**',
