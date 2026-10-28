@@ -10,6 +10,26 @@ files:
   - out/**
   - resources/**
   - '!**/*.{ts,tsx,map}'
+  - '!**/node_modules/**/*.md'
+  # Models download to userData/models at runtime (services/transformers.ts);
+  # .cache is a stale dev download and dist/ is the browser bundle + ort wasm.
+  - '!**/node_modules/@xenova/transformers/{.cache,dist}/**'
+  # Under Node, transformers runs on onnxruntime-node; onnxruntime-web is only
+  # imported for its ort-web.node.js entry.
+  - '!**/node_modules/onnxruntime-web/{docs,lib}/**'
+  - '!**/node_modules/onnxruntime-web/dist/!(ort-web.node.js)'
+  # onnxruntime-node loads bin/napi-v3/<platform>/<arch>; drop every other build.
+  - '!**/node_modules/onnxruntime-node/bin/napi-v3/!(${platform})/**'
+  - '!**/node_modules/onnxruntime-node/bin/napi-v3/${platform}/!(${arch})/**'
+  # Under Node, tesseract.js requires a core .js that reads its sibling .wasm;
+  # the .wasm.js copies inline the binary for browsers. Keep every .js/.wasm
+  # pair: tesseract.js 7 ignores OEM 1 and picks a non-LSTM core in Node.
+  - '!**/node_modules/tesseract.js-core/*.wasm.js'
+  # Native binding is build/Release/better_sqlite3.node; deps/ and src/ are C sources.
+  - '!**/node_modules/better-sqlite3/{deps,src}/**'
+  - '!**/node_modules/better-sqlite3/binding.gyp'
+  # dist/ is a byte-identical copy of the package root build.
+  - '!**/node_modules/@elevenlabs/elevenlabs-js/{dist,assets,scripts}/**'
 asarUnpack:
   - resources/**
   # sqlite-vec ships native shared libraries (.dll/.dylib/.so) that

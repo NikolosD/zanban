@@ -1,25 +1,27 @@
 import type { IWebSearchProvider } from '../types.js'
 
-interface TavilyClient {
-  search(query: string, opts?: { maxResults?: number }): Promise<{
-    results: Array<{ title: string; url: string; content: string }>
-  }>
-}
+const SEARCH_URL = 'https://api.tavily.com/search'
+const SEARCH_TIMEOUT_MS = 60_000
 
-async function client(apiKey: string): Promise<TavilyClient> {
-  const mod = (await import('@tavily/core')) as unknown as {
-    tavily: (opts: { apiKey: string }) => TavilyClient
-  }
-  return mod.tavily({ apiKey })
+interface TavilySearchResponse {
+  results: Array<{ title: string; url: string; content: string }>
 }
 
 export function makeTavilyProvider(apiKey: string): IWebSearchProvider {
   return {
     id: 'tavily',
     async search(query, opts) {
-      const c = await client(apiKey)
-      const res = await c.search(query, { maxResults: opts?.topK ?? 5 })
-      return res.results.map((r) => ({
+      const res = await fetch(SEARCH_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ query, max_results: opts?.topK ?? 5 }),
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS)
+      })
+      if (!res.ok) {
+        throw new Error(`Tavily error: ${res.status} ${await res.text()}`)
+      }
+      const data = (await res.json()) as TavilySearchResponse
+      return data.results.map((r) => ({
         title: r.title,
         url: r.url,
         snippet: r.content

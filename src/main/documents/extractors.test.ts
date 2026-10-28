@@ -4,15 +4,21 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { extractFromPath } from './extractors.js'
 
-function minimalPdf(text: string): Buffer {
-  const content = `BT /F1 24 Tf 72 720 Td (${text}) Tj ET`
+function minimalPdf(pages: string[]): Buffer {
+  const fontId = 3 + pages.length * 2
+  const pageIds = pages.map((_, i) => 3 + i * 2)
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`
   ]
+  pages.forEach((text, i) => {
+    const content = `BT /F1 24 Tf 72 720 Td (${text}) Tj ET`
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${pageIds[i]! + 1} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+    )
+  })
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
   let pdf = '%PDF-1.4\n'
   const offsets: number[] = []
   objects.forEach((body, i) => {
@@ -39,11 +45,18 @@ describe('extractFromPath', () => {
 
   it('extracts text from a PDF', async () => {
     const file = join(dir, 'doc.pdf')
-    const pdf = minimalPdf('Hello Zanban')
+    const pdf = minimalPdf(['Hello Zanban'])
     await writeFile(file, pdf)
     const out = await extractFromPath(file)
     expect(out.kind).toBe('pdf')
     expect(out.text).toBe('Hello Zanban')
     expect(out.bytes).toBe(pdf.byteLength)
+  })
+
+  it('extracts every page of a multi-page PDF in order', async () => {
+    const file = join(dir, 'pages.pdf')
+    await writeFile(file, minimalPdf(['First page', 'Second page', 'Third page']))
+    const out = await extractFromPath(file)
+    expect(out.text.split('\n')).toEqual(['First page', 'Second page', 'Third page'])
   })
 })
