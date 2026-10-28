@@ -12,7 +12,7 @@ Desktop AI meeting assistant — a stealth overlay that captures your mic and th
 - **LLM providers** — Vercel AI Gateway (default), Anthropic, OpenAI, Google Gemini, Groq, Ollama (local). Vision can ride a different provider than text.
 - **Web search** — Tavily, optional, auto-injected on factual lookups
 - **RAG** — `better-sqlite3` + `sqlite-vec` over the user's own past sessions
-- **Document context** — PDF / DOCX / TXT / MD ingestion (`pdf-parse`, `mammoth`)
+- **Document context** — PDF / DOCX / TXT / MD ingestion (`unpdf`, `mammoth`)
 - **Screenshots** — full screen + drag-region cropper, OCR via Tesseract
 - **electron-builder** + **electron-updater** + GitHub Releases
 

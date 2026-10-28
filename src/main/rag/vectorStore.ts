@@ -138,14 +138,15 @@ export async function search(query: string, k = 6): Promise<RetrievedChunk[]> {
   const [vec] = await embedder.embed([query])
   if (!vec) return []
 
+  // vec0 needs the neighbour count inside the KNN constraint (`k = ?`); with a
+  // JOIN a trailing LIMIT isn't pushed down and sqlite-vec rejects the query.
   const rows = db
     .prepare(
       `SELECT ${SELECT_COLS}
        FROM chunks_vec v
        JOIN chunks c ON c.id = v.rowid
-       WHERE v.embedding MATCH ?
-       ORDER BY v.distance
-       LIMIT ?`
+       WHERE v.embedding MATCH ? AND k = ?
+       ORDER BY v.distance`
     )
     .all<RetrievedChunk>(embeddingToBlob(vec), k)
   return rows

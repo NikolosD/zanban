@@ -13,6 +13,7 @@ type Database = {
   transaction<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R
   close(): void
   pragma(s: string, opts?: { simple?: boolean }): unknown
+  loadExtension(path: string): void
 }
 
 let dbPromise: Promise<Database | null> | null = null
@@ -134,7 +135,10 @@ async function openDb(): Promise<Database | null> {
     const db = new Database(dbPath) as unknown as Database
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = NORMAL')
-    ;(sqliteVec as { load: (d: unknown) => void }).load(db)
+    // sqlite-vec resolves its DLL inside app.asar in packaged builds, where
+    // SQLite can't load it; electron-builder unpacks it next to the archive.
+    const vecPath = sqliteVec.getLoadablePath().replace(/app\.asar([\\/])/, 'app.asar.unpacked$1')
+    db.loadExtension(vecPath)
     db.transaction(() => migrate(db))()
     dbInstance = db
 
