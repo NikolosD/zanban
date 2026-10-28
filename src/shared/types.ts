@@ -460,7 +460,7 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     // Replaces the slower deepseek/deepseek-v4-flash for the question
     // detector — filter runs on every utterance so TTFT matters.
     filter: 'openai/gpt-oss-20b',
-    summary: 'xiaomi/mimo-v2.5',
+    summary: 'xiaomi/mimo-v2.6-flash',
     // gemini-2.5-flash-lite: GA, 244 tps, 1M context, $0.10 in / $0.40 out.
     // We dropped the 3.1-flash-lite-preview default because the preview tier
     // was noticeably slower in real use — likely smaller deployment fleet.
@@ -473,7 +473,7 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     vision: 'claude-sonnet-5-5'
   },
   openai: {
-    fast: 'gpt-6-luna',
+    fast: 'gpt-6.1-terra',
     filter: 'gpt-6-luna',
     summary: 'gpt-6.1-terra',
     vision: 'gpt-6.1-terra'
@@ -491,11 +491,12 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     summary: 'openai/gpt-oss-120b',
     vision: 'qwen/qwen3.8-27b'
   },
+  // One model covers every role, vision included, so a single pull is enough.
   ollama: {
-    fast: 'llama3.1:8b',
-    filter: 'llama3.1:8b',
-    summary: 'llama3.1:8b',
-    vision: 'llava:7b'
+    fast: 'qwen3.5:9b',
+    filter: 'qwen3.5:9b',
+    summary: 'qwen3.5:9b',
+    vision: 'qwen3.5:9b'
   }
 }
 
@@ -524,7 +525,7 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'deepseek/deepseek-v4-flash'
   ],
   anthropic: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5', 'claude-sonnet-4-6'],
-  openai: ['gpt-6-luna', 'gpt-6.1-terra'],
+  openai: ['gpt-6.1-terra', 'gpt-6-luna'],
   'google-gemini': [
     'gemini-3.5-flash-lite',
     'gemini-3.6-flash',
@@ -532,7 +533,7 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'gemini-3.1-flash-lite'
   ],
   groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
-  ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:12b']
+  ollama: ['qwen3.5:9b', 'qwen3.5:4b', 'gemma4:e4b', 'llama3.1:8b', 'qwen2.5:7b', 'mistral:7b']
 }
 
 export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
@@ -553,7 +554,7 @@ export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
     'gemini-3.1-flash-lite'
   ],
   groq: ['qwen/qwen3.8-27b'],
-  ollama: ['llava:7b', 'llava:13b', 'llama3.2-vision:11b']
+  ollama: ['qwen3.5:9b', 'gemma4:e4b', 'qwen2.5vl:7b', 'llama3.2-vision:11b', 'llava:7b']
 }
 
 /**
@@ -584,6 +585,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'anthropic/claude-haiku-4.5'
   ],
   summary: [
+    'xiaomi/mimo-v2.6-flash',
     'xiaomi/mimo-v2.5',
     'openai/gpt-5.4-mini',
     'google/gemini-3.5-flash',

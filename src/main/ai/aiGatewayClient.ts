@@ -25,7 +25,7 @@ import {
   getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
-import { modelFor, fastMaxOutputTokens } from './models.js'
+import { modelFor, fastMaxOutputTokens, gatewayProviderOptions } from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
@@ -521,7 +521,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             ],
             abortSignal: abort.signal,
             maxOutputTokens: maxOutputTokens,
-            temperature: 0.3
+            temperature: 0.3,
+            providerOptions: gatewayProviderOptions(overrideModel)
           }
         : {
             model: gw(overrideModel),
@@ -529,7 +530,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             prompt: userPrompt,
             abortSignal: abort.signal,
             maxOutputTokens: maxOutputTokens,
-            temperature: 0.4
+            temperature: 0.4,
+            providerOptions: gatewayProviderOptions(overrideModel)
           }
 
       const result = streamText(streamArgs)

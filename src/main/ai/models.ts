@@ -23,6 +23,14 @@ export function modelFor(role: AiRole): string {
   return PROVIDER_MODEL_DEFAULTS[provider][role]
 }
 
+// gpt-oss reasons at 'medium' unless told otherwise, which delays the first
+// token of a live answer; it can only turn reasoning down, not off.
+export function gatewayProviderOptions(
+  model: string
+): { openai: { reasoningEffort: 'low' } } | undefined {
+  return model.startsWith('openai/gpt-oss') ? { openai: { reasoningEffort: 'low' } } : undefined
+}
+
 // Caps the streaming answer so the overlay never has to wait on an over-long
 // response. 600 output tokens ≈ 3-5 bullets or 1-2 short paragraphs, which is
 // the answer shape the system prompt asks for.

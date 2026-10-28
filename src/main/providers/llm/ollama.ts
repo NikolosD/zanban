@@ -14,8 +14,8 @@ export function makeOllamaProvider(host: string = DEFAULT_HOST): ILlmProvider {
     label: 'Ollama (local)',
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       // Ollama's chat API accepts a per-message `images` array of base64
-      // strings (no data-url prefix). Vision-capable models like `llava` and
-      // `llama3.2-vision` consume this; text-only models silently ignore it.
+      // strings (no data-url prefix). Vision-capable models like `qwen3.5` and
+      // `llava` consume this; text-only models silently ignore it.
       const userMsg: Record<string, unknown> = { role: 'user', content: args.prompt }
       if (args.imageDataUrl) {
         const m = args.imageDataUrl.match(/^data:image\/[a-z]+;base64,(.+)$/)
@@ -31,6 +31,9 @@ export function makeOllamaProvider(host: string = DEFAULT_HOST): ILlmProvider {
             temperature: args.temperature ?? 0.3,
             num_predict: args.maxOutputTokens ?? 1200
           },
+          // Qwen3 models think before answering unless told not to. Only sent to
+          // them: other models may reject `think` when they can't think.
+          ...(args.model.startsWith('qwen3') ? { think: false } : {}),
           stream: true
         }),
         signal: args.signal
