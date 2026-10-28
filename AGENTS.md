@@ -159,9 +159,9 @@ top. Mock electron-bound modules with `vi.mock(...)` + `vi.hoisted(...)` (see
 - **First-paint content protection.** On Windows the protection silently
   drops if applied before first show. Every window's `'show'` event re-
   applies — preserve this when touching window setup.
-- **Auto-save settings.** Settings panel debounces 350 ms then pushes the
-  whole `AppSettings` object to main, which broadcasts to every window. Skip
-  the first auto-save trigger (it would re-save freshly-loaded settings).
+- **Auto-save settings.** Settings panel debounces 350 ms then pushes only
+  the keys the user edited to main, which broadcasts to every window. The
+  panel merges those broadcasts into its copy, keeping unsaved edits.
 - **Session lifecycle.** Starting a session: capture-controller starts mic
   (and system loopback if enabled) → renderer streams PCM chunks via
   `IPC.audio.chunk` → main routes to the active STT provider. Stopping

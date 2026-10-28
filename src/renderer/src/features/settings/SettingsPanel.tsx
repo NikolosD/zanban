@@ -216,9 +216,11 @@ export function SettingsPanel({
   const [mics, setMics] = useState<MicDevice[]>([])
   const [micsError, setMicsError] = useState<string | null>(null)
   const [version, setVersion] = useState<string>('')
-  // Skip the very first auto-save trigger — that one fires when settings load
-  // from main, and re-saving freshly-loaded settings is a wasted round-trip.
-  const initialized = useRef(false)
+  // Only keys the user edited here are sent to main. Pushing the whole object
+  // used to revert values changed elsewhere in the meantime (stealth toggled
+  // from the overlay or hotkey, the overlay's answer-pane height).
+  const dirtyKeys = useRef(new Set<keyof AppSettings>())
+  const pendingPatch = useRef<Partial<AppSettings> | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -230,20 +232,33 @@ export function SettingsPanel({
       .catch((e) => setMicsError(String(e)))
   }, [])
 
-  // Auto-save: any change to `settings` is pushed to main with a short debounce.
-  // Removes the Save button entirely — toggles like Detectable now apply the
-  // moment the user flips them, which is what they expect from a settings panel.
+  useEffect(
+    () =>
+      window.zanban.settings.onChanged((next) =>
+        setSettings((prev) => {
+          if (!prev) return next
+          const unsaved = [...dirtyKeys.current].map((k) => [k, prev[k]])
+          return { ...next, ...(Object.fromEntries(unsaved) as Partial<AppSettings>) }
+        })
+      ),
+    []
+  )
+
+  // Auto-save: edits are pushed to main with a short debounce. Removes the Save
+  // button entirely — toggles like Detectable now apply the moment the user
+  // flips them, which is what they expect from a settings panel.
   useEffect(() => {
-    if (!settings) return
-    if (!initialized.current) {
-      initialized.current = true
-      return
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!settings || dirtyKeys.current.size === 0) return
+    const patch = Object.fromEntries(
+      [...dirtyKeys.current].map((k) => [k, settings[k]])
+    ) as Partial<AppSettings>
+    pendingPatch.current = patch
     setSavingState('saving')
     debounceRef.current = setTimeout(() => {
+      pendingPatch.current = null
+      dirtyKeys.current.clear()
       window.zanban.settings
-        .set(settings)
+        .set(patch)
         .then(() => {
           setSavingState('saved')
           if (savedFlashRef.current) clearTimeout(savedFlashRef.current)
@@ -259,6 +274,14 @@ export function SettingsPanel({
     }
   }, [settings])
 
+  // Closing the panel inside the debounce window must not drop the last edit.
+  useEffect(
+    () => () => {
+      if (pendingPatch.current) void window.zanban.settings.set(pendingPatch.current)
+    },
+    []
+  )
+
   async function rescanMics(): Promise<void> {
     setMicsError(null)
     try {
@@ -271,10 +294,12 @@ export function SettingsPanel({
   }
 
   function update<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
+    dirtyKeys.current.add(key)
     setSettings((s) => (s ? { ...s, [key]: value } : s))
   }
 
   function updateHotkey(key: keyof AppSettings['hotkeys'], value: string): void {
+    dirtyKeys.current.add('hotkeys')
     setSettings((s) => (s ? { ...s, hotkeys: { ...s.hotkeys, [key]: value } } : s))
   }
 
@@ -349,9 +374,7 @@ export function SettingsPanel({
             <HotkeysTab
               settings={settings}
               updateHotkey={updateHotkey}
-              resetAll={() =>
-                setSettings((s) => (s ? { ...s, hotkeys: { ...DEFAULT_SETTINGS.hotkeys } } : s))
-              }
+              resetAll={() => update('hotkeys', { ...DEFAULT_SETTINGS.hotkeys })}
             />
           )}
           {tab === 'about' && <AboutTab version={version} />}

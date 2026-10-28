@@ -3,21 +3,27 @@ import { normalizeFinishReason } from './finishReason.js'
 
 interface AnthropicSdk {
   messages: {
-    create(args: {
-      model: string
-      system: string
-      messages: Array<{ role: string; content: unknown }>
-      max_tokens: number
-      temperature?: number
-      stream?: boolean
-    }): Promise<{ content: Array<{ type: string; text?: string }> } | AsyncIterable<unknown>>
-    stream(args: {
-      model: string
-      system: string
-      messages: Array<{ role: string; content: unknown }>
-      max_tokens: number
-      temperature?: number
-    }): AsyncIterable<unknown> & {
+    create(
+      args: {
+        model: string
+        system: string
+        messages: Array<{ role: string; content: unknown }>
+        max_tokens: number
+        temperature?: number
+        stream?: boolean
+      },
+      opts?: { signal?: AbortSignal }
+    ): Promise<{ content: Array<{ type: string; text?: string }> } | AsyncIterable<unknown>>
+    stream(
+      args: {
+        model: string
+        system: string
+        messages: Array<{ role: string; content: unknown }>
+        max_tokens: number
+        temperature?: number
+      },
+      opts?: { signal?: AbortSignal }
+    ): AsyncIterable<unknown> & {
       finalMessage(): Promise<{ content: Array<{ type: string; text?: string }> }>
     }
   }
@@ -36,13 +42,16 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
     label: 'Anthropic Claude',
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
-      const stream = c.messages.stream({
-        model: args.model,
-        system: args.system,
-        messages: buildMessages(args),
-        max_tokens: args.maxOutputTokens ?? 1200,
-        temperature: args.temperature ?? 0.3
-      })
+      const stream = c.messages.stream(
+        {
+          model: args.model,
+          system: args.system,
+          messages: buildMessages(args),
+          max_tokens: args.maxOutputTokens ?? 1200,
+          temperature: args.temperature ?? 0.3
+        },
+        { signal: args.signal }
+      )
       // Anthropic surfaces the stop reason on the `message_delta` event
       // (delta.stop_reason: 'end_turn' | 'max_tokens' | 'stop_sequence' | …).
       let stopReason: string | null | undefined
@@ -60,14 +69,17 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
     },
     async generate(args) {
       const c = await client(apiKey)
-      const res = (await c.messages.create({
-        model: args.model,
-        system: args.system,
-        messages: buildMessages(args),
-        max_tokens: args.maxOutputTokens ?? 800,
-        temperature: args.temperature ?? 0.3,
-        stream: false
-      })) as { content: Array<{ type: string; text?: string }> }
+      const res = (await c.messages.create(
+        {
+          model: args.model,
+          system: args.system,
+          messages: buildMessages(args),
+          max_tokens: args.maxOutputTokens ?? 800,
+          temperature: args.temperature ?? 0.3,
+          stream: false
+        },
+        { signal: args.signal }
+      )) as { content: Array<{ type: string; text?: string }> }
       return res.content
         .map((b) => (b.type === 'text' ? (b.text ?? '') : ''))
         .join('')

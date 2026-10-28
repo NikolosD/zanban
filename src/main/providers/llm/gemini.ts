@@ -1,6 +1,13 @@
 import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
+interface GeminiConfig {
+  temperature?: number
+  maxOutputTokens?: number
+  systemInstruction?: string
+  abortSignal?: AbortSignal
+}
+
 interface GeminiLike {
   models: {
     // The SDK returns a Promise that resolves to the async iterable — both
@@ -8,12 +15,12 @@ interface GeminiLike {
     generateContentStream(args: {
       model: string
       contents: unknown
-      config?: { temperature?: number; maxOutputTokens?: number; systemInstruction?: string }
+      config?: GeminiConfig
     }): Promise<AsyncIterable<{ text?: string; candidates?: Array<{ finishReason?: string }> }>>
     generateContent(args: {
       model: string
       contents: unknown
-      config?: { temperature?: number; maxOutputTokens?: number; systemInstruction?: string }
+      config?: GeminiConfig
     }): Promise<{ text?: string }>
   }
 }
@@ -110,7 +117,8 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
           config: {
             systemInstruction: args.system,
             temperature: args.temperature ?? 0.3,
-            maxOutputTokens: args.maxOutputTokens ?? 1200
+            maxOutputTokens: args.maxOutputTokens ?? 1200,
+            abortSignal: args.signal
           }
         })
       )
@@ -134,7 +142,8 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
           config: {
             systemInstruction: args.system,
             temperature: args.temperature ?? 0.3,
-            maxOutputTokens: args.maxOutputTokens ?? 800
+            maxOutputTokens: args.maxOutputTokens ?? 800,
+            abortSignal: args.signal
           }
         })
       )

@@ -71,21 +71,21 @@ export function useAskRequest(): UseAskRequest {
     busyRef.current = true
     setBusy(true)
     const label = opts.label ?? p
+    const requestId = crypto.randomUUID()
     try {
       if (opts.waitForTranscript) await awaitTranscriptSettle()
       const askPrompt = p || SCREENSHOT_DEFAULT_PROMPT
-      const { requestId } = await window.zanban.ai.ask({
+      requestIdRef.current = requestId
+      useAi.getState().newRequest(label, requestId)
+      await window.zanban.ai.ask({
+        requestId,
         prompt: askPrompt,
         ...(image ? { imageDataUrl: image } : {}),
         ...(opts.ocr ? { ocrText: opts.ocr } : {}),
         ...(opts.modelOverride ? { modelOverride: opts.modelOverride } : {})
       })
-      requestIdRef.current = requestId
-      useAi.getState().newRequest(label, requestId)
     } catch (err) {
-      const id = `err-${Date.now()}`
-      useAi.getState().newRequest(label, id)
-      useAi.getState().failRequest(id, err instanceof Error ? err.message : 'failed')
+      useAi.getState().failRequest(requestId, err instanceof Error ? err.message : 'failed')
     } finally {
       busyRef.current = false
       setBusy(false)
