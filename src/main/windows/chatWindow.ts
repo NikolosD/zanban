@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { getAppIcon } from '../appIcon.js'
+import { DEV_SERVER_URL } from '../security.js'
 
 /**
  * The chat window shows AI answers, so it needs the same screen-share
@@ -37,8 +38,8 @@ export function createChatWindow(stealthOn = true): BrowserWindow {
   // and dashboard.
   win.setContentProtection(stealthOn)
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/chat.html`)
+  if (DEV_SERVER_URL) {
+    void win.loadURL(`${DEV_SERVER_URL}/chat.html`)
   } else {
     void win.loadFile(join(__dirname, '../renderer/chat.html'))
   }

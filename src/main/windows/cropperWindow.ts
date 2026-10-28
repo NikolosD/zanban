@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import type { Display } from 'electron'
 import { join } from 'node:path'
 import { getActiveDisplay } from '../screenshot/index.js'
+import { DEV_SERVER_URL } from '../security.js'
 
 /**
  * Open the transparent fullscreen drag-surface for the region cropper.
@@ -44,8 +45,8 @@ export function createCropperWindow(display: Display = getActiveDisplay()): Brow
   // Hide from screen-share so the cropper overlay itself isn't recorded.
   win.setContentProtection(true)
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/cropper.html`)
+  if (DEV_SERVER_URL) {
+    void win.loadURL(`${DEV_SERVER_URL}/cropper.html`)
   } else {
     void win.loadFile(join(__dirname, '../renderer/cropper.html'))
   }
