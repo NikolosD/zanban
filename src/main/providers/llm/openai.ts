@@ -8,8 +8,8 @@ interface OpenAILike {
         args: {
           model: string
           messages: Array<{ role: string; content: unknown }>
-          max_tokens?: number
-          temperature?: number
+          max_completion_tokens?: number
+          reasoning_effort?: 'none'
           stream?: boolean
         },
         opts?: { signal?: AbortSignal }
@@ -40,6 +40,9 @@ async function client(apiKey: string): Promise<OpenAILike> {
   return promise
 }
 
+// GPT-6 models reason by default (effort 'medium'), which delays the first
+// token and spends the output cap; 'none' turns it off. Reasoning models reject
+// `max_tokens` and a non-default temperature, so the caller's is not forwarded.
 export function makeOpenAiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'openai',
@@ -50,8 +53,8 @@ export function makeOpenAiProvider(apiKey: string): ILlmProvider {
         {
           model: args.model,
           messages: buildMessages(args),
-          max_tokens: args.maxOutputTokens ?? 1200,
-          temperature: args.temperature ?? 0.3,
+          max_completion_tokens: args.maxOutputTokens ?? 1200,
+          reasoning_effort: 'none',
           stream: true
         },
         { signal: args.signal }
@@ -75,8 +78,8 @@ export function makeOpenAiProvider(apiKey: string): ILlmProvider {
         {
           model: args.model,
           messages: buildMessages(args),
-          max_tokens: args.maxOutputTokens ?? 800,
-          temperature: args.temperature ?? 0.3,
+          max_completion_tokens: args.maxOutputTokens ?? 800,
+          reasoning_effort: 'none',
           stream: false
         },
         { signal: args.signal }

@@ -2,7 +2,6 @@ import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
 interface GeminiConfig {
-  temperature?: number
   maxOutputTokens?: number
   systemInstruction?: string
   abortSignal?: AbortSignal
@@ -99,6 +98,8 @@ function buildContents(args: LlmStreamArgs): unknown {
   return [{ role: 'user', parts: [{ text: args.prompt }] }]
 }
 
+// The caller's temperature is not forwarded: Gemini 3 is tuned for the default
+// (1.0), and Google warns that lower values can make it loop.
 export function makeGeminiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'google-gemini',
@@ -116,7 +117,6 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
           contents: buildContents(args),
           config: {
             systemInstruction: args.system,
-            temperature: args.temperature ?? 0.3,
             maxOutputTokens: args.maxOutputTokens ?? 1200,
             abortSignal: args.signal
           }
@@ -141,7 +141,6 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
           contents: buildContents(args),
           config: {
             systemInstruction: args.system,
-            temperature: args.temperature ?? 0.3,
             maxOutputTokens: args.maxOutputTokens ?? 800,
             abortSignal: args.signal
           }

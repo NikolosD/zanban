@@ -449,7 +449,7 @@ export const RESPONSE_LANGUAGES: Array<{ value: ResponseLanguage; label: string 
 /**
  * Default model IDs per role, **per LLM provider**. When the user switches
  * providers in Settings → Providers, the Models tab automatically picks up
- * the right defaults — they don't have to retype `claude-haiku-4-5` after
+ * the right defaults — they don't have to retype `claude-haiku-5-5` after
  * picking Anthropic. Custom overrides live alongside (see `providerModels`)
  * and win when set.
  */
@@ -467,28 +467,29 @@ export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
     vision: 'google/gemini-2.5-flash-lite'
   },
   anthropic: {
-    fast: 'claude-haiku-4-5',
-    filter: 'claude-haiku-4-5',
-    summary: 'claude-haiku-4-5',
-    vision: 'claude-sonnet-4-6'
+    fast: 'claude-haiku-5-5',
+    filter: 'claude-haiku-5-5',
+    summary: 'claude-haiku-5-5',
+    vision: 'claude-sonnet-5-5'
   },
   openai: {
-    fast: 'gpt-5.4-mini',
-    filter: 'gpt-5.4-nano',
-    summary: 'gpt-5.4-mini',
-    vision: 'gpt-5.4'
+    fast: 'gpt-6-luna',
+    filter: 'gpt-6-luna',
+    summary: 'gpt-6.1-terra',
+    vision: 'gpt-6.1-terra'
   },
+  // Gemini 2.5 is limited to keys that used it before, so a new key can't call it.
   'google-gemini': {
-    fast: 'gemini-2.5-flash-lite',
-    filter: 'gemini-2.5-flash-lite',
-    summary: 'gemini-2.5-flash-lite',
-    vision: 'gemini-2.5-flash-lite'
+    fast: 'gemini-3.5-flash-lite',
+    filter: 'gemini-3.5-flash-lite',
+    summary: 'gemini-3.5-flash-lite',
+    vision: 'gemini-3.5-flash-lite'
   },
   groq: {
-    fast: 'llama-3.3-70b-versatile',
-    filter: 'gemma2-9b-it',
-    summary: 'llama-3.3-70b-versatile',
-    vision: 'llama-3.2-90b-vision-preview'
+    fast: 'openai/gpt-oss-120b',
+    filter: 'openai/gpt-oss-20b',
+    summary: 'openai/gpt-oss-120b',
+    vision: 'qwen/qwen3.8-27b'
   },
   ollama: {
     fast: 'llama3.1:8b',
@@ -515,34 +516,23 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
     'openai/gpt-oss-120b',
     'openai/gpt-oss-20b',
     'openai/gpt-5.4-mini',
-    'anthropic/claude-haiku-4-5',
+    'anthropic/claude-haiku-4.5',
     'google/gemini-3.5-flash',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
-    'deepseek/deepseek-v4',
-    'xai/grok-4-fast'
+    'deepseek/deepseek-v4-flash'
   ],
-  anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
-  openai: [
-    'gpt-5.4',
-    'gpt-5.4-mini',
-    'gpt-5.4-nano',
-    'gpt-oss-120b',
-    'gpt-oss-20b',
-    'o4-mini',
-    'o3'
-  ],
+  anthropic: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5', 'claude-sonnet-4-6'],
+  openai: ['gpt-6-luna', 'gpt-6.1-terra'],
   'google-gemini': [
-    'gemini-3.5-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.5-pro'
+    'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite'
   ],
-  groq: ['llama-3.3-70b-versatile', 'llama-4-scout', 'mixtral-8x7b-instruct', 'gemma2-9b-it'],
-  ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:9b']
+  groq: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+  ollama: ['llama3.1:8b', 'llama3.1:70b', 'qwen2.5:7b', 'qwen2.5:14b', 'mistral:7b', 'gemma3:12b']
 }
 
 export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
@@ -552,19 +542,17 @@ export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
-    'anthropic/claude-sonnet-4-6'
+    'anthropic/claude-sonnet-4.6'
   ],
-  anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6'],
-  openai: ['gpt-5.4', 'gpt-5.4-mini', 'gpt-oss-120b'],
+  anthropic: ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-sonnet-4-6'],
+  openai: ['gpt-6.1-terra', 'gpt-6-luna'],
   'google-gemini': [
-    'gemini-3.5-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash',
-    'gemini-2.5-pro'
+    'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite'
   ],
-  groq: ['llama-3.2-90b-vision-preview'],
+  groq: ['qwen/qwen3.8-27b'],
   ollama: ['llava:7b', 'llava:13b', 'llama3.2-vision:11b']
 }
 
@@ -577,17 +565,15 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
   fast: [
     'openai/gpt-oss-120b',
     'openai/gpt-5.4-mini',
-    'anthropic/claude-haiku-4-5',
+    'anthropic/claude-haiku-4.5',
     'google/gemini-3.5-flash',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
-    'deepseek/deepseek-v4',
-    'xai/grok-4-fast'
+    'deepseek/deepseek-v4-flash'
   ],
   filter: [
     'openai/gpt-oss-20b',
-    'arcee-ai/trinity-mini',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
     'mistral/ministral-3b',
@@ -595,7 +581,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'meta/llama-4-scout',
     'zai/glm-4.7-flashx',
     'openai/gpt-5.4-nano',
-    'anthropic/claude-haiku-4-5'
+    'anthropic/claude-haiku-4.5'
   ],
   summary: [
     'xiaomi/mimo-v2.5',
@@ -603,7 +589,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'google/gemini-3.5-flash',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
-    'anthropic/claude-haiku-4-5'
+    'anthropic/claude-haiku-4.5'
   ],
   vision: [
     'google/gemini-3.5-flash',
@@ -611,7 +597,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'google/gemini-2.5-flash-lite',
     'google/gemini-2.5-flash',
     'openai/gpt-5.4',
-    'anthropic/claude-sonnet-4-6'
+    'anthropic/claude-sonnet-4.6'
   ]
 }
 

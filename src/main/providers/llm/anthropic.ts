@@ -9,7 +9,7 @@ interface AnthropicSdk {
         system: string
         messages: Array<{ role: string; content: unknown }>
         max_tokens: number
-        temperature?: number
+        thinking?: { type: 'disabled' | 'between_tools' }
         stream?: boolean
       },
       opts?: { signal?: AbortSignal }
@@ -20,7 +20,7 @@ interface AnthropicSdk {
         system: string
         messages: Array<{ role: string; content: unknown }>
         max_tokens: number
-        temperature?: number
+        thinking?: { type: 'disabled' | 'between_tools' }
       },
       opts?: { signal?: AbortSignal }
     ): AsyncIterable<unknown> & {
@@ -46,6 +46,17 @@ async function client(apiKey: string): Promise<AnthropicSdk> {
   return promise
 }
 
+// Claude 5.5 models think before answering by default, which delays the first
+// streamed token. Haiku 5.5 turns it off with 'disabled'; Sonnet 5.5 rejects
+// that and takes 'between_tools' (no thinking when there are no tool calls).
+function thinkingFor(model: string): { type: 'disabled' | 'between_tools' } | undefined {
+  if (model.startsWith('claude-haiku-5-5')) return { type: 'disabled' }
+  if (model.startsWith('claude-sonnet-5-5')) return { type: 'between_tools' }
+  return undefined
+}
+
+// The caller's temperature is not forwarded: Claude 4.7+ and 5.x models reject
+// any non-default value with a 400.
 export function makeAnthropicProvider(apiKey: string): ILlmProvider {
   return {
     id: 'anthropic',
@@ -58,7 +69,7 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
           system: args.system,
           messages: buildMessages(args),
           max_tokens: args.maxOutputTokens ?? 1200,
-          temperature: args.temperature ?? 0.3
+          thinking: thinkingFor(args.model)
         },
         { signal: args.signal }
       )
@@ -85,7 +96,7 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
           system: args.system,
           messages: buildMessages(args),
           max_tokens: args.maxOutputTokens ?? 800,
-          temperature: args.temperature ?? 0.3,
+          thinking: thinkingFor(args.model),
           stream: false
         },
         { signal: args.signal }
