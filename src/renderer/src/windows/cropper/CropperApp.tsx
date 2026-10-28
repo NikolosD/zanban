@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface Rect {
   x: number
@@ -8,6 +9,7 @@ interface Rect {
 }
 
 export function CropperApp() {
+  const { t } = useTranslation()
   const [start, setStart] = useState<{ x: number; y: number } | null>(null)
   const [rect, setRect] = useState<Rect | null>(null)
   const dragging = useRef(false)
@@ -96,7 +98,7 @@ export function CropperApp() {
               borderRadius: 4
             }}
           >
-            {rect.w} × {rect.h} — release to capture · Esc to cancel
+            {t('cropper.selection_hint', { width: rect.w, height: rect.h })}
           </div>
         </>
       )}
@@ -115,7 +117,7 @@ export function CropperApp() {
             borderRadius: 999
           }}
         >
-          Drag to select a region · Esc to cancel
+          {t('cropper.idle_hint')}
         </div>
       )}
     </div>

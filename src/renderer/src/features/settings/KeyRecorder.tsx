@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { cn } from '@renderer/lib/utils'
@@ -10,13 +11,17 @@ export function KeyRecorder({
   value,
   defaultValue,
   onChange,
-  className
+  className,
+  ...control
 }: {
   value: string
   defaultValue?: string
   onChange(next: string): void
   className?: string
+  id?: string
+  'aria-describedby'?: string
 }) {
+  const { t } = useTranslation()
   const [recording, setRecording] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -74,7 +79,9 @@ export function KeyRecorder({
   return (
     <div ref={rootRef} className={cn('flex items-center gap-1.5', className)}>
       <button
+        {...control}
         type="button"
+        aria-pressed={recording}
         onClick={() => setRecording((r) => !r)}
         className={cn(
           'inline-flex min-h-[32px] flex-1 items-center gap-1.5 rounded-md border px-2.5 py-1 text-left transition-colors',
@@ -86,7 +93,7 @@ export function KeyRecorder({
         {recording ? (
           <span className="flex items-center gap-2 font-mono text-[11px] text-signal">
             <span className="size-1.5 animate-pulse rounded-full bg-signal" />
-            press keys… (Esc cancel · ⌫ clear)
+            {t('settings.key_recorder.recording')}
           </span>
         ) : segments.length > 0 ? (
           <span className="flex flex-wrap items-center gap-1">
@@ -98,7 +105,9 @@ export function KeyRecorder({
             ))}
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">click to record…</span>
+          <span className="text-[11px] text-muted-foreground">
+            {t('settings.key_recorder.placeholder')}
+          </span>
         )}
       </button>
       {!isDefault && defaultValue && (
@@ -107,7 +116,12 @@ export function KeyRecorder({
           variant="ghost"
           size="icon"
           className="size-7"
-          title={`Reset to ${prettyAccelerator(defaultValue)}`}
+          title={t('settings.key_recorder.reset_to', {
+            accelerator: prettyAccelerator(defaultValue)
+          })}
+          aria-label={t('settings.key_recorder.reset_to', {
+            accelerator: prettyAccelerator(defaultValue)
+          })}
           onClick={() => onChange(defaultValue)}
         >
           <RotateCcw className="size-3.5" />
@@ -119,7 +133,8 @@ export function KeyRecorder({
           variant="ghost"
           size="icon"
           className="size-7"
-          title="Clear binding"
+          title={t('settings.key_recorder.clear')}
+          aria-label={t('settings.key_recorder.clear')}
           onClick={() => onChange('')}
         >
           <X className="size-3.5" />

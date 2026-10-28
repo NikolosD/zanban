@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Plus, Trash2, Download, Upload, Check, Loader2, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -213,6 +213,8 @@ function PersonaEditor({
   const [name, setName] = useState(persona.name)
   const [prompt, setPrompt] = useState(persona.systemPrompt)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const modelSelectId = useId()
+  const languageSelectId = useId()
   const ragUse = persona.ragStrategy?.useRag !== false
   const ragK = persona.ragStrategy?.topK ?? 6
   const model = persona.defaultModel ?? ''
@@ -259,17 +261,21 @@ function PersonaEditor({
       />
       <button
         type="button"
+        aria-expanded={advancedOpen}
         onClick={() => setAdvancedOpen((o) => !o)}
         className="flex items-center gap-1.5 self-start text-[11px] font-mono uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronRight className={cn('size-3 transition-transform', advancedOpen && 'rotate-90')} />
+        <ChevronRight
+          aria-hidden
+          className={cn('size-3 transition-transform', advancedOpen && 'rotate-90')}
+        />
         {t('settings.personas.editor.advanced_label')}
       </button>
       {advancedOpen && (
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] text-muted-foreground">
+              <label htmlFor={modelSelectId} className="text-[11px] text-muted-foreground">
                 {t('settings.personas.editor.default_model_label')}
               </label>
               <Select
@@ -279,7 +285,7 @@ function PersonaEditor({
                   void onChange({ defaultModel: next || undefined })
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id={modelSelectId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -295,7 +301,7 @@ function PersonaEditor({
               </Select>
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">
+              <label htmlFor={languageSelectId} className="text-[11px] text-muted-foreground">
                 {t('settings.personas.editor.response_language_label')}
               </label>
               <Select
@@ -305,7 +311,7 @@ function PersonaEditor({
                   void onChange({ responseLanguage: next || undefined })
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id={languageSelectId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -314,7 +320,7 @@ function PersonaEditor({
                   </SelectItem>
                   {RESPONSE_LANGUAGES.map((l) => (
                     <SelectItem key={l.value} value={l.value}>
-                      {l.label}
+                      {t(`settings.response_languages.${l.value}`, { defaultValue: l.label })}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -44,6 +44,8 @@ export function ProviderStep({
         {OPTIONS.map((opt) => (
           <button
             key={opt.id}
+            type="button"
+            aria-pressed={draftProvider === opt.id}
             onClick={() => setDraftProvider(opt.id)}
             className={cn(
               'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
@@ -53,6 +55,7 @@ export function ProviderStep({
             )}
           >
             <div
+              aria-hidden
               className={cn(
                 'mt-1 size-2 shrink-0 rounded-full',
                 draftProvider === opt.id ? 'bg-primary' : 'bg-muted-foreground/40'

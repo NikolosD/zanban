@@ -131,6 +131,8 @@ export interface ZanbanApi {
     onSources(cb: (sources: AiSources) => void): () => void
   }
   settings: {
+    /** Stored secrets (SECRET_SETTING_KEYS) arrive as redacted markers, never in
+     *  clear; sending a marker back in `set()` leaves the stored key untouched. */
     get(): Promise<AppSettings>
     set(patch: Partial<AppSettings>): Promise<AppSettings>
     /**

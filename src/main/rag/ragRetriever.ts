@@ -1,10 +1,24 @@
 import { search, type RetrievedChunk } from './vectorStore.js'
 
-const DEFAULT_DISTANCE_THRESHOLD = 1.2 // L2 on normalized 384-dim vectors
+// L2 on unit vectors (cosine ≈ 0.33), calibrated on the multilingual encoder:
+// relevant RU/EN query–chunk pairs measured ≤ 1.14, the best hit for an
+// off-topic question ≥ 1.18.
+export const DEFAULT_DISTANCE_THRESHOLD = 1.16
+// A hit this much farther than the best one is noise next to it; the expected
+// fragment trailed the best hit by at most 0.15 in calibration.
+const RELATIVE_CUTOFF = 0.2
+const DUPLICATE_JACCARD = 0.85
 
 export interface RetrievalOptions {
   topK?: number
   distanceThreshold?: number
+  /** The live call. Its older chunks are labeled as such rather than as a past meeting. */
+  currentSessionId?: string
+  /**
+   * Epoch ms where the prompt's transcript window starts. Live-call chunks from
+   * here on are already in the prompt verbatim and are skipped.
+   */
+  transcriptWindowStart?: number
 }
 
 /** A retrieved fragment, surfaced to the renderer's "Sources" affordance. */
@@ -21,15 +35,30 @@ export interface RetrievedSource {
 export interface RetrievalResult {
   /** Prompt-ready block (wrapped in <retrieved_context>), or '' when nothing. */
   prompt: string
-  /** Structured fragments for the UI, in similarity order. */
+  /** Structured fragments for the UI, in similarity order — source i is fragment [i + 1]. */
   sources: RetrievedSource[]
 }
 
 const SNIPPET_CHARS = 240
+const CURRENT_CALL_LABEL = 'earlier in this call'
 
-function shortLabel(h: RetrievedChunk): string {
+const NO_MATCH_BLOCK =
+  '\n\n<retrieved_context>\nNo matching past sessions or documents.\n</retrieved_context>'
+
+const EN_HISTORY =
+  /\b(last time|last (meeting|call|session|week)|(previous|past|earlier) (meetings?|calls?|sessions?|conversations?)|we (discussed|agreed|decided|talked about)|did (we|i|you|they|he|she) (say|mention|agree|decide|discuss|promise)|what did (we|i|you|they|he|she)|recap|meeting notes|(my|the|this|that|our|their) (document|doc|file|resume|cv|contract|spec|presentation|deck)|according to|remind me)\b/i
+const RU_HISTORY =
+  /(?<![\p{L}\p{N}])(в прошлый раз|прошл\p{L}* (встреч|созвон|разговор|недел)|на встрече|ранее|раньше|обсуждали|договорил|договаривал|решили|что (я|мы|он|она|они|ты|вы) (говорил|сказал|обещал|упоминал)|документ|файл|резюме|договор|презентаци|протокол|напомни)/iu
+
+/** Whether a question refers to past meetings or the user's documents. */
+export function looksLikeHistoryQuestion(query: string): boolean {
+  return EN_HISTORY.test(query) || RU_HISTORY.test(query)
+}
+
+function shortLabel(h: RetrievedChunk, currentSessionId?: string): string {
   if (h.sourceKind === 'doc') return h.sourceLabel ?? 'document'
   if (h.sourceKind === 'recap') return `recap ${h.sourceId.slice(0, 8)}`
+  if (h.sourceId === currentSessionId) return CURRENT_CALL_LABEL
   return `session ${h.sourceId.slice(0, 8)}`
 }
 
@@ -44,39 +73,82 @@ function escapeBlockEnd(text: string): string {
   return text.replace(/<\s*\/\s*retrieved_context\s*>/gi, '&lt;/retrieved_context&gt;')
 }
 
-function formatHit(h: RetrievedChunk): string {
-  const text = escapeBlockEnd(h.text)
-  if (h.sourceKind === 'doc') {
-    return `[document · ${h.sourceLabel ?? 'untitled'}]\n${text}`
-  }
+function hitHeader(h: RetrievedChunk, currentSessionId?: string): string {
+  if (h.sourceKind === 'doc') return `document · ${h.sourceLabel ?? 'untitled'}`
+  if (h.sourceKind === 'session' && h.sourceId === currentSessionId) return CURRENT_CALL_LABEL
   const when = new Date(h.ts).toISOString().slice(0, 10)
-  if (h.sourceKind === 'recap') {
-    return `[recap · ${when}]\n${text}`
+  return h.sourceKind === 'recap' ? `meeting recap · ${when}` : `past meeting · ${when}`
+}
+
+function wordSet(text: string): Set<string> {
+  return new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+}
+
+function nearDuplicate(a: Set<string>, b: Set<string>): boolean {
+  let shared = 0
+  for (const w of a) if (b.has(w)) shared++
+  const union = a.size + b.size - shared
+  return union > 0 && shared / union >= DUPLICATE_JACCARD
+}
+
+function inTranscriptWindow(h: RetrievedChunk, opts?: RetrievalOptions): boolean {
+  return (
+    h.sourceKind === 'session' &&
+    h.sourceId === opts?.currentSessionId &&
+    opts.transcriptWindowStart !== undefined &&
+    h.ts >= opts.transcriptWindowStart
+  )
+}
+
+/** `hits` arrive ordered by distance, closest first. */
+function selectHits(
+  hits: RetrievedChunk[],
+  k: number,
+  threshold: number,
+  opts?: RetrievalOptions
+): RetrievedChunk[] {
+  const eligible = hits.filter((h) => h.distance <= threshold && !inTranscriptWindow(h, opts))
+  const cutoff = (eligible[0]?.distance ?? 0) + RELATIVE_CUTOFF
+  const kept: Array<{ hit: RetrievedChunk; words: Set<string> }> = []
+  for (const hit of eligible) {
+    if (kept.length === k || hit.distance > cutoff) break
+    const words = wordSet(hit.text)
+    if (kept.some((o) => nearDuplicate(o.words, words))) continue
+    kept.push({ hit, words })
   }
-  const who = h.speaker ?? '?'
-  return `[session ${h.sourceId.slice(0, 8)} · ${when} · ${who}]\n${text}`
+  return kept.map((o) => o.hit)
 }
 
 /**
  * Retrieve relevant fragments across ALL sources (transcript history, reference
  * documents, structured recaps) for a user query. Returns a prompt-ready block
- * plus the structured fragments behind it for the renderer's Sources list.
- * Both are empty when no usable results clear the distance threshold.
+ * of numbered fragments plus the structured fragments behind it for the
+ * renderer's Sources list. When nothing clears the thresholds, both are empty —
+ * except for a question about past meetings or documents, which gets an
+ * explicit "no match" block so the model doesn't guess.
  */
 export async function retrieve(query: string, opts?: RetrievalOptions): Promise<RetrievalResult> {
   const k = opts?.topK ?? 6
-  const threshold = opts?.distanceThreshold ?? DEFAULT_DISTANCE_THRESHOLD
-  const hits = await search(query, k)
-  const filtered = hits.filter((h) => h.distance <= threshold)
-  if (filtered.length === 0) return { prompt: '', sources: [] }
+  // Persona thresholds were saved on the previous model's distance scale (the
+  // settings UI writes 1.2), so a per-call value may only tighten the default.
+  const threshold = Math.min(
+    opts?.distanceThreshold ?? DEFAULT_DISTANCE_THRESHOLD,
+    DEFAULT_DISTANCE_THRESHOLD
+  )
+  // Over-fetch: the window and duplicate filters can discard several hits.
+  const hits = selectHits(await search(query, k * 3), k, threshold, opts)
+  if (hits.length === 0) {
+    return { prompt: looksLikeHistoryQuestion(query) ? NO_MATCH_BLOCK : '', sources: [] }
+  }
 
-  const lines = filtered.map(formatHit)
-  const prompt = `\n\n<retrieved_context>\nRelevant fragments retrieved from previous sessions, your reference documents, and meeting recaps — ordered by similarity. Use only what answers the question; ignore the rest.\n\n${lines.join('\n\n')}\n</retrieved_context>`
+  const current = opts?.currentSessionId
+  const lines = hits.map((h, i) => `[${i + 1}] ${hitHeader(h, current)}\n${escapeBlockEnd(h.text)}`)
+  const prompt = `\n\n<retrieved_context>\nRelevant fragments retrieved from previous sessions, your reference documents, and meeting recaps — numbered and ordered by similarity. Use only what answers the question; ignore the rest.\n\n${lines.join('\n\n')}\n</retrieved_context>`
 
-  const sources: RetrievedSource[] = filtered.map((h) => ({
+  const sources: RetrievedSource[] = hits.map((h) => ({
     id: h.id,
     kind: h.sourceKind,
-    label: shortLabel(h),
+    label: shortLabel(h, current),
     distance: h.distance,
     snippet: snippet(h.text)
   }))

@@ -4,19 +4,19 @@ import { deleteDoc, indexDocChunks, indexedDocIds } from './vectorStore.js'
 import { trackJob } from '../services/jobsManager.js'
 
 /**
- * (Re)index a single reference document into the shared vector store. We always
- * drop the doc's existing chunks first so an edited/re-uploaded file replaces
- * its old fragments rather than duplicating them. An inactive doc, or one with
- * no extractable text, ends up with zero indexed chunks — it contributes nothing
- * to retrieval until reactivated / re-extracted.
+ * (Re)index a single reference document into the shared vector store. The new
+ * chunks replace the doc's old fragments atomically rather than duplicating
+ * them. An inactive doc, or one with no extractable text, ends up with zero
+ * indexed chunks — it contributes nothing to retrieval until reactivated /
+ * re-extracted.
  */
 export async function indexDoc(doc: ReferenceDoc): Promise<number> {
-  await deleteDoc(doc.id)
-  if (!doc.active) return 0
   const text = doc.text.trim()
-  if (!text) return 0
-  const chunks = chunkText(text, doc.addedAt)
-  if (chunks.length === 0) return 0
+  const chunks = doc.active && text ? chunkText(text, doc.addedAt) : []
+  if (chunks.length === 0) {
+    await deleteDoc(doc.id)
+    return 0
+  }
   return trackJob(`rag-doc-${doc.id}-${Date.now()}`, `Indexing ${doc.name}`, 'rag', () =>
     indexDocChunks(doc.id, doc.name, chunks)
   )

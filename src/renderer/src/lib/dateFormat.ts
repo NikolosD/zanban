@@ -8,6 +8,12 @@ interface DatedItem {
   startedAt: number
 }
 
+export interface DayGroupLabels {
+  today: string
+  yesterday: string
+  thisWeek: string
+}
+
 export function startOfDay(d: Date): number {
   const x = new Date(d)
   x.setHours(0, 0, 0, 0)
@@ -44,10 +50,12 @@ export function formatDuration(ms?: number | null): string | null {
 
 /**
  * Bucket items by day with friendly labels: Today / Yesterday / Earlier this
- * week / month-year. Items are sorted descending by `startedAt` first.
+ * week (localized by the caller) / month-year. Items are sorted descending by
+ * `startedAt` first.
  */
 export function groupByDay<T extends DatedItem>(
-  items: T[]
+  items: T[],
+  labels: DayGroupLabels
 ): Array<{ label: string; items: T[] }> {
   const sorted = [...items].sort((a, b) => b.startedAt - a.startedAt)
   const out = new Map<string, T[]>()
@@ -58,9 +66,9 @@ export function groupByDay<T extends DatedItem>(
   for (const s of sorted) {
     const day = startOfDay(new Date(s.startedAt))
     let label: string
-    if (day === today) label = 'Today'
-    else if (day === yesterday) label = 'Yesterday'
-    else if (day > sevenDaysAgo) label = 'Earlier this week'
+    if (day === today) label = labels.today
+    else if (day === yesterday) label = labels.yesterday
+    else if (day > sevenDaysAgo) label = labels.thisWeek
     else label = formatGroupLabel(new Date(s.startedAt))
     if (!out.has(label)) out.set(label, [])
     out.get(label)!.push(s)

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
 export type ProviderDotStatus = 'ok' | 'missing' | 'unknown' | 'error'
@@ -7,15 +8,6 @@ const STYLES: Record<ProviderDotStatus, string> = {
   missing: 'bg-muted-foreground/40',
   unknown: 'bg-muted-foreground/40',
   error: 'bg-red-500 shadow-[0_0_0_2px_oklch(0.6_0.2_25/0.25)]'
-}
-
-// "ok" means the credential is configured (key string present) — NOT that it
-// was verified with a live call. Use the per-card "Test" button to verify.
-const TITLES: Record<ProviderDotStatus, string> = {
-  ok: 'Configured — use Test to verify',
-  missing: 'Not configured',
-  unknown: 'Status unknown',
-  error: 'Last attempt failed'
 }
 
 /**
@@ -34,10 +26,15 @@ export function ProviderStatusDot({
   title?: string
   className?: string
 }) {
+  const { t } = useTranslation()
+  // "ok" means the credential is configured (key string present) — NOT that
+  // it was verified with a live call. Use the per-card "Test" button to verify.
+  const label = title ?? t(`settings.providers.status.${status}`)
   return (
     <span
-      title={title ?? TITLES[status]}
-      aria-label={title ?? TITLES[status]}
+      role="img"
+      title={label}
+      aria-label={label}
       className={cn(
         'inline-block size-1.5 shrink-0 rounded-full transition-colors',
         STYLES[status],

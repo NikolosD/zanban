@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { CheckSquare } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { queryKeys } from '@renderer/lib/queryKeys'
 import type { GlobalActionItem } from '@shared/recap-types'
 import { isActionItemChecked, setActionItemChecked } from './actionItemState'
 
@@ -16,7 +17,7 @@ import { isActionItemChecked, setActionItemChecked } from './actionItemState'
 export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): void }) {
   const { t } = useTranslation()
   const { data } = useQuery({
-    queryKey: ['global-action-items'],
+    queryKey: queryKeys.globalActionItems,
     queryFn: () => window.zanban.recap.listActionItems(),
     refetchOnWindowFocus: true
   })

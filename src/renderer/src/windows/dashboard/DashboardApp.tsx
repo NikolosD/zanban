@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   Settings as SettingsIcon,
   Sparkles,
@@ -25,10 +25,12 @@ import {
 } from '@renderer/components/ui/dropdown-menu'
 import {
   SettingsPanel,
-  SETTINGS_TABS,
+  SETTINGS_TAB_IDS,
   type SettingsTabId
 } from '@renderer/features/settings/SettingsPanel'
 import { AskPanel } from '@renderer/features/ai/AskPanel'
+import { JobsBadge } from '@renderer/features/jobs/JobsBadge'
+import { wireJobsIpc } from '@renderer/features/jobs/jobsStore'
 import { OnboardingWizard } from '@renderer/features/onboarding/OnboardingWizard'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc } from '@renderer/features/ai/store'
@@ -48,11 +50,13 @@ import {
   DialogDescription
 } from '@renderer/components/ui/dialog'
 import { Toaster } from '@renderer/components/ui/sonner'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import i18n from 'i18next'
 import { useTranslation, Trans } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { errorMessage } from '@renderer/lib/errors'
+import { queryKeys } from '@renderer/lib/queryKeys'
 import {
   formatDuration,
   formatFallbackTitle,
@@ -113,6 +117,7 @@ export function DashboardApp() {
     const offTr = wireTranscriptIpc()
     const offAi = wireAiIpc()
     const offSettings = wireSettingsIpc()
+    const offJobs = wireJobsIpc()
     // The session list is loaded via React Query and the dashboard window
     // never loses focus when a session ends in the overlay — so without an
     // explicit invalidation the user would only see the new session after a
@@ -120,8 +125,13 @@ export function DashboardApp() {
     // back to idle closes that gap.
     const offSession = window.zanban.session.onState((state) => {
       if (state.kind === 'idle') {
-        void queryClient.invalidateQueries({ queryKey: ['sessions-local'] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessions })
       }
+    })
+    // Any recap write (manual, or the auto-recap after a session stops) can
+    // add or drop "owner: you" action items.
+    const offRecap = window.zanban.recap.onUpdated(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.globalActionItems })
     })
     // Tray "Settings" opens the dashboard then asks us to surface the dialog.
     const offOpenSettings = window.zanban.dashboard.onOpenSettings(() => {
@@ -130,29 +140,33 @@ export function DashboardApp() {
     })
     // Update lifecycle: a downloaded update offers a persistent "Restart to
     // update" toast (quitAndInstall); errors surface as a transient toast.
+    // Strings resolve through the i18n instance at call time so a language
+    // switch doesn't tear down and re-wire every subscription here.
     const offUpdate = window.zanban.updater.onDownloaded((info) => {
-      toast(t('updates.available_title'), {
-        description: t('updates.available_body', { version: info.version }),
+      toast(i18n.t('updates.available_title'), {
+        description: i18n.t('updates.available_body', { version: info.version }),
         duration: Infinity,
         action: {
-          label: t('updates.restart'),
+          label: i18n.t('updates.restart'),
           onClick: () => void window.zanban.updater.quitAndInstall()
         }
       })
     })
     const offUpdateErr = window.zanban.updater.onError((message) => {
-      toast.error(t('updates.error'), { description: message })
+      toast.error(i18n.t('updates.error'), { description: message })
     })
     return () => {
       offTr()
       offAi()
       offSession()
+      offRecap()
       offSettings()
+      offJobs()
       offOpenSettings()
       offUpdate()
       offUpdateErr()
     }
-  }, [queryClient, t])
+  }, [queryClient])
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -189,9 +203,9 @@ export function DashboardApp() {
 
       <Dialog open={askOpen} onOpenChange={setAskOpen}>
         <DialogContent className="sm:max-w-2xl p-0 overflow-hidden">
-          <DialogTitle className="sr-only">Ask</DialogTitle>
+          <DialogTitle className="sr-only">{t('dashboard.ask_dialog.title')}</DialogTitle>
           <DialogDescription className="sr-only">
-            Ask anything about the current call.
+            {t('dashboard.ask_dialog.description')}
           </DialogDescription>
           <div className="p-4 h-[520px]">
             <AskPanel
@@ -205,9 +219,9 @@ export function DashboardApp() {
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-4xl p-0 overflow-hidden gap-0 h-[640px]">
-          <DialogTitle className="sr-only">Settings</DialogTitle>
+          <DialogTitle className="sr-only">{t('settings.title')}</DialogTitle>
           <DialogDescription className="sr-only">
-            API keys, audio devices, hotkeys.
+            {t('settings.dialog_description')}
           </DialogDescription>
           <div className="h-full min-h-0">
             <SettingsPanel
@@ -268,13 +282,18 @@ function Header({
         onSelectSession={onSelectSession}
         onOpenSettingsTab={onOpenSettingsTab}
       />
-      <button
-        onClick={onSettings}
-        aria-label={t('settings.title')}
-        className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {t('dashboard.settings')}
-      </button>
+      {/* No gap here: the always-mounted (often empty) live region must not
+          add spacing; the badge carries its own margin when visible. */}
+      <div className="flex shrink-0 items-center">
+        <JobsBadge />
+        <button
+          onClick={onSettings}
+          aria-label={t('settings.title')}
+          className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {t('dashboard.settings')}
+        </button>
+      </div>
     </header>
   )
 }
@@ -283,6 +302,17 @@ type SearchHit =
   | { kind: 'session'; id: string; title: string; subtitle: string }
   | { kind: 'settings'; tab: SettingsTabId; label: string; subtitle: string }
   | { kind: 'rag'; sessionId: string; snippet: string; subtitle: string }
+
+const RAG_MIN_QUERY = 3
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
 
 function SearchPill({
   onAsk,
@@ -294,48 +324,51 @@ function SearchPill({
   onOpenSettingsTab(tab: SettingsTabId): void
 }) {
   const { t } = useTranslation()
+  const listboxId = useId()
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
-  const [ragHits, setRagHits] = useState<SearchHit[]>([])
+  const query = text.trim()
+  const ragQuery = useDebouncedValue(query, 250)
 
   const { data } = useQuery({
-    queryKey: ['sessions-local'],
+    queryKey: queryKeys.sessions,
     queryFn: () => window.zanban.sessions.list(),
     refetchOnWindowFocus: true
   })
 
-  // Semantic search across all past transcripts via sqlite-vec. Debounced
-  // 250 ms so we don't hammer the embedder on every keystroke. Falls silent
-  // if RAG is unavailable (returns []).
-  useEffect(() => {
-    const q = text.trim()
-    if (q.length < 3) {
-      setRagHits([])
-      return
-    }
-    const timer = setTimeout(() => {
-      void window.zanban.rag.search(q, 3).then((hits) => {
-        setRagHits(
-          hits
-            // This list navigates to a session on click, so only session/recap
-            // hits (which carry a session id) are actionable here; doc fragments
-            // are surfaced under answers via the Sources affordance instead.
-            .filter((h) => h.sourceKind !== 'doc')
-            .map((h) => ({
-              kind: 'rag' as const,
-              sessionId: h.sourceId,
-              snippet: h.text.slice(0, 140) + (h.text.length > 140 ? '…' : ''),
-              subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString()}`
-            }))
-        )
-      })
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [text])
+  // Semantic search across all past transcripts via sqlite-vec, debounced so
+  // we don't hammer the embedder on every keystroke. Results are keyed by the
+  // query, so a slow response for an older query can't replace a newer one.
+  const ragActive = query.length >= RAG_MIN_QUERY && ragQuery.length >= RAG_MIN_QUERY
+  const { data: ragResults } = useQuery({
+    queryKey: queryKeys.ragSearch(ragQuery),
+    queryFn: () => window.zanban.rag.search(ragQuery, 3),
+    enabled: ragActive,
+    staleTime: 60_000,
+    retry: false,
+    placeholderData: keepPreviousData
+  })
+
+  const ragHits = useMemo<SearchHit[]>(() => {
+    if (!ragActive || !ragResults) return []
+    return (
+      ragResults
+        // This list navigates to a session on click, so only session/recap
+        // hits (which carry a session id) are actionable here; doc fragments
+        // are surfaced under answers via the Sources affordance instead.
+        .filter((h) => h.sourceKind !== 'doc')
+        .map((h) => ({
+          kind: 'rag' as const,
+          sessionId: h.sourceId,
+          snippet: h.text.slice(0, 140) + (h.text.length > 140 ? '…' : ''),
+          subtitle: `${h.speaker ?? '?'} · ${new Date(h.ts).toLocaleDateString()}`
+        }))
+    )
+  }, [ragActive, ragResults])
 
   const sessionHits = useMemo<SearchHit[]>(() => {
-    const q = text.trim().toLowerCase()
+    const q = query.toLowerCase()
     if (!q) return []
     return (data ?? [])
       .filter((s) => (s.title ?? '').toLowerCase().includes(q))
@@ -346,60 +379,80 @@ function SearchPill({
         title: s.title || new Date(s.startedAt).toLocaleString(),
         subtitle: new Date(s.startedAt).toLocaleString()
       }))
-  }, [data, text])
+  }, [data, query])
 
+  // Labels and keywords come from the active locale so a Russian query finds
+  // Russian settings; brand names stay in both keyword lists.
   const settingsHits = useMemo<SearchHit[]>(() => {
-    const q = text.trim().toLowerCase()
+    const q = query.toLowerCase()
     if (!q) return []
-    return SETTINGS_TABS.filter(
-      (tab) =>
-        tab.label.toLowerCase().includes(q) || tab.keywords.some((k) => k.toLowerCase().includes(q))
-    )
+    return SETTINGS_TAB_IDS.map((id) => ({
+      id,
+      label: t(`settings.tabs.${id}`),
+      keywords: t(`settings.search_keywords.${id}`).split(',')
+    }))
+      .filter(
+        ({ label, keywords }) =>
+          label.toLowerCase().includes(q) ||
+          keywords.some((k) => k.trim().toLowerCase().includes(q))
+      )
       .slice(0, 4)
-      .map((tab) => ({
+      .map(({ id, label }) => ({
         kind: 'settings' as const,
-        tab: tab.id,
-        // Falls back to the English keyword if no translation exists.
-        label: t(`settings.tabs.${tab.id}`, { defaultValue: tab.label }),
+        tab: id,
+        label,
         subtitle: t('dashboard.search.section_settings')
       }))
-  }, [text, t])
+  }, [query, t])
 
   const matches = useMemo(
     () => [...settingsHits, ...sessionHits, ...ragHits],
     [settingsHits, sessionHits, ragHits]
   )
-  const totalRows = matches.length + 1 // +1 for the trailing "Ask Zanban" row
+  // The trailing "Ask Zanban" row sits at index matches.length. Clamp so a
+  // shrinking result list never leaves the highlight on a row that's gone.
+  const active = Math.min(highlight, matches.length)
+  const optionId = (idx: number): string => `${listboxId}-option-${idx}`
 
   function commit(idx: number): void {
-    if (idx < matches.length) {
-      const hit = matches[idx]
-      if (!hit) return
-      setOpen(false)
-      setText('')
-      if (hit.kind === 'session') onSelectSession(hit.id)
-      else if (hit.kind === 'rag') onSelectSession(hit.sessionId)
-      else onOpenSettingsTab(hit.tab)
-    } else {
-      setOpen(false)
-      setText('')
-      onAsk(text.trim())
-    }
+    setOpen(false)
+    setText('')
+    const hit = matches[idx]
+    if (!hit) onAsk(query)
+    else if (hit.kind === 'session') onSelectSession(hit.id)
+    else if (hit.kind === 'rag') onSelectSession(hit.sessionId)
+    else onOpenSettingsTab(hit.tab)
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setHighlight((h) => Math.min(h + 1, totalRows - 1))
+      setOpen(true)
+      setHighlight(Math.min(active + 1, matches.length))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setHighlight((h) => Math.max(h - 1, 0))
+      setHighlight(Math.max(active - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      commit(highlight)
+      commit(active)
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
+  }
+
+  function option(idx: number, children: React.ReactNode, className?: string): React.ReactNode {
+    return (
+      <SearchOption
+        key={optionId(idx)}
+        id={optionId(idx)}
+        selected={active === idx}
+        onSelect={() => commit(idx)}
+        onHover={() => setHighlight(idx)}
+        className={className}
+      >
+        {children}
+      </SearchOption>
+    )
   }
 
   return (
@@ -413,8 +466,14 @@ function SearchPill({
             : 'border-white/10 hover:border-white/20 hover:bg-white/[0.06]'
         )}
       >
-        <Search className="size-4 shrink-0 text-muted-foreground" />
+        <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <input
+          role="combobox"
+          aria-label={t('dashboard.search.aria_label')}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-activedescendant={open ? optionId(active) : undefined}
           value={text}
           onChange={(e) => {
             setText(e.target.value)
@@ -428,7 +487,10 @@ function SearchPill({
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
         />
         {!text && (
-          <kbd className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
+          <kbd
+            aria-hidden
+            className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline"
+          >
             ⏎
           </kbd>
         )}
@@ -442,92 +504,6 @@ function SearchPill({
             'shadow-2xl backdrop-blur-xl'
           )}
         >
-          {settingsHits.length > 0 && (
-            <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t('dashboard.search.section_settings')}
-            </div>
-          )}
-          {settingsHits.map((hit, i) => {
-            const idx = i
-            return (
-              <button
-                key={`s-${hit.kind === 'settings' ? hit.tab : ''}`}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => commit(idx)}
-                onMouseEnter={() => setHighlight(idx)}
-                className={cn(
-                  'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-                  highlight === idx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
-                )}
-              >
-                <SettingsIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{hit.kind === 'settings' ? hit.label : ''}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
-                </div>
-              </button>
-            )
-          })}
-          {sessionHits.length > 0 && (
-            <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t('dashboard.search.section_sessions')}
-            </div>
-          )}
-          {sessionHits.map((hit, i) => {
-            const idx = settingsHits.length + i
-            return (
-              <button
-                key={`session-${hit.kind === 'session' ? hit.id : ''}`}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => commit(idx)}
-                onMouseEnter={() => setHighlight(idx)}
-                className={cn(
-                  'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-                  highlight === idx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
-                )}
-              >
-                <Search className="size-3.5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{hit.kind === 'session' ? hit.title : ''}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
-                </div>
-              </button>
-            )
-          })}
-          {ragHits.length > 0 && (
-            <div className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {t('dashboard.search.section_past_transcripts')}
-            </div>
-          )}
-          {ragHits.map((hit, i) => {
-            const idx = settingsHits.length + sessionHits.length + i
-            return (
-              <button
-                key={`rag-${i}-${hit.kind === 'rag' ? hit.sessionId : ''}`}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => commit(idx)}
-                onMouseEnter={() => setHighlight(idx)}
-                className={cn(
-                  'flex w-full items-start gap-3 px-3 py-2 text-left transition-colors',
-                  highlight === idx ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
-                )}
-              >
-                {/* RAG-hit row: leading vertical accent line stands in for the
-                    icon. Keeps the result list quiet so the bottom Ask CTA is
-                    the only sparkle on the panel. */}
-                <span className="mt-1 h-3 w-px shrink-0 bg-border" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] text-muted-foreground">
-                    {hit.kind === 'rag' ? hit.snippet : ''}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{hit.subtitle}</div>
-                </div>
-              </button>
-            )
-          })}
           {text && matches.length === 0 && (
             <div className="px-3 py-2 text-[12px] text-muted-foreground">
               {t('dashboard.search.no_match_before')}{' '}
@@ -535,34 +511,157 @@ function SearchPill({
               {t('dashboard.search.no_match_after')}
             </div>
           )}
-          <div className="border-t border-white/[0.05]" />
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => commit(matches.length)}
-            onMouseEnter={() => setHighlight(matches.length)}
-            className={cn(
-              'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors',
-              highlight === matches.length ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'
+          <div id={listboxId} role="listbox" aria-label={t('dashboard.search.aria_label')}>
+            {settingsHits.length > 0 && (
+              <SearchGroup label={t('dashboard.search.section_settings')}>
+                {settingsHits.map(
+                  (hit, i) =>
+                    hit.kind === 'settings' &&
+                    option(
+                      i,
+                      <>
+                        <SettingsIcon
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{hit.label}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground">
+                            {hit.subtitle}
+                          </div>
+                        </div>
+                      </>
+                    )
+                )}
+              </SearchGroup>
             )}
-          >
-            <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
-            <div className="flex-1 truncate text-sm">
-              {text ? (
-                <>
-                  {t('dashboard.search.ask_with_text')}{' '}
-                  <span className="text-muted-foreground">{text}</span>
-                </>
-              ) : (
-                t('dashboard.search.ask_anything')
-              )}
-            </div>
-            <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              ⏎
-            </kbd>
-          </button>
+            {sessionHits.length > 0 && (
+              <SearchGroup label={t('dashboard.search.section_sessions')}>
+                {sessionHits.map(
+                  (hit, i) =>
+                    hit.kind === 'session' &&
+                    option(
+                      settingsHits.length + i,
+                      <>
+                        <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{hit.title}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground">
+                            {hit.subtitle}
+                          </div>
+                        </div>
+                      </>
+                    )
+                )}
+              </SearchGroup>
+            )}
+            {ragHits.length > 0 && (
+              <SearchGroup label={t('dashboard.search.section_past_transcripts')}>
+                {ragHits.map(
+                  (hit, i) =>
+                    hit.kind === 'rag' &&
+                    option(
+                      settingsHits.length + sessionHits.length + i,
+                      <>
+                        {/* RAG-hit row: leading vertical accent line stands in
+                            for the icon. Keeps the result list quiet so the
+                            bottom Ask CTA is the only sparkle on the panel. */}
+                        <span className="mt-1 h-3 w-px shrink-0 bg-border" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12px] text-muted-foreground">
+                            {hit.snippet}
+                          </div>
+                          <div className="font-mono text-[10px] text-muted-foreground">
+                            {hit.subtitle}
+                          </div>
+                        </div>
+                      </>,
+                      'items-start'
+                    )
+                )}
+              </SearchGroup>
+            )}
+            {option(
+              matches.length,
+              <>
+                <Sparkles className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <div className="flex-1 truncate text-sm">
+                  {text ? (
+                    <>
+                      {t('dashboard.search.ask_with_text')}{' '}
+                      <span className="text-muted-foreground">{text}</span>
+                    </>
+                  ) : (
+                    t('dashboard.search.ask_anything')
+                  )}
+                </div>
+                <kbd
+                  aria-hidden
+                  className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                >
+                  ⏎
+                </kbd>
+              </>,
+              cn('py-2.5', matches.length > 0 && 'border-t border-white/[0.05]')
+            )}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function SearchGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  const labelId = useId()
+  return (
+    <div role="group" aria-labelledby={labelId}>
+      <div
+        id={labelId}
+        role="presentation"
+        className="px-3 pt-2 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+      >
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/**
+ * One row of the search listbox. Focus stays in the combobox input (the row
+ * is announced via aria-activedescendant), so rows are never tab stops; mouse
+ * down is swallowed to keep the input from blurring before the click lands.
+ */
+function SearchOption({
+  id,
+  selected,
+  onSelect,
+  onHover,
+  className,
+  children
+}: {
+  id: string
+  selected: boolean
+  onSelect(): void
+  onHover(): void
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      id={id}
+      role="option"
+      aria-selected={selected}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onSelect}
+      onMouseEnter={onHover}
+      className={cn(
+        'flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors',
+        selected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]',
+        className
+      )}
+    >
+      {children}
     </div>
   )
 }
@@ -602,10 +701,10 @@ function useSessionControl(onOpenSettings: () => void): SessionControl {
     () =>
       window.zanban.audio.onNotice(({ kind }) => {
         const { key, error } = CAPTURE_NOTICE_TOASTS[kind]
-        if (error) toast.error(t(key))
-        else toast.warning(t(key))
+        if (error) toast.error(i18n.t(key))
+        else toast.warning(i18n.t(key))
       }),
-    [t]
+    []
   )
 
   async function start(): Promise<void> {
@@ -684,12 +783,20 @@ function MeetingsList({
 }) {
   const { t } = useTranslation()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sessions-local'],
+    queryKey: queryKeys.sessions,
     queryFn: () => window.zanban.sessions.list(),
     refetchOnWindowFocus: true
   })
 
-  const groups = useMemo(() => groupByDay(data ?? []), [data])
+  const groups = useMemo(
+    () =>
+      groupByDay(data ?? [], {
+        today: t('dashboard.groups.today'),
+        yesterday: t('dashboard.groups.yesterday'),
+        thisWeek: t('dashboard.groups.this_week')
+      }),
+    [data, t]
+  )
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">{t('dashboard.loading')}</p>
@@ -779,7 +886,10 @@ function MeetingRow({
       const result = await window.zanban.sessions.delete(session.id)
       if (result.ok) {
         toast.success(t('dashboard.toasts.session_deleted'))
-        await queryClient.invalidateQueries({ queryKey: ['sessions-local'] })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.sessions }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.globalActionItems })
+        ])
       } else {
         toast.error(t('dashboard.toasts.could_not_delete'))
       }

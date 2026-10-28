@@ -31,9 +31,19 @@ export class SessionManager {
   private channels = new Map<AudioChannel, SttChannel>()
   private windows: BrowserWindow[] = []
   private segmentListeners = new Set<(seg: TranscriptSegment, sessionId: string) => void>()
+  // Latest live interim per channel, replayed to a window when it is shown
+  // because hidden windows don't get interims.
+  private interims = new Map<AudioChannel, TranscriptSegment>()
 
   registerWindow(win: BrowserWindow): void {
     this.windows.push(win)
+    const catchUp = (): void => {
+      for (const seg of this.interims.values()) {
+        ;(win.webContents.send as Sender)(IPC.transcription.segment, seg)
+      }
+    }
+    win.on('show', catchUp)
+    win.on('restore', catchUp)
     win.on('closed', () => {
       this.windows = this.windows.filter((w) => w !== win)
     })
@@ -103,6 +113,7 @@ export class SessionManager {
     this.setState({ kind: 'stopping' })
     for (const ch of this.channels.values()) ch.close()
     this.channels.clear()
+    this.interims.clear()
     if (finishedSessionId) {
       // Index whatever final segments still sit in the live indexer buffer so
       // RAG sees the tail of the session (the periodic flush only fires on
@@ -141,7 +152,7 @@ export class SessionManager {
     const onSegment = (seg: TranscriptSegment): void => {
       const liveId = this.state.kind === 'running' ? this.state.sessionId : null
       // A straggler from a previous call must not show up in the next call's live transcript.
-      if (liveId === null || liveId === sessionId) this.broadcast(IPC.transcription.segment, seg)
+      if (liveId === null || liveId === sessionId) this.broadcastSegment(seg, liveId === sessionId)
       for (const cb of this.segmentListeners) cb(seg, sessionId)
       // Live RAG indexing: feed final segments into the per-session buffer.
       // Best-effort — failures swallowed inside the indexer.
@@ -207,6 +218,23 @@ export class SessionManager {
         })
     }
     this.channels.set(channel, ch)
+  }
+
+  // Interims arrive several times a second and each one replaces the last, so a
+  // hidden window only needs the latest, sent when it is shown. Finals go to
+  // every window: they are the transcript.
+  private broadcastSegment(seg: TranscriptSegment, live: boolean): void {
+    if (seg.isFinal) {
+      this.interims.delete(seg.channel)
+      this.broadcast(IPC.transcription.segment, seg)
+      return
+    }
+    if (live) this.interims.set(seg.channel, seg)
+    for (const w of this.windows) {
+      if (!w.isDestroyed() && w.isVisible() && !w.isMinimized()) {
+        ;(w.webContents.send as Sender)(IPC.transcription.segment, seg)
+      }
+    }
   }
 
   private broadcast(ipcChannel: string, payload: unknown): void {

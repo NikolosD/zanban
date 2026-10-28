@@ -34,8 +34,8 @@ export function createCropperWindow(display: Display = getActiveDisplay()): Brow
     show: false,
     backgroundColor: '#00000000',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: true,
       contextIsolation: true
     }
   })

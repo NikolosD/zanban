@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import { getLocalEmbedder, LOCAL_EMBEDDING_MODEL } from './embeddingProvider.js'
+import { LOCAL_EMBEDDING_DIM, LOCAL_EMBEDDING_ID } from './embeddingProvider.js'
 import { decideMigration, RAG_SCHEMA_VERSION, type RagMeta } from './schemaMigration.js'
 
 type Database = {
@@ -10,12 +10,13 @@ type Database = {
     get<T = unknown>(...params: unknown[]): T | undefined
     all<T = unknown>(...params: unknown[]): T[]
   }
+  transaction<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R
   close(): void
   pragma(s: string, opts?: { simple?: boolean }): unknown
 }
 
+let dbPromise: Promise<Database | null> | null = null
 let dbInstance: Database | null = null
-let initFailed = false
 
 /**
  * `source_kind` distinguishes transcript chunks from reference-document and
@@ -43,7 +44,8 @@ CREATE TABLE IF NOT EXISTS rag_meta (
 );
 `
 
-const VEC_DIM = 384
+const BACKFILL_KEY = 'backfill_pending'
+const BACKFILL_DELAY_MS = 15_000
 
 function vecSchema(dim: number): string {
   return `CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[${dim}]);`
@@ -73,21 +75,24 @@ function hasLegacyChunksTable(db: Database): boolean {
   return cols.length > 0 && !cols.some((c) => c.name === 'source_kind')
 }
 
+function setMetaValue(db: Database, key: string, value: string): void {
+  db.prepare(
+    'INSERT INTO rag_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).run(key, value)
+}
+
 function writeMeta(db: Database, meta: RagMeta): void {
   db.pragma(`user_version = ${meta.schemaVersion}`)
-  const up = db.prepare(
-    'INSERT INTO rag_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
-  )
-  up.run('embedding_dim', String(meta.embeddingDim))
-  up.run('embedding_model', meta.embeddingModel)
+  setMetaValue(db, 'embedding_dim', String(meta.embeddingDim))
+  setMetaValue(db, 'embedding_model', meta.embeddingModel)
 }
 
 /**
  * Drop and recreate the chunk + vec tables, discarding all indexed data. Called
  * when decideMigration reports the persisted store is incompatible with the
- * current build (schema bump or a new embedding model/dimension). Live indexers
- * re-populate transcript chunks on the next session; documents are re-indexed
- * on boot by docIndexer.reconcileDocs.
+ * current build (schema bump or a new embedding model/dimension). Documents are
+ * re-indexed on boot by docIndexer.reconcileDocs; past transcripts and recaps
+ * by sessionBackfill.
  */
 function recreateSchema(db: Database, dim: number): void {
   db.exec('DROP TABLE IF EXISTS chunks_vec;')
@@ -96,14 +101,32 @@ function recreateSchema(db: Database, dim: number): void {
   db.exec(vecSchema(dim))
 }
 
-/**
- * Open (or open-and-init) the RAG SQLite database in userData. Returns null
- * when better-sqlite3 / sqlite-vec fail to load — the rest of the app keeps
- * working, RAG just becomes a no-op.
- */
-export async function getDb(): Promise<Database | null> {
-  if (dbInstance) return dbInstance
-  if (initFailed) return null
+function migrate(db: Database): void {
+  const dim = LOCAL_EMBEDDING_DIM
+  const model = LOCAL_EMBEDDING_ID
+  // Whenever the chunk table starts out empty, past sessions on disk must be
+  // re-indexed; the flag survives a quit mid-backfill.
+  let startsEmpty = true
+  if (hasLegacyChunksTable(db)) {
+    console.warn('[rag] migrating legacy session-only schema — reindexing required')
+    recreateSchema(db, dim)
+  } else {
+    db.exec(SCHEMA)
+    const stored = readMeta(db)
+    const decision = decideMigration(stored, { embeddingDim: dim, embeddingModel: model })
+    if (decision.rebuild) {
+      console.warn(`[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`)
+      recreateSchema(db, dim)
+    } else {
+      db.exec(vecSchema(dim))
+    }
+    startsEmpty = stored === null || decision.rebuild
+  }
+  writeMeta(db, { schemaVersion: RAG_SCHEMA_VERSION, embeddingDim: dim, embeddingModel: model })
+  if (startsEmpty) setMetaValue(db, BACKFILL_KEY, '1')
+}
+
+async function openDb(): Promise<Database | null> {
   try {
     const Database = (await import('better-sqlite3')).default
     const sqliteVec = await import('sqlite-vec')
@@ -112,42 +135,45 @@ export async function getDb(): Promise<Database | null> {
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = NORMAL')
     ;(sqliteVec as { load: (d: unknown) => void }).load(db)
-
-    // Resolve the embedder's identity up front so the meta we persist matches
-    // the vectors we'll write. Fall back to the known local model id if the
-    // embedder failed to load — we still want a consistent schema on disk.
-    const embedder = await getLocalEmbedder()
-    const dim = embedder?.dim ?? VEC_DIM
-    const model = embedder?.model ?? LOCAL_EMBEDDING_MODEL
-
-    if (hasLegacyChunksTable(db)) {
-      console.warn('[rag] migrating legacy session-only schema — reindexing required')
-      recreateSchema(db, dim)
-    } else {
-      db.exec(SCHEMA)
-      const stored = readMeta(db)
-      const decision = decideMigration(stored, { embeddingDim: dim, embeddingModel: model })
-      if (decision.rebuild) {
-        console.warn(
-          `[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`
-        )
-        recreateSchema(db, dim)
-      } else {
-        db.exec(vecSchema(dim))
-      }
-    }
-    writeMeta(db, { schemaVersion: RAG_SCHEMA_VERSION, embeddingDim: dim, embeddingModel: model })
-
+    db.transaction(() => migrate(db))()
     dbInstance = db
+
+    const pending = db
+      .prepare('SELECT value FROM rag_meta WHERE key = ?')
+      .get<{ value: string }>(BACKFILL_KEY)
+    if (pending) {
+      setTimeout(() => {
+        void import('./sessionBackfill.js')
+          .then((m) => m.backfillSessions())
+          .catch((err: unknown) => console.error('[rag] session backfill failed', err))
+      }, BACKFILL_DELAY_MS)
+    }
     return db
   } catch (err) {
     console.error('[rag] db init failed', err)
-    initFailed = true
     return null
   }
 }
 
+/**
+ * Open (or open-and-init) the RAG SQLite database in userData. Returns null
+ * when better-sqlite3 / sqlite-vec fail to load — the rest of the app keeps
+ * working, RAG just becomes a no-op. Memoized as a promise so concurrent first
+ * callers share one migration instead of racing it.
+ */
+export function getDb(): Promise<Database | null> {
+  dbPromise ??= openDb()
+  return dbPromise
+}
+
+export async function clearBackfillPending(): Promise<void> {
+  const db = await getDb()
+  db?.prepare('DELETE FROM rag_meta WHERE key = ?').run(BACKFILL_KEY)
+}
+
+/** Close on quit. Later callers (a straggling flush or backfill) get null rather than a reopen. */
 export function closeDb(): void {
+  dbPromise = Promise.resolve(null)
   if (dbInstance) {
     try {
       dbInstance.close()

@@ -1,12 +1,17 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import Store from 'electron-store'
 import { MAX_TEXT_PER_DOC, type ReferenceDoc } from '../../shared/types.js'
 import { extractFromPath } from './extractors.js'
 import { indexDoc, dropDoc } from '../rag/index.js'
 
+interface StoredDoc extends ReferenceDoc {
+  /** sha256 of `text`; absent on docs added before dedup existed. */
+  textSha256?: string
+}
+
 interface PersistedShape {
-  docs: ReferenceDoc[]
+  docs: StoredDoc[]
 }
 
 const store = new Store<PersistedShape>({
@@ -14,7 +19,11 @@ const store = new Store<PersistedShape>({
   defaults: { docs: [] }
 })
 
-export function listDocs(): ReferenceDoc[] {
+function textSha256(text: string): string {
+  return createHash('sha256').update(text).digest('hex')
+}
+
+export function listDocs(): StoredDoc[] {
   return (store.store.docs ?? []).slice().sort((a, b) => b.addedAt - a.addedAt)
 }
 
@@ -26,7 +35,14 @@ export async function addDoc(filePath: string): Promise<ReferenceDoc> {
   const { text, kind, bytes } = await extractFromPath(filePath)
   const truncated = text.length > MAX_TEXT_PER_DOC
   const trimmed = truncated ? text.slice(0, MAX_TEXT_PER_DOC) : text
-  const doc: ReferenceDoc = {
+  const docs = listDocs()
+  const hash = textSha256(trimmed)
+  // Empty-text docs (scanned PDFs) all hash alike, yet are different files.
+  const duplicate = trimmed.trim()
+    ? docs.find((d) => (d.textSha256 ?? textSha256(d.text)) === hash)
+    : undefined
+  if (duplicate) throw new Error(`Same content is already added as "${duplicate.name}"`)
+  const doc: StoredDoc = {
     id: randomUUID(),
     name: basename(filePath),
     kind,
@@ -37,9 +53,9 @@ export async function addDoc(filePath: string): Promise<ReferenceDoc> {
     extractEmpty: trimmed.trim().length === 0,
     truncated,
     active: true,
-    addedAt: Date.now()
+    addedAt: Date.now(),
+    textSha256: hash
   }
-  const docs = listDocs()
   docs.unshift(doc)
   store.set('docs', docs)
   // Index into the shared RAG store so only relevant fragments (not the whole
@@ -61,6 +77,6 @@ export function setActive(id: string, active: boolean): void {
   store.set('docs', next)
   const doc = next.find((d) => d.id === id)
   // Re-index on (re)activation; drop chunks on deactivation. indexDoc itself
-  // drops first and no-ops for inactive/empty docs, so this stays idempotent.
+  // replaces atomically and no-ops for inactive/empty docs, so this stays idempotent.
   if (doc) void indexDoc(doc).catch((err) => console.error('[documents] reindex failed', err))
 }

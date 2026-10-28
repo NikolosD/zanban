@@ -29,11 +29,21 @@ interface AnthropicSdk {
   }
 }
 
+// One SDK instance per API key so its HTTP keep-alive pool is reused across
+// Asks; keyed so a rotated key in Settings gets a fresh client.
+const clientCache = new Map<string, Promise<AnthropicSdk>>()
+
 async function client(apiKey: string): Promise<AnthropicSdk> {
-  const mod = (await import('@anthropic-ai/sdk')) as unknown as {
-    default: new (opts: { apiKey: string }) => AnthropicSdk
-  }
-  return new mod.default({ apiKey })
+  const cached = clientCache.get(apiKey)
+  if (cached) return cached
+  const promise = (async () => {
+    const mod = (await import('@anthropic-ai/sdk')) as unknown as {
+      default: new (opts: { apiKey: string }) => AnthropicSdk
+    }
+    return new mod.default({ apiKey })
+  })()
+  clientCache.set(apiKey, promise)
+  return promise
 }
 
 export function makeAnthropicProvider(apiKey: string): ILlmProvider {

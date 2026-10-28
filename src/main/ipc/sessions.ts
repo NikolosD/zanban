@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   copySessionMarkdown,
@@ -11,15 +11,16 @@ import {
   renameSessionOnDisk
 } from '../sync/sessionSync.js'
 import { deleteSession as ragDeleteSession } from '../rag/index.js'
+import { handleIpc } from './guard.js'
 
 export function registerSessionsHandlers(): void {
-  ipcMain.handle(IPC.sessions.list, () => listSessionsFromDisk())
-  ipcMain.handle(IPC.sessions.read, (_e, id: string) => {
+  handleIpc(IPC.sessions.list, () => listSessionsFromDisk())
+  handleIpc(IPC.sessions.read, (_e, id: string) => {
     if (!isValidSessionId(id)) return null
     return readSessionFromDisk(id)
   })
-  ipcMain.handle(IPC.sessions.revealFolder, () => shell.openPath(getSessionsDir()))
-  ipcMain.handle(IPC.sessions.delete, async (_e, id: string) => {
+  handleIpc(IPC.sessions.revealFolder, () => shell.openPath(getSessionsDir()))
+  handleIpc(IPC.sessions.delete, async (_e, id: string) => {
     if (!isValidSessionId(id)) return { ok: false }
     const result = await deleteSessionFromDisk(id)
     if (result.ok) {
@@ -31,15 +32,15 @@ export function registerSessionsHandlers(): void {
     }
     return result
   })
-  ipcMain.handle(IPC.sessions.revealFile, (_e, id: string) => {
+  handleIpc(IPC.sessions.revealFile, (_e, id: string) => {
     if (!isValidSessionId(id)) return
     shell.showItemInFolder(getSessionMdPath(id))
   })
-  ipcMain.handle(IPC.sessions.rename, async (_e, id: string, title: unknown) => {
+  handleIpc(IPC.sessions.rename, async (_e, id: string, title: unknown) => {
     if (!isValidSessionId(id) || typeof title !== 'string') return { ok: false, title: null }
     return renameSessionOnDisk(id, title)
   })
-  ipcMain.handle(IPC.sessions.exportMarkdown, async (e, id: string) => {
+  handleIpc(IPC.sessions.exportMarkdown, async (e, id: string) => {
     if (!isValidSessionId(id)) return null
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const opts = {

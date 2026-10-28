@@ -1,32 +1,16 @@
 import Store from 'electron-store'
-import { safeStorage } from 'electron'
+import { app, safeStorage } from 'electron'
 import { DEFAULT_SETTINGS, type AppSettings } from '../shared/types.js'
+import {
+  isRedactedSecret,
+  SECRET_SETTING_KEYS,
+  type SecretSettingKey
+} from '../shared/settingsBoundary.js'
 
-type EncryptedKeys =
-  | 'googleServiceAccountJson'
-  | 'vercelApiKey'
-  | 'deepgramApiKey'
-  | 'anthropicApiKey'
-  | 'openaiApiKey'
-  | 'googleAiApiKey'
-  | 'groqApiKey'
-  | 'elevenlabsApiKey'
-  | 'tavilyApiKey'
+const ENCRYPTED_KEYS = SECRET_SETTING_KEYS
 
-const ENCRYPTED_KEYS: EncryptedKeys[] = [
-  'googleServiceAccountJson',
-  'vercelApiKey',
-  'deepgramApiKey',
-  'anthropicApiKey',
-  'openaiApiKey',
-  'googleAiApiKey',
-  'groqApiKey',
-  'elevenlabsApiKey',
-  'tavilyApiKey'
-]
-
-type PersistedSettings = Omit<AppSettings, EncryptedKeys> & {
-  [K in EncryptedKeys as `${K}Enc`]?: string | null
+type PersistedSettings = Omit<AppSettings, SecretSettingKey> & {
+  [K in SecretSettingKey as `${K}Enc`]?: string | null
 }
 
 const store = new Store<PersistedSettings>({
@@ -81,7 +65,19 @@ function decrypt(enc: string | null | undefined): string | null {
   }
 }
 
-export function getSettings(): AppSettings {
+let warnedObfuscatedOnly = false
+
+function warnIfKeysOnlyObfuscated(): void {
+  if (warnedObfuscatedOnly || process.platform !== 'linux') return
+  if (safeStorage.getSelectedStorageBackend() !== 'basic_text') return
+  warnedObfuscatedOnly = true
+  console.warn(
+    '[settings] no OS keyring available (safeStorage backend: basic_text) — ' +
+      'API keys are only obfuscated on disk, not encrypted'
+  )
+}
+
+function readSettings(): AppSettings {
   const raw = store.store as PersistedSettings & Record<string, unknown>
   // Migrate the old macOS-only `hideDockMacOS` flag into the cross-platform
   // `hideFromAppSwitcher`. Old installs that toggled the dock-hide should
@@ -120,16 +116,34 @@ export function getSettings(): AppSettings {
   return merged
 }
 
+let cached: AppSettings | null = null
+
+export function getSettings(): AppSettings {
+  if (cached) return cached
+  const settings = readSettings()
+  // Before 'ready' safeStorage can't decrypt on Linux — never pin that read.
+  if (app.isReady()) {
+    warnIfKeysOnlyObfuscated()
+    cached = settings
+  }
+  return settings
+}
+
 export function setSettings(patch: Partial<AppSettings>): AppSettings {
-  const merged: AppSettings = { ...getSettings(), ...patch }
+  // A redacted marker is a renderer echoing back "a key is set"; it must never
+  // replace the stored key.
+  const writable: Partial<AppSettings> = { ...patch }
+  for (const k of ENCRYPTED_KEYS) {
+    if (isRedactedSecret(writable[k])) delete writable[k]
+  }
+  const merged: AppSettings = { ...getSettings(), ...writable }
   const next: Partial<PersistedSettings> = stripKeys(merged)
   for (const k of ENCRYPTED_KEYS) {
-    if (k in patch) {
-      ;(next as Record<string, unknown>)[`${k}Enc`] = encrypt(
-        (patch as Record<string, string | null | undefined>)[k]
-      )
+    if (k in writable) {
+      ;(next as Record<string, unknown>)[`${k}Enc`] = encrypt(writable[k])
     }
   }
   store.set(next)
+  cached = null
   return getSettings()
 }

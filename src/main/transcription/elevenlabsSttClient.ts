@@ -1,11 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import {
-  AudioFormat,
-  CommitStrategy,
-  ElevenLabsClient,
-  RealtimeEvents,
-  type RealtimeConnection
-} from '@elevenlabs/elevenlabs-js'
+import type { RealtimeConnection } from '@elevenlabs/elevenlabs-js'
 import type WebSocket from 'ws'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { pcm16ToBase64 } from './pcmUtils.js'
@@ -112,6 +106,8 @@ export class ElevenLabsSttChannel {
     this.opts.onStatus({ kind: 'connecting', channel: this.opts.channel })
 
     try {
+      const { AudioFormat, CommitStrategy, ElevenLabsClient, RealtimeEvents } =
+        await import('@elevenlabs/elevenlabs-js')
       const client = new ElevenLabsClient({ apiKey: this.opts.apiKey })
       const language = this.opts.language
       const conn = await client.speechToText.realtime.connect({

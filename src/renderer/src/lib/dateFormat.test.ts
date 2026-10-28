@@ -41,6 +41,7 @@ describe('startOfDay', () => {
 })
 
 describe('groupByDay', () => {
+  const dayLabels = { today: 'Today', yesterday: 'Yesterday', thisWeek: 'Earlier this week' }
   // Use real dates relative to now so the Today/Yesterday/Earlier-this-week
   // bucketing is exercised regardless of when tests run.
   const now = Date.now()
@@ -53,16 +54,14 @@ describe('groupByDay', () => {
       { startedAt: today - 3 * 86_400_000 }, // 3 days ago — earlier this week
       { startedAt: today - 90 * 86_400_000 } // ~3 months ago — month-year bucket
     ]
-    const groups = groupByDay(items)
+    const groups = groupByDay(items, dayLabels)
     const labels = groups.map((g) => g.label)
     expect(labels).toContain('Today')
     expect(labels).toContain('Yesterday')
     expect(labels).toContain('Earlier this week')
     // The fourth bucket is whatever locale formats the old date as — just
     // assert it isn't one of the known recent labels.
-    const old = labels.find(
-      (l) => l !== 'Today' && l !== 'Yesterday' && l !== 'Earlier this week'
-    )
+    const old = labels.find((l) => l !== 'Today' && l !== 'Yesterday' && l !== 'Earlier this week')
     expect(old).toBeTruthy()
   })
 
@@ -72,13 +71,13 @@ describe('groupByDay', () => {
       { startedAt: today + 18 * 3600_000 }, // evening
       { startedAt: today + 12 * 3600_000 } // noon
     ]
-    const todayGroup = groupByDay(items).find((g) => g.label === 'Today')
+    const todayGroup = groupByDay(items, dayLabels).find((g) => g.label === 'Today')
     expect(todayGroup).toBeDefined()
     const stamps = todayGroup!.items.map((i) => i.startedAt)
     expect(stamps).toEqual([...stamps].sort((a, b) => b - a))
   })
 
   it('returns an empty array for empty input', () => {
-    expect(groupByDay([])).toEqual([])
+    expect(groupByDay([], dayLabels)).toEqual([])
   })
 })

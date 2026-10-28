@@ -44,11 +44,21 @@ function buildMessages(args: LlmStreamArgs): Array<{ role: string; content: unkn
   return [sys, { role: 'user', content: args.prompt }]
 }
 
+// One SDK instance per API key so its HTTP keep-alive pool is reused across
+// Asks; keyed so a rotated key in Settings gets a fresh client.
+const clientCache = new Map<string, Promise<GroqLike>>()
+
 async function client(apiKey: string): Promise<GroqLike> {
-  const mod = (await import('groq-sdk')) as unknown as {
-    default: new (opts: { apiKey: string }) => GroqLike
-  }
-  return new mod.default({ apiKey })
+  const cached = clientCache.get(apiKey)
+  if (cached) return cached
+  const promise = (async () => {
+    const mod = (await import('groq-sdk')) as unknown as {
+      default: new (opts: { apiKey: string }) => GroqLike
+    }
+    return new mod.default({ apiKey })
+  })()
+  clientCache.set(apiKey, promise)
+  return promise
 }
 
 export function makeGroqProvider(apiKey: string): ILlmProvider {

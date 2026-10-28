@@ -22,6 +22,7 @@ if (!i18n.isInitialized) {
       en: {
         translation: {
           session_detail: {
+            speaker: { you: 'You', them: 'Them' },
             recap: {
               empty_label: 'Recap',
               empty_blurb: 'No recap yet.',

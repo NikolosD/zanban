@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
+import { Tabs } from 'radix-ui'
 import { ArrowLeft, ArrowRight, Loader2, Play, Download, Pencil } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { errorMessage } from '@renderer/lib/errors'
+import { queryKeys } from '@renderer/lib/queryKeys'
 import { resumeSession } from '@renderer/features/transcript/sessionStart'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
@@ -30,7 +33,7 @@ export function SessionDetail({
   const [tab, setTab] = useState<TabId>('recap')
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['session-detail-local', sessionId],
+    queryKey: queryKeys.sessionDetail(sessionId),
     queryFn: () => window.zanban.sessions.read(sessionId)
   })
 
@@ -61,7 +64,7 @@ export function SessionDetail({
 
   const started = new Date(data.startedAt)
   const ended = data.endedAt ? new Date(data.endedAt) : null
-  const dateLine = formatDateLine(started)
+  const dateLine = formatDateLine(started, t)
 
   return (
     <div className="flex h-[calc(100vh-3rem)] flex-col gap-5">
@@ -88,17 +91,24 @@ export function SessionDetail({
         fallback={formatFallbackTitle(started)}
       />
 
-      {/* Tabs row */}
-      <div className="flex items-center justify-between gap-3">
-        <TabSwitcher tab={tab} setTab={setTab} />
-      </div>
-
-      {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === 'recap' && <RecapTab session={data} />}
-        {tab === 'transcript' && <TranscriptTab segments={data.segments} />}
-        {tab === 'usage' && <UsageTab session={data} ended={ended} startedAt={data.startedAt} />}
-      </div>
+      <Tabs.Root
+        value={tab}
+        onValueChange={(v) => setTab(v as TabId)}
+        className="flex min-h-0 flex-1 flex-col gap-5"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <TabSwitcher tab={tab} />
+        </div>
+        <Tabs.Content value="recap" className="min-h-0 flex-1 overflow-hidden">
+          <RecapTab session={data} />
+        </Tabs.Content>
+        <Tabs.Content value="transcript" className="min-h-0 flex-1 overflow-hidden">
+          <TranscriptTab segments={data.segments} />
+        </Tabs.Content>
+        <Tabs.Content value="usage" className="min-h-0 flex-1 overflow-hidden">
+          <UsageTab session={data} ended={ended} startedAt={data.startedAt} />
+        </Tabs.Content>
+      </Tabs.Root>
 
       {/* Bottom action bar */}
       <BottomBar sessionId={data.id} onOpenSettings={onOpenSettings} />
@@ -138,8 +148,12 @@ function EditableTitle({
     try {
       const res = await window.zanban.sessions.rename(sessionId, next)
       if (res.ok) {
-        await qc.invalidateQueries({ queryKey: ['session-detail-local', sessionId] })
-        await qc.invalidateQueries({ queryKey: ['sessions-local'] })
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: queryKeys.sessionDetail(sessionId) }),
+          qc.invalidateQueries({ queryKey: queryKeys.sessions }),
+          // Action items link back to their session by title.
+          qc.invalidateQueries({ queryKey: queryKeys.globalActionItems })
+        ])
         setEditing(false)
       } else {
         toast.error(t('session_detail.rename_failed'))
@@ -196,34 +210,35 @@ function EditableTitle({
         onClick={() => setEditing(true)}
         aria-label={t('session_detail.rename_label')}
         title={t('session_detail.rename_label')}
-        className="opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+        className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-foreground"
       >
-        <Pencil className="size-4" />
+        <Pencil className="size-4" aria-hidden />
       </button>
     </div>
   )
 }
 
-function TabSwitcher({ tab, setTab }: { tab: TabId; setTab(v: TabId): void }) {
+const TAB_IDS: TabId[] = ['recap', 'transcript', 'usage']
+
+function TabSwitcher({ tab }: { tab: TabId }) {
   const { t } = useTranslation()
-  const TABS: Array<{ id: TabId }> = [{ id: 'recap' }, { id: 'transcript' }, { id: 'usage' }]
   return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
-      {TABS.map((tabDef) => (
-        <button
-          key={tabDef.id}
-          onClick={() => setTab(tabDef.id)}
+    <Tabs.List className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
+      {TAB_IDS.map((id) => (
+        <Tabs.Trigger
+          key={id}
+          value={id}
           className={cn(
             'rounded-full px-3.5 py-1.5 text-[13px] transition-colors',
-            tab === tabDef.id
+            tab === id
               ? 'bg-white/[0.08] text-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t(`session_detail.tabs.${tabDef.id}`)}
-        </button>
+          {t(`session_detail.tabs.${id}`)}
+        </Tabs.Trigger>
       ))}
-    </div>
+    </Tabs.List>
   )
 }
 
@@ -238,7 +253,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
       // structured recap on top, the timeline below. recap.get returns null
       // when no recap was generated, in which case the section is simply omitted.
       const recap = await window.zanban.recap.get(session.id).catch(() => null)
-      const payload = buildExportPayload(session, recap)
+      const payload = buildExportPayload(session, t, recap)
       const path = await window.zanban.documents.exportSessionPdf(payload)
       if (path) toast.success(t('session_detail.exported_toast'), { description: path })
     } catch (err) {
@@ -266,6 +281,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
 
 function buildExportPayload(
   session: SessionDetailPayload,
+  t: TFunction,
   recap?: RecapPayload | null
 ): SessionExportPayload {
   type Block = SessionExportPayload['blocks'][number]
@@ -276,7 +292,8 @@ function buildExportPayload(
   // by `startedAt + startMs`; exchanges by `createdAt`.
   const segs = session.segments.map((s) => ({
     kind: 'transcript' as const,
-    speaker: s.channel === 'mic' ? 'You' : 'Them',
+    speaker:
+      s.channel === 'mic' ? t('session_detail.speaker.you') : t('session_detail.speaker.them'),
     text: s.text,
     ts: session.startedAt + s.startMs
   }))
@@ -290,7 +307,11 @@ function buildExportPayload(
   blocks.sort((a, b) => a.ts - b.ts)
 
   return {
-    title: session.title || `Session ${new Date(session.startedAt).toLocaleString()}`,
+    title:
+      session.title ||
+      t('session_detail.export_title_fallback', {
+        date: new Date(session.startedAt).toLocaleString()
+      }),
     startedAt: session.startedAt,
     blocks,
     recap: recap
@@ -306,10 +327,11 @@ function buildExportPayload(
 }
 
 function TranscriptTab({ segments }: { segments: StoredSegment[] }) {
+  const { t } = useTranslation()
   if (segments.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No transcript saved.
+        {t('session_detail.no_transcript')}
       </div>
     )
   }
@@ -353,7 +375,11 @@ function UsageTab({
         <Stat label={t('session_detail.stats.ai_exchanges')} value={String(stats.exchangeCount)} />
         <Stat
           label={t('session_detail.stats.avg_answer')}
-          value={stats.avgAnswerChars ? `${stats.avgAnswerChars} chars` : '—'}
+          value={
+            stats.avgAnswerChars
+              ? t('session_detail.stats.chars', { count: stats.avgAnswerChars })
+              : '—'
+          }
         />
         <Stat
           label={t('session_detail.stats.models_used')}
@@ -384,21 +410,27 @@ function UsageTab({
 }
 
 function ExchangeRow({ exchange: ex }: { exchange: StoredExchange }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <div className="rounded-md border border-white/[0.06] bg-white/[0.015]">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px]">Q: {ex.prompt}</div>
+          <div className="truncate text-[13px]">
+            {t('session_detail.question_label', { question: ex.prompt })}
+          </div>
           <div className="font-mono text-[10px] text-muted-foreground">
-            {new Date(ex.createdAt).toLocaleString()} · {ex.model ?? 'model'}
+            {new Date(ex.createdAt).toLocaleString()}
+            {ex.model && ` · ${ex.model}`}
           </div>
         </div>
         <ArrowRight
+          aria-hidden
           className={cn(
             'size-3.5 shrink-0 text-muted-foreground transition-transform',
             open && 'rotate-90'
@@ -456,7 +488,7 @@ ${q}
     setBusy(true)
     setText('')
     const requestId = crypto.randomUUID()
-    useAi.getState().newRequest(`Q: ${q}`, requestId)
+    useAi.getState().newRequest(t('session_detail.question_label', { question: q }), requestId)
     try {
       await window.zanban.ai.ask({ requestId, prompt })
       toast.success(t('session_detail.asked_toast'))
@@ -490,6 +522,7 @@ ${q}
           }
         }}
         placeholder={t('session_detail.ask_placeholder')}
+        aria-label={t('session_detail.ask_placeholder')}
         className="flex-1 bg-transparent px-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
       />
       <Button
@@ -499,6 +532,7 @@ ${q}
         onClick={() => void send()}
         disabled={busy || !text.trim()}
         title={t('session_detail.send')}
+        aria-label={t('session_detail.send')}
       >
         {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />}
       </Button>
@@ -507,6 +541,7 @@ ${q}
 }
 
 function SegmentLine({ segment: s }: { segment: StoredSegment }) {
+  const { t } = useTranslation()
   const isYou = s.channel === 'mic'
   return (
     <div className="flex items-start gap-2 leading-snug">
@@ -517,7 +552,7 @@ function SegmentLine({ segment: s }: { segment: StoredSegment }) {
         )}
         style={{ width: 32 }}
       >
-        {isYou ? 'You' : 'Them'}
+        {isYou ? t('session_detail.speaker.you') : t('session_detail.speaker.them')}
       </span>
       <span
         className="font-mono text-[9px] text-muted-foreground/70 shrink-0"
@@ -535,15 +570,15 @@ function formatMs(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
-function formatDateLine(d: Date): string {
+function formatDateLine(d: Date, t: TFunction): string {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const dDay = new Date(d)
   dDay.setHours(0, 0, 0, 0)
   const diffDays = Math.round((today.getTime() - dDay.getTime()) / 86_400_000)
   const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  if (diffDays === 0) return `Today at ${time}`
-  if (diffDays === 1) return `Yesterday at ${time}`
+  if (diffDays === 0) return t('session_detail.today_at', { time })
+  if (diffDays === 1) return t('session_detail.yesterday_at', { time })
   return d.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',

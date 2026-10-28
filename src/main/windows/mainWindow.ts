@@ -19,9 +19,9 @@ export function createMainWindow(): BrowserWindow {
     titleBarStyle: 'hiddenInset',
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
       // Dashboard captures mic/system audio. When the session is running we
       // hide the dashboard window — without this flag, Chromium throttles its
       // timers/AudioWorklet and the live transcript stalls.

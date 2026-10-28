@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { isRedactedSecret, redactedSecretMask } from '@shared/settingsBoundary'
 import { Input } from '@renderer/components/ui/input'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderStatusDot, type ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
@@ -115,40 +116,82 @@ export function ProviderCard({
 }
 
 /**
+ * Input state for a stored secret. Main only ever sends a redacted marker,
+ * shown as an empty field with a "configured · ••••1234" placeholder; typing
+ * replaces the key. The typed value stays local so the marker main broadcasts
+ * after an auto-save doesn't wipe a half-typed key.
+ */
+export function useSecretDraft(value: string, onChange: (v: string) => void, placeholder: string) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState<string | null>(null)
+  const configured = isRedactedSecret(value)
+  const shown = draft ?? (configured ? '' : value)
+  return {
+    shown,
+    placeholder:
+      configured && !shown
+        ? t('settings.providers.key_configured', {
+            defaultValue: 'configured · {{mask}}',
+            mask: redactedSecretMask(value)
+          })
+        : placeholder,
+    edit(next: string): void {
+      setDraft(next)
+      onChange(next)
+    }
+  }
+}
+
+/**
  * Reusable secret-key field. Shared between LLM and STT cards.
  */
 export function SecretKeyField({
   label,
+  ariaLabel,
   placeholder,
   value,
   onChange
 }: {
   label?: string
+  /** Accessible name when there is no visible label. */
+  ariaLabel?: string
   placeholder?: string
   value: string
   onChange(v: string): void
 }) {
   const { t } = useTranslation()
+  const id = useId()
   const [reveal, setReveal] = useState(false)
+  const secret = useSecretDraft(
+    value,
+    onChange,
+    placeholder ?? t('settings.providers.key_placeholder')
+  )
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+        <label
+          htmlFor={id}
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+        >
           {label}
         </label>
       )}
       <div className="flex items-center gap-1">
         <Input
-          value={value}
+          id={id}
+          value={secret.shown}
           type={reveal ? 'text' : 'password'}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? t('settings.providers.key_placeholder')}
+          onChange={(e) => secret.edit(e.target.value)}
+          placeholder={secret.placeholder}
+          aria-label={label ? undefined : ariaLabel}
           className="flex-1 font-mono text-xs"
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
+          disabled={!secret.shown}
           onClick={() => setReveal((v) => !v)}
           aria-label={
             reveal ? t('settings.providers.key_hide') : t('settings.providers.key_reveal')

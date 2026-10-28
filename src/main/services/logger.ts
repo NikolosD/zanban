@@ -1,11 +1,19 @@
 import { app } from 'electron'
-import { existsSync, statSync, renameSync, unlinkSync, appendFileSync } from 'node:fs'
+import { appendFileSync } from 'node:fs'
+import { appendFile, rename, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** Maximum log file size before rotation (10 MB). */
 const LOG_MAX_BYTES = 10 * 1024 * 1024
 
+// During a live call main logs dozens of lines per second. Batching them and
+// writing off the main thread keeps console calls from blocking IPC + audio.
+const FLUSH_INTERVAL_MS = 500
+
 let logFilePath: string | null = null
+let pending: string[] = []
+let flushing = false
+let flushTimer: ReturnType<typeof setTimeout> | null = null
 
 function getLogFile(): string | null {
   if (logFilePath) return logFilePath
@@ -21,15 +29,50 @@ function getLogFile(): string | null {
   }
 }
 
-function rotate(file: string): void {
+async function rotate(file: string): Promise<void> {
+  const st = await stat(file).catch(() => null)
+  if (!st || st.size < LOG_MAX_BYTES) return
+  const rolled = file + '.1'
+  await rm(rolled, { force: true })
+  await rename(file, rolled)
+}
+
+async function flush(): Promise<void> {
+  if (flushing || !logFilePath || pending.length === 0) return
+  const file = logFilePath
+  const batch = pending.join('')
+  pending = []
+  flushing = true
   try {
-    const st = statSync(file)
-    if (st.size < LOG_MAX_BYTES) return
-    const rolled = file + '.1'
-    if (existsSync(rolled)) unlinkSync(rolled)
-    renameSync(file, rolled)
+    await rotate(file)
+    await appendFile(file, batch)
   } catch {
-    /* file doesn't exist yet — ignore */
+    /* logging must never throw */
+  } finally {
+    flushing = false
+    if (pending.length > 0) scheduleFlush()
+  }
+}
+
+function scheduleFlush(): void {
+  if (flushTimer) return
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    void flush()
+  }, FLUSH_INTERVAL_MS)
+  flushTimer.unref()
+}
+
+// Last-chance write when the process is going down and async I/O may never
+// complete. A batch already handed to an in-flight async flush isn't re-sent.
+function flushSync(): void {
+  if (!logFilePath || pending.length === 0) return
+  const batch = pending.join('')
+  pending = []
+  try {
+    appendFileSync(logFilePath, batch)
+  } catch {
+    /* logging must never throw */
   }
 }
 
@@ -48,11 +91,10 @@ function format(args: unknown[]): string {
 }
 
 function write(level: string, args: unknown[]): void {
-  const file = getLogFile()
-  if (!file) return
   try {
-    rotate(file)
-    appendFileSync(file, `${new Date().toISOString()} [${level}] ${format(args)}\n`)
+    if (!getLogFile()) return
+    pending.push(`${new Date().toISOString()} [${level}] ${format(args)}\n`)
+    scheduleFlush()
   } catch {
     /* logging must never throw */
   }
@@ -87,10 +129,13 @@ export function installLogger(): void {
 
   process.on('uncaughtException', (err) => {
     write('FATAL', ['uncaughtException', err])
+    flushSync()
   })
   process.on('unhandledRejection', (reason) => {
     write('FATAL', ['unhandledRejection', reason])
+    flushSync()
   })
+  process.on('exit', flushSync)
 }
 
 export function getLogFilePath(): string | null {

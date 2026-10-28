@@ -1,13 +1,6 @@
 import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
-async function client(apiKey: string): Promise<unknown> {
-  const mod = (await import('openai')) as unknown as {
-    default: new (opts: { apiKey: string }) => unknown
-  }
-  return new mod.default({ apiKey })
-}
-
 interface OpenAILike {
   chat: {
     completions: {
@@ -30,12 +23,29 @@ interface OpenAILike {
   }
 }
 
+// One SDK instance per API key so its HTTP keep-alive pool is reused across
+// Asks; keyed so a rotated key in Settings gets a fresh client.
+const clientCache = new Map<string, Promise<OpenAILike>>()
+
+async function client(apiKey: string): Promise<OpenAILike> {
+  const cached = clientCache.get(apiKey)
+  if (cached) return cached
+  const promise = (async () => {
+    const mod = (await import('openai')) as unknown as {
+      default: new (opts: { apiKey: string }) => OpenAILike
+    }
+    return new mod.default({ apiKey })
+  })()
+  clientCache.set(apiKey, promise)
+  return promise
+}
+
 export function makeOpenAiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'openai',
     label: 'OpenAI',
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
-      const c = (await client(apiKey)) as OpenAILike
+      const c = await client(apiKey)
       const res = (await c.chat.completions.create(
         {
           model: args.model,
@@ -60,7 +70,7 @@ export function makeOpenAiProvider(apiKey: string): ILlmProvider {
       return normalizeFinishReason(finishReason)
     },
     async generate(args) {
-      const c = (await client(apiKey)) as OpenAILike
+      const c = await client(apiKey)
       const res = (await c.chat.completions.create(
         {
           model: args.model,

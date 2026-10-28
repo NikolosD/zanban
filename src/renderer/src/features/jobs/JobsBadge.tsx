@@ -9,18 +9,20 @@ import { useJobs } from './jobsStore'
 export function JobsBadge() {
   const { t } = useTranslation()
   const jobs = useJobs((s) => s.jobs)
-  if (jobs.length === 0) return null
   const first = jobs[0]
   return (
-    <div
-      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-muted-foreground"
-      title={jobs.map((j) => `${j.title} (${j.kind})`).join('\n')}
-    >
-      <Loader2 className="size-3 animate-spin" />
-      <span>
-        {t('jobs.working_other', { count: jobs.length })}
-        {first ? ` · ${first.title}` : ''}
-      </span>
+    <div role="status">
+      {first && (
+        <div
+          className="mr-4 flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 font-mono text-[10px] text-muted-foreground"
+          title={jobs.map((j) => j.title).join('\n')}
+        >
+          <Loader2 className="size-3 animate-spin" aria-hidden />
+          <span>
+            {t('jobs.working', { count: jobs.length })} · {t(`jobs.kind.${first.kind}`)}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

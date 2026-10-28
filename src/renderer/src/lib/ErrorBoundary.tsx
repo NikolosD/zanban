@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import i18n from 'i18next'
 
 interface State {
   error: Error | null
@@ -19,7 +20,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     if (this.state.error) {
       return (
         <div className="flex h-full w-full flex-col gap-3 overflow-auto bg-zinc-950 p-6 text-zinc-100">
-          <h1 className="text-lg font-semibold text-red-400">Render error</h1>
+          <h1 className="text-lg font-semibold text-red-400">{i18n.t('error_boundary.title')}</h1>
           <pre className="whitespace-pre-wrap rounded-md bg-zinc-900 p-3 text-xs">
             {this.state.error.message}
             {'\n\n'}
@@ -29,7 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             onClick={() => this.setState({ error: null })}
             className="self-start rounded bg-indigo-500 px-3 py-1.5 text-sm"
           >
-            Try again
+            {i18n.t('error_boundary.retry')}
           </button>
         </div>
       )

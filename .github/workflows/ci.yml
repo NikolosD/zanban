@@ -15,8 +15,13 @@ concurrency:
 
 jobs:
   ci:
-    name: lint · typecheck · test · build
-    runs-on: ubuntu-latest
+    name: lint · typecheck · test · build (${{ matrix.os }})
+    # Windows is the primary target; Linux keeps the build honest elsewhere.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +37,8 @@ jobs:
       # install fast — we never run the binary, only typecheck/test/build.
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - run: pnpm lint
+      # Warning ratchet: lower the number as warnings get fixed, never raise it.
+      - run: pnpm lint --max-warnings 14
 
       - run: pnpm typecheck
 

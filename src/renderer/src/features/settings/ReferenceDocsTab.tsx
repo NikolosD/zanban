@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { Trash2, UploadCloud, Loader2, FileType2, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ function formatBytes(n: number): string {
 
 export function ReferenceDocsTab() {
   const { t } = useTranslation()
+  const inputId = useId()
   const [docs, setDocs] = useState<ReferenceDoc[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -126,7 +127,7 @@ export function ReferenceDocsTab() {
       </div>
 
       <label
-        htmlFor="ref-doc-input"
+        htmlFor={inputId}
         onDragOver={(e) => {
           e.preventDefault()
           setDragActive(true)
@@ -135,6 +136,9 @@ export function ReferenceDocsTab() {
         onDrop={onDrop}
         className={cn(
           'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-white/15 bg-white/[0.015] px-6 py-10 text-center transition-colors hover:border-white/30 hover:bg-white/[0.03]',
+          // The input is visually hidden but focusable, so the drop zone
+          // carries its keyboard focus ring.
+          'has-[:focus-visible]:border-white/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
           dragActive && 'border-emerald-400/60 bg-emerald-400/5'
         )}
       >
@@ -148,12 +152,13 @@ export function ReferenceDocsTab() {
         </div>
         <div className="text-[11px] text-muted-foreground">{t('settings.documents.accepted')}</div>
         <input
-          id="ref-doc-input"
+          id={inputId}
           type="file"
           accept={ACCEPTED}
           multiple
+          disabled={busy}
           onChange={onPickFile}
-          className="hidden"
+          className="sr-only"
         />
       </label>
 
