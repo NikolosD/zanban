@@ -126,7 +126,9 @@ export async function getDb(): Promise<Database | null> {
       const stored = readMeta(db)
       const decision = decideMigration(stored, { embeddingDim: dim, embeddingModel: model })
       if (decision.rebuild) {
-        console.warn(`[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`)
+        console.warn(
+          `[rag] migrating vec schema (reason: ${decision.reason}) — reindexing required`
+        )
         recreateSchema(db, dim)
       } else {
         db.exec(vecSchema(dim))
