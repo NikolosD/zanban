@@ -19,7 +19,6 @@
     "api_keys_missing_body": "Откройте дашборд → Настройки и добавьте учётные данные: {{providers}}.",
     "recheck": "проверить ещё раз",
     "open_dashboard": "открыть дашборд",
-    "transcription_error": "Ошибка транскрибации",
     "open_dashboard_keep_session": "Открыть дашборд · сессия не прерывается",
     "ask_placeholder": "Спросите про экран или разговор…",
     "ask_about_screenshot": "Спросите про этот скриншот…",

@@ -60,8 +60,7 @@ import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
-import { RollingTranscript } from './RollingTranscript'
-import { CaptureNoticeLine } from './CaptureNoticeLine'
+import { TranscriptOrNotice } from './CaptureNoticeLine'
 import { useCaptureNotices, wireCaptureNotices } from './captureNotices'
 
 export function OverlayApp() {
@@ -388,7 +387,7 @@ export function OverlayApp() {
     }
   }
 
-  const hasContent = hasHistory || apiKeysMissing || transcriptionError
+  const hasContent = hasHistory || apiKeysMissing
   // Hide is now strictly "make me invisible to screen-share". It no longer
   // collapses the overlay's own UI: action chips, input, and answer pane
   // all stay rendered. The hideWidgetWhenHidden setting still affects the
@@ -420,8 +419,6 @@ export function OverlayApp() {
             onOpenDashboard={() => void openDashboardKeepSession()}
           />
 
-          {running && <CaptureNoticeLine />}
-
           {/* One container, sections divided by 1px rules. The answer comes
               first: during heads-up it is the one thing the user reads, so it
               sits right under the status pill; the transcript line, chips and
@@ -435,7 +432,7 @@ export function OverlayApp() {
           >
             {hasContent && (
               <div className="flex flex-col gap-2 px-3 py-2.5">
-                {(apiKeysMissing || transcriptionError) && (
+                {apiKeysMissing && (
                   <div className="space-y-2">
                     {apiKeysMissing && (
                       <Alert
@@ -466,13 +463,6 @@ export function OverlayApp() {
                         </AlertDescription>
                       </Alert>
                     )}
-                    {transcriptionError && (
-                      <Alert variant="destructive">
-                        <AlertTriangle className="size-4" />
-                        <AlertTitle>{t('overlay.transcription_error')}</AlertTitle>
-                        <AlertDescription>{transcriptionError}</AlertDescription>
-                      </Alert>
-                    )}
                   </div>
                 )}
 
@@ -494,7 +484,7 @@ export function OverlayApp() {
               </div>
             )}
 
-            <RollingTranscript />
+            <TranscriptOrNotice error={transcriptionError} />
 
             <ActionChipsRow
               busy={busy}
