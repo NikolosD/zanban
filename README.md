@@ -53,6 +53,8 @@ git push --tags           # GitHub Actions builds + publishes installer + latest
 
 The release publish target is wired in `electron-builder.yml` (provider: github · owner: NikolosD · repo: zanban). Auto-update reads the same channel.
 
+Releases are unsigned until code-signing secrets are added to the repository. `CSC_LINK` (base64 `.p12` or HTTPS URL) and `CSC_KEY_PASSWORD` sign the Windows installer. On a macOS runner the same pair carries the Developer ID certificate, and `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` enable notarization.
+
 ## Hotkeys (default; rebindable in Settings → Hotkeys)
 
 - `Ctrl+Shift+Alt+R` — start / stop a session

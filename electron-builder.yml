@@ -6,6 +6,15 @@ directories:
 # better-sqlite3 ships Node-API prebuilds that load in any Electron, and its
 # binding.gyp would otherwise make the rebuild step demand a C++ toolchain.
 npmRebuild: false
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  # grantFileProtocolExtraPrivileges stays on: packaged renderer pages and the
+  # audio worklet load over file://.
 files:
   - out/**
   - resources/**
