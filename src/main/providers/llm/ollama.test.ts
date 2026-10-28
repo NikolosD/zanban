@@ -35,6 +35,17 @@ describe('ollama provider stream', () => {
     expect(res.value).toBe('length')
   })
 
+  it('turns thinking off only for Qwen3 models', async () => {
+    const fetchMock = vi.fn(async () => ndjson([{ done: true, done_reason: 'stop' }]))
+    vi.stubGlobal('fetch', fetchMock)
+    const sentBody = (): Record<string, unknown> =>
+      JSON.parse((fetchMock.mock.lastCall as unknown as [string, { body: string }])[1].body)
+    await makeOllamaProvider().generate({ ...args, model: 'qwen3.5:9b' })
+    expect(sentBody().think).toBe(false)
+    await makeOllamaProvider().generate(args)
+    expect(sentBody()).not.toHaveProperty('think')
+  })
+
   it('throws on a mid-stream error line instead of ending silently', async () => {
     vi.stubGlobal(
       'fetch',

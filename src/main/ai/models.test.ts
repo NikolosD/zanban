@@ -9,8 +9,13 @@ vi.mock('../settings.js', () => ({
   getSettings: () => mockSettings.value
 }))
 
-const { modelFor, fastMaxOutputTokens, FAST_MAX_OUTPUT_TOKENS, DETAILED_MAX_OUTPUT_TOKENS } =
-  await import('./models.js')
+const {
+  modelFor,
+  fastMaxOutputTokens,
+  gatewayProviderOptions,
+  FAST_MAX_OUTPUT_TOKENS,
+  DETAILED_MAX_OUTPUT_TOKENS
+} = await import('./models.js')
 
 describe('modelFor', () => {
   beforeEach(() => {
@@ -90,5 +95,14 @@ describe('fastMaxOutputTokens', () => {
   it('raises the cap when detailed answers are on', () => {
     expect(fastMaxOutputTokens(true)).toBe(DETAILED_MAX_OUTPUT_TOKENS)
     expect(DETAILED_MAX_OUTPUT_TOKENS).toBeGreaterThan(FAST_MAX_OUTPUT_TOKENS)
+  })
+})
+
+describe('gatewayProviderOptions', () => {
+  it('lowers gpt-oss reasoning and leaves other models at their default', () => {
+    expect(gatewayProviderOptions('openai/gpt-oss-120b')).toEqual({
+      openai: { reasoningEffort: 'low' }
+    })
+    expect(gatewayProviderOptions('xiaomi/mimo-v2.6-flash')).toBeUndefined()
   })
 })
