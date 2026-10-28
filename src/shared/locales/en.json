@@ -13,7 +13,7 @@
   },
   "overlay": {
     "streaming": "streaming…",
-    "answer_truncated": "answer truncated — hit max output tokens.",
+    "answer_truncated": "answer cut off — hit the length limit.",
     "continue": "continue",
     "copy_answer": "Copy answer",
     "api_keys_missing_title": "API keys not configured",
@@ -42,6 +42,8 @@
     "more": "more",
     "rolling": {
       "listening": "listening…",
+      "connecting": "starting speech recognition…",
+      "downloading_model": "downloading the speech model · {{percent}}%",
       "you": "You",
       "them": "Them",
       "mic_label": "Mic",
@@ -73,7 +75,7 @@
       "override_label": "Override · {{provider}}",
       "default_with_model": "Default · {{model}}",
       "text_answers": "Text answers",
-      "vision": "Vision (screenshots)",
+      "vision": "Screenshots",
       "tooltip": "Override model for this request · provider: {{provider}}",
       "menu_label": "Model"
     },
@@ -156,7 +158,7 @@
     "copy_toast": "Answer copied",
     "copy_answer": "Copy answer",
     "streaming": "streaming…",
-    "answer_truncated": "answer truncated — hit max output tokens.",
+    "answer_truncated": "answer cut off — hit the length limit.",
     "continue": "continue",
     "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
     "stop_tooltip": "Stop generating",
@@ -169,7 +171,7 @@
       "default": "Default",
       "override_label": "Override · {{provider}}",
       "text_answers": "Text answers",
-      "vision": "Vision (screenshots)",
+      "vision": "Screenshots",
       "tooltip": "Override model for this request · provider: {{provider}}"
     }
   },
@@ -177,7 +179,7 @@
     "start_session": "Start session",
     "stop_session": "Stop session",
     "no_sessions_label": "no sessions yet",
-    "no_sessions_body": "Hit <0>Start session</0> in the header. When you stop, the session is saved on this machine as Markdown.",
+    "no_sessions_body": "Hit <0>Start session</0> at the top. When you stop, the recording is saved on this computer.",
     "settings": "Settings",
     "loading": "Loading…",
     "load_failed": "failed to load",
@@ -204,7 +206,7 @@
       "reveal_in_folder": "Reveal in folder",
       "delete": "Delete session",
       "confirm_title": "Delete this session?",
-      "confirm_body": "<0>{{title}}</0> will be removed from your machine — transcript, markdown export, and embeddings. Cloud copies are not affected. This can't be undone.",
+      "confirm_body": "<0>{{title}}</0> will be removed from this computer — transcript, export and search index. Cloud copies are not affected. This can't be undone.",
       "cancel": "Cancel",
       "confirm_delete": "Delete"
     },
@@ -229,6 +231,7 @@
     },
     "row": {
       "untitled": "Untitled session",
+      "live": "recording",
       "open_items_one": "{{count}} open action item",
       "open_items_other": "{{count}} open action items"
     },
@@ -240,7 +243,7 @@
   "settings": {
     "title": "Settings",
     "sidebar_title": "settings",
-    "footer_note": "Changes apply automatically. Secrets stored in your OS keychain.",
+    "footer_note": "Changes save automatically. Keys are kept in your system's encrypted storage.",
     "saving": "Saving…",
     "saved": "Saved",
     "save_failed": "Failed to save",
@@ -282,6 +285,7 @@
       "privacy_mode_off": "Off — turn on to switch answers and speech-to-text to local models at once. Slower and less accurate, fully private.",
       "get_key": "get key",
       "get_key_title": "Open the provider's console to get a key",
+      "get_ollama": "download Ollama",
       "active_badge": "active",
       "key_placeholder": "paste key here…",
       "key_hide": "Hide key",
@@ -289,8 +293,8 @@
       "google_project_id_label": "Google Cloud project ID",
       "google_project_id_placeholder": "my-gcp-project-12345",
       "google_service_account_label": "Service account JSON",
-      "google_service_account_optional": "(optional — leave empty for ADC)",
-      "local_whisper_note": "On-device — no key needed. Parakeet v3 for 25 European languages incl. Russian, Whisper for the rest (~670 MB on first use).",
+      "google_service_account_optional": "(optional — leave empty if you've signed in with gcloud)",
+      "local_whisper_note": "No key needed, audio never leaves the computer. The model (~670 MB) downloads on the first session.",
       "ollama_host_placeholder": "http://127.0.0.1:11434 (default)",
       "ollama_refresh_aria": "Refresh",
       "ollama_connected_one": "connected · {{count}} model",
@@ -298,9 +302,9 @@
       "ollama_not_reachable": "not reachable · {{error}}",
       "ollama_unknown_error": "unknown error",
       "ollama_more_models": " +{{count}} more",
-      "fallback_title": "Fallback order",
-      "fallback_hint": "When the active provider fails before streaming any text, Zanban tries these in order. Skipped silently if the credential is missing. Once an answer starts streaming we don't switch.",
-      "fallback_empty": "no fallbacks · errors will surface as-is",
+      "fallback_title": "Backup providers",
+      "fallback_hint": "If the main provider doesn't answer, Zanban tries these in order. Providers without a key are skipped. Once an answer starts appearing, it won't switch.",
+      "fallback_empty": "no backups · errors show as they are",
       "fallback_move_up": "Move up",
       "fallback_move_down": "Move down",
       "fallback_remove": "Remove from chain",
@@ -311,64 +315,64 @@
         "local": "local"
       },
       "tavily_title": "Tavily Search API",
-      "tavily_hint": "Powers live web search for company research. If empty, LLM general knowledge is used and may be outdated.",
+      "tavily_hint": "Lets the assistant search the web — say, about the company you're meeting. Without a key it answers from its own knowledge, which may be out of date.",
       "tavily_placeholder": "tvly-…",
       "tavily_auto_label": "Auto web search",
       "tavily_auto_hint": "Search the web on its own for questions of four words or more.",
       "llm": {
         "vercel-gateway": {
           "name": "Vercel AI Gateway",
-          "description": "One key, every model — DeepSeek, OpenAI, Anthropic, Google, Groq. Pay-as-you-go.",
+          "description": "One key, every model — OpenAI, Anthropic, Google, DeepSeek, Groq. Pay as you go.",
           "key_label": "Vercel AI Gateway key"
         },
         "anthropic": {
           "name": "Anthropic Claude",
-          "description": "Direct Anthropic API. Best long-context reasoning.",
+          "description": "Claude models directly. Strong at reasoning and long conversations.",
           "key_label": "Anthropic API key"
         },
         "openai": {
           "name": "OpenAI",
-          "description": "GPT-5, GPT-OSS, o-series. Vision via the same model IDs.",
+          "description": "GPT models directly. Understand both text and screenshots.",
           "key_label": "OpenAI API key"
         },
         "google-gemini": {
           "name": "Google Gemini",
-          "description": "Gemini 2.5 / 3.x. Strong multimodal. Generous free tier.",
+          "description": "Gemini models directly. Good with screenshots and long documents.",
           "key_label": "Google AI API key"
         },
         "groq": {
           "name": "Groq",
-          "description": "Fastest first token (under 100 ms). Good for quick follow-up suggestions.",
+          "description": "Fastest answers: the first words arrive in under a second.",
           "key_label": "Groq API key"
         },
         "ollama": {
           "name": "Ollama (local)",
-          "description": "Fully local — your transcripts never leave the machine."
+          "description": "Fully on this computer — transcripts never leave it."
         }
       },
       "stt": {
         "deepgram": {
-          "name": "Deepgram Nova-3",
-          "description": "High-accuracy streaming. Single API key, low latency.",
+          "name": "Deepgram",
+          "description": "Accurate real-time recognition. One key, low latency.",
           "key_label": "Deepgram API key"
         },
         "google": {
           "name": "Google Cloud Speech-to-Text",
-          "description": "Chirp 3 multilingual streaming. Needs a GCP project + ADC or service account."
+          "description": "Many languages. Needs a Google Cloud project — the hardest to set up."
         },
         "openai-whisper": {
           "name": "OpenAI Whisper",
-          "description": "gpt-4o-transcribe via the OpenAI Realtime API. Streaming, low latency.",
+          "description": "OpenAI's real-time recognition. Uses your OpenAI key.",
           "key_label": "OpenAI API key"
         },
         "elevenlabs": {
           "name": "ElevenLabs Scribe",
-          "description": "Scribe v2 Realtime — streaming WebSocket, ~150ms latency.",
+          "description": "The most accurate cloud recognition, about 0.15 s delay.",
           "key_label": "ElevenLabs API key"
         },
         "local-whisper": {
           "name": "On-device",
-          "description": "On-device — no key needed. Parakeet v3 for 25 European languages, Whisper for the rest."
+          "description": "Parakeet v3 on this computer: 25 European languages including Russian; Whisper for the rest."
         }
       },
       "test_connection": "Test",
@@ -397,6 +401,36 @@
       "new": "New",
       "new_default_name": "New role",
       "builtin_badge": "built-in",
+      "builtin": {
+        "general": {
+          "name": "General assistant",
+          "blurb": "Answers any question during the meeting, briefly and to the point."
+        },
+        "tech-interview": {
+          "name": "Technical interview · candidate",
+          "blurb": "You're the candidate: helps you answer technical questions confidently, with examples."
+        },
+        "looking-for-work": {
+          "name": "Looking for work · networking",
+          "blurb": "Helps you present your experience, get useful intros and agree on a next step."
+        },
+        "sales": {
+          "name": "Sales · discovery call",
+          "blurb": "Suggests qualifying questions, surfaces the client's pain and ties it to the product."
+        },
+        "recruiting": {
+          "name": "Recruiting · interviewing",
+          "blurb": "You're the interviewer: suggests questions, weighs the answers and flags gaps."
+        },
+        "team-meet": {
+          "name": "Team meeting · standup / sync",
+          "blurb": "Tracks decisions and action items, turns vague ideas into concrete steps."
+        },
+        "lecture": {
+          "name": "Lecture · note-taking",
+          "blurb": "Pulls out the talk's structure and writes clean notes when you ask."
+        }
+      },
       "empty_prompt_placeholder": "(no instructions)",
       "empty_list": "No roles yet. Click \"New\" to create one.",
       "delete_confirm": "Delete this role?",
@@ -458,7 +492,7 @@
       "data_title": "data",
       "data_hint": "Everything stays on this computer.",
       "sessions_label": "Session files",
-      "sessions_hint": "Transcripts and recaps, saved as Markdown and JSON.",
+      "sessions_hint": "Transcripts and recaps are plain text files in this folder.",
       "open_sessions_folder": "Open folder",
       "setup_label": "Setup wizard",
       "setup_hint": "Walk through keys, the audio check, and your role again.",
@@ -491,8 +525,8 @@
       "follow_up_model_hint": "Suggests follow-up questions under each finished answer. Runs after every answer — a small, cheap model is enough.",
       "session_title_label": "Session title",
       "session_title_hint": "Generates a short title at the end of a recorded call. Quality matters more than latency.",
-      "vision_title": "Vision (screenshots)",
-      "vision_hint": "Used when you snap a screenshot and ask about it. Must be multimodal — can ride a different provider than text.",
+      "vision_title": "Screenshots",
+      "vision_hint": "Used when you ask about a screenshot. Needs a model that understands images — it can come from a different provider than text.",
       "provider_label": "Provider",
       "model_label": "Model",
       "same_as_text": "same as text · {{provider}}",
@@ -563,11 +597,11 @@
       },
       "model_label": "Model override",
       "model_hint": "Leave blank to use the default summary model. Enter a model ID to override for recap only.",
-      "model_placeholder": "e.g. gpt-4o or claude-3-5-sonnet-20241022"
+      "model_placeholder": "e.g. gpt-6.1-terra or claude-haiku-5-5"
     },
     "hotkeys_section": {
       "title": "hotkeys",
-      "hint": "Global accelerators. Click a binding to rebind — press Esc to cancel, ⌫ to clear.",
+      "hint": "Work from any app. Click a shortcut to change it — Esc cancels, ⌫ clears.",
       "reset_all": "Reset all to defaults",
       "conflict_toast": "Hotkey already in use — {{accelerator}} is taken by another app. Pick a different combination.",
       "conflict_badge": "in use elsewhere"
@@ -582,8 +616,8 @@
         "hint": "Collapse the floating assistant out of the way, or bring it back."
       },
       "askAi": {
-        "label": "Focus ask",
-        "hint": "Focus the Ask input from anywhere."
+        "label": "Jump to question",
+        "hint": "Put the cursor in the question box from anywhere."
       },
       "answerLast": {
         "label": "Answer last",
@@ -594,16 +628,16 @@
         "hint": "Turn stealth on or off. While it's on, screen-share and recordings can't see Zanban."
       },
       "screenshot": {
-        "label": "Snap full screen → Ask",
-        "hint": "Capture full screen, OCR it, attach to next Ask."
+        "label": "Snap screen → question",
+        "hint": "Capture the full screen, read its text and attach it to your next question."
       },
       "screenshotAnswer": {
         "label": "Snap full screen → Answer",
-        "hint": "Capture full screen and answer it instantly — no manual Ask."
+        "hint": "Capture the full screen and answer right away — no typing."
       },
       "cropper": {
-        "label": "Drag region → OCR Ask",
-        "hint": "Drag a region, OCR only that area, attach to next Ask."
+        "label": "Select area → question",
+        "hint": "Select part of the screen, read its text and attach it to your next question."
       },
       "chat": {
         "label": "Open chat window",
@@ -658,7 +692,7 @@
     },
     "language": {
       "title": "Welcome to Zanban",
-      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes it with the speech-to-text provider you pick, and answers questions for you. Audio goes to that provider (on-device recognition keeps it on your machine); sessions are stored on your machine.",
+      "body": "A meeting copilot: it listens to your mic and the other side's audio, turns speech into text and suggests answers. Audio goes to the speech service you pick (on-device recognition keeps it on your computer). Recordings stay with you.",
       "section_label": "interface language",
       "english_label": "English",
       "english_sublabel": "Full support today.",
@@ -668,50 +702,54 @@
       "answers_hint": "Auto answers in the language of the question. Change it any time in Settings → General."
     },
     "provider": {
-      "title": "Pick an LLM provider",
-      "body": "You can switch later in Settings. Cloud providers stream answers faster; Ollama keeps everything on your machine.",
+      "title": "Who answers?",
+      "body": "Pick the AI service for answers — you can change it later in Settings. Cloud services answer faster; Ollama runs entirely on your computer.",
       "recommended_badge": "recommended",
       "no_key_badge": "no key",
       "options": {
         "vercel-gateway": {
           "label": "Vercel AI Gateway",
-          "blurb": "Single key fans out to OpenAI, Anthropic, Gemini, and Groq. Recommended for most users."
+          "blurb": "One key for OpenAI, Anthropic, Google models and more. Fits most people."
         },
         "anthropic": {
           "label": "Anthropic Claude",
-          "blurb": "Direct Claude API. Strong reasoning, good at structured replies."
+          "blurb": "Claude models directly. Strong reasoning, clear structured answers."
         },
         "openai": {
           "label": "OpenAI",
-          "blurb": "Direct OpenAI API. Vision-ready out of the box."
+          "blurb": "GPT models directly. Understand both text and screenshots."
         },
         "google-gemini": {
           "label": "Google Gemini",
-          "blurb": "Direct Google AI API. Long context windows, fast multimodal."
+          "blurb": "Gemini models directly. Good with screenshots and long documents."
         },
         "groq": {
           "label": "Groq",
-          "blurb": "Lightning-fast inference. Lower per-token cost, smaller model menu."
+          "blurb": "Fastest answers. Cheaper, with a smaller choice of models."
         },
         "ollama": {
           "label": "Ollama (local)",
-          "blurb": "Fully on-device. No API key needed — point at your local Ollama install."
+          "blurb": "Everything on your computer, no key. Needs Ollama installed."
         }
       }
     },
     "keys": {
       "title": "Add your keys",
-      "body": "Stored encrypted with your OS keychain. Each key is sent only to the provider it belongs to.",
+      "body": "Keys are stored encrypted by your system, and each one is sent only to its own service.",
       "transcription_label": "transcription",
       "stt_picker_label": "transcription engine",
       "stt_options": {
         "deepgram": {
           "label": "Deepgram",
-          "blurb": "Streaming Nova-3. Single API key, low latency. Recommended."
+          "blurb": "Accurate real-time recognition. One key, low latency."
+        },
+        "elevenlabs": {
+          "label": "ElevenLabs",
+          "blurb": "The most accurate cloud recognition, many languages. One key."
         },
         "google": {
           "label": "Google Speech-to-Text",
-          "blurb": "Multilingual streaming. Needs a Google Cloud project + auth."
+          "blurb": "Many languages. Needs a Google Cloud project and access setup."
         },
         "local-whisper": {
           "label": "On-device",
@@ -721,7 +759,7 @@
       "llm": {
         "vercel-gateway": {
           "label": "Vercel AI Gateway key",
-          "hint": "Powers the LLM. Get one from vercel.com/ai-gateway."
+          "hint": "For the assistant's answers. Get a key at vercel.com/ai-gateway."
         },
         "anthropic": {
           "label": "Anthropic API key",
@@ -749,6 +787,10 @@
           "label": "Deepgram API key",
           "hint": "Get one at console.deepgram.com — free tier is enough to start."
         },
+        "elevenlabs_key": {
+          "label": "ElevenLabs API key",
+          "hint": "Get one at elevenlabs.io → Settings → API keys."
+        },
         "google_project_id": {
           "label": "Google Cloud project ID",
           "hint": "ID of a Google Cloud project that has the Speech-to-Text API enabled."
@@ -757,7 +799,7 @@
           "label": "Service account JSON (optional)",
           "hint": "Paste a service-account JSON key for one-step auth. Leave blank if you've already run gcloud auth application-default login on this machine."
         },
-        "google_setup_help_title": "How to set up Google STT",
+        "google_setup_help_title": "How to set up Google Speech-to-Text",
         "google_setup_help_body": "1. Open console.cloud.google.com → create or pick a project; copy its ID into the field above.\n2. In the project: APIs & Services → enable “Cloud Speech-to-Text API”.\n3. Auth — pick one:\n   • Easiest: install the gcloud CLI, run gcloud auth application-default login once. Leave the JSON field blank.\n   • Or: IAM → Service Accounts → create one with “Cloud Speech Client” role → keys → create JSON → paste contents into the field above.",
         "local_whisper_note": "No keys needed. The model downloads on first session and runs entirely on this machine."
       }
@@ -839,6 +881,7 @@
     "loading": "Loading session…",
     "back": "Back",
     "not_found": "Session file not found.",
+    "live_pending": "Recording — the transcript shows up here within a few seconds.",
     "rename_label": "Rename session",
     "rename_failed": "Could not rename session",
     "tabs": {
@@ -848,7 +891,7 @@
     },
     "recap": {
       "empty_label": "no recap yet",
-      "empty_blurb": "Generate an AI recap with action items and a ready-to-send follow-up. Uses the saved transcript only — no audio is re-sent.",
+      "empty_blurb": "Create a meeting recap with action items and a ready-to-send follow-up email. Uses only the saved transcript — no audio is sent.",
       "generate": "Generate recap",
       "regenerate": "Regenerate",
       "copy_all": "Copy as Markdown",
@@ -858,7 +901,7 @@
       "action_items_other": "Action items · {{count}}",
       "decisions": "Decisions",
       "open_questions": "Open questions",
-      "follow_up": "Follow-up draft",
+      "follow_up": "Follow-up email draft",
       "open_email": "Open in email",
       "open_email_failed": "Could not open your email client",
       "copy_followup_md": "Copy",

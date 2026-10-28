@@ -74,7 +74,8 @@ export interface TranscriptSegment {
 
 export type TranscriptionStatus =
   | { kind: 'idle' }
-  | { kind: 'connecting'; channel: AudioChannel }
+  /** `progress` (0–1) is set while an on-device model downloads on first use. */
+  | { kind: 'connecting'; channel: AudioChannel; progress?: number }
   | { kind: 'open'; channel: AudioChannel }
   | { kind: 'closed'; channel: AudioChannel; reason?: string }
   | { kind: 'error'; channel: AudioChannel; message: string }

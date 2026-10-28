@@ -1,13 +1,32 @@
-import type { Persona } from '../../shared/types.js'
+import type { Persona } from './types.js'
 
 const NOW = 0 // sentinel; actual createdAt is patched in when the store seeds
 
+// Seeded once into the user's store. Names and prompts stay English (prompts go
+// to the model as written); the interface shows translated labels for the ones
+// the user hasn't edited.
 export const BUILTIN_PERSONAS: Persona[] = [
   {
     id: 'builtin:general',
     name: 'General assistant',
     systemPrompt:
       'You are a helpful real-time meeting assistant. Listen, understand the context, and answer concisely. No fluff.',
+    builtin: true,
+    createdAt: NOW
+  },
+  {
+    id: 'builtin:tech-interview',
+    name: 'Technical interview · candidate',
+    systemPrompt:
+      "I'm a software engineer being interviewed for a senior role. Help me answer technical questions concisely and confidently. Prefer concrete examples over generic theory. When relevant, mention trade-offs. Don't overshoot — match the depth of what was asked.",
+    builtin: true,
+    createdAt: NOW
+  },
+  {
+    id: 'builtin:looking-for-work',
+    name: 'Looking for work · networking',
+    systemPrompt:
+      "I'm in a networking / informational call related to my job search. Help me steer the conversation toward useful intros, surface relevant experience, and craft strong follow-ups without sounding desperate.",
     builtin: true,
     createdAt: NOW
   },
@@ -40,22 +59,6 @@ export const BUILTIN_PERSONAS: Persona[] = [
     name: 'Lecture · note-taking',
     systemPrompt:
       "I'm attending a lecture or talk. Extract the structure (claims, evidence, examples). When I ask, give me a clean note-form summary or expand a specific claim with adjacent context.",
-    builtin: true,
-    createdAt: NOW
-  },
-  {
-    id: 'builtin:tech-interview',
-    name: 'Technical interview · candidate',
-    systemPrompt:
-      "I'm a software engineer being interviewed for a senior role. Help me answer technical questions concisely and confidently. Prefer concrete examples over generic theory. When relevant, mention trade-offs. Don't overshoot — match the depth of what was asked.",
-    builtin: true,
-    createdAt: NOW
-  },
-  {
-    id: 'builtin:looking-for-work',
-    name: 'Looking for work · networking',
-    systemPrompt:
-      "I'm in a networking / informational call related to my job search. Help me steer the conversation toward useful intros, surface relevant experience, and craft strong follow-ups without sounding desperate.",
     builtin: true,
     createdAt: NOW
   }

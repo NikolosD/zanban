@@ -161,4 +161,18 @@ describe('MlWorkerClient', () => {
     expect(workers).toHaveLength(1)
     expect(console.error).not.toHaveBeenCalled()
   })
+
+  it('passes progress to the caller without settling the request', async () => {
+    const { client, workers } = setup()
+    const seen: number[] = []
+    const load = client.request({ kind: 'load', model: 'parakeet' }, 1000, (p) => seen.push(p))
+    const id = workers[0]!.received[0]!.id
+
+    workers[0]!.reply({ id, progress: 0.25 })
+    workers[0]!.reply({ id, progress: 0.5 })
+    workers[0]!.reply({ id, ok: true, result: undefined })
+
+    await expect(load).resolves.toBeUndefined()
+    expect(seen).toEqual([0.25, 0.5])
+  })
 })

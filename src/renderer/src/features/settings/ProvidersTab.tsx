@@ -61,11 +61,7 @@ interface SttProviderEntry {
 
 const STT_CARDS: SttProviderEntry[] = [
   { value: 'deepgram', badge: 'recommended', keyUrl: 'https://console.deepgram.com/' },
-  {
-    value: 'google',
-    badge: 'recommended',
-    keyUrl: 'https://console.cloud.google.com/apis/credentials'
-  },
+  { value: 'google', badge: null, keyUrl: 'https://console.cloud.google.com/apis/credentials' },
   { value: 'openai-whisper', badge: null, keyUrl: 'https://platform.openai.com/api-keys' },
   { value: 'elevenlabs', badge: null, keyUrl: 'https://elevenlabs.io/app/settings/api-keys' },
   { value: 'local-whisper', badge: 'local' }
@@ -140,6 +136,7 @@ export function ProvidersTab({ settings, update }: Props) {
                 badge={p.badge}
                 status={status}
                 keyUrl={p.keyUrl}
+                keyLabel={p.value === 'ollama' ? t('settings.providers.get_ollama') : undefined}
                 active={active}
                 onActivate={() => update('llmProvider', p.value)}
               >

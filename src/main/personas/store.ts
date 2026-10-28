@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import Store from 'electron-store'
 import type { Persona } from '../../shared/types.js'
-import { BUILTIN_PERSONAS } from './builtins.js'
+import { BUILTIN_PERSONAS } from '../../shared/builtinPersonas.js'
 import { parseImportedPersonas } from './personaImport.js'
 
 interface PersistedShape {
@@ -26,9 +26,16 @@ function ensureSeeded(): void {
   store.set('builtinsSeeded', true)
 }
 
+// The user's own roles come first, by name; built-ins keep their curated order
+// (most common first) instead of sorting by an English name.
+const BUILTIN_RANK = new Map(BUILTIN_PERSONAS.map((p, i) => [p.id, i]))
+const rank = (p: Persona): number => BUILTIN_RANK.get(p.id) ?? -1
+
 export function listPersonas(): Persona[] {
   ensureSeeded()
-  return (store.store.personas ?? []).slice().sort((a, b) => a.name.localeCompare(b.name))
+  return (store.store.personas ?? [])
+    .slice()
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 }
 
 export function getPersona(id: string): Persona | null {

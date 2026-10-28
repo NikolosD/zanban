@@ -13,6 +13,9 @@ type WindowGetter = () => BrowserWindow | null
 let getWindow: WindowGetter = () => null
 let updaterPromise: Promise<AppUpdater> | null = null
 let downloadQueued = false
+// Background checks fail quietly — offline, or no release published yet — so
+// only a check the user asked for reports its error.
+let userCheck = false
 
 function send<T>(channel: string, payload: T): void {
   const win = getWindow()
@@ -32,6 +35,7 @@ function getUpdater(): Promise<AppUpdater> {
     autoUpdater.on('error', (err) => {
       const message = err instanceof Error ? err.message : String(err)
       console.error('[updater] error', err)
+      if (!userCheck) return
       send(IPC.updater.error, message)
       sendStatus({ kind: 'error', message })
     })
@@ -102,6 +106,7 @@ export function initAutoUpdate(window: WindowGetter = () => null): void {
       sendStatus({ kind: 'dev-disabled' })
       return false
     }
+    userCheck = true
     try {
       sendStatus({ kind: 'checking' })
       const updater = await prepareCheck()
@@ -121,6 +126,8 @@ export function initAutoUpdate(window: WindowGetter = () => null): void {
       const message = err instanceof Error ? err.message : String(err)
       sendStatus({ kind: 'error', message })
       return false
+    } finally {
+      userCheck = false
     }
   })
 

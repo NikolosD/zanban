@@ -118,6 +118,20 @@ function readSettings(): AppSettings {
 
 let cached: AppSettings | null = null
 
+/**
+ * Until onboarding is done, an untouched English interface follows a Russian
+ * system. The wizard's first step can switch it back.
+ */
+export function initialUiLocale(
+  settings: AppSettings,
+  systemLocale: string
+): AppSettings['uiLocale'] {
+  if (settings.onboardingCompleted || settings.uiLocale !== DEFAULT_SETTINGS.uiLocale) {
+    return settings.uiLocale
+  }
+  return systemLocale.toLowerCase().startsWith('ru') ? 'ru' : 'en'
+}
+
 export function getSettings(): AppSettings {
   if (cached) return cached
   const settings = readSettings()

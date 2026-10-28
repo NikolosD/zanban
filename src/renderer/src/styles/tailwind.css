@@ -133,4 +133,22 @@
       'calt' 1;
     -webkit-font-smoothing: antialiased;
   }
+  /* Chromium's stock Windows scrollbar (arrow buttons, light track) clashes with
+     the dark UI. Radix ScrollArea panes draw their own. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.12) padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(255 255 255 / 0.22);
+  }
 }

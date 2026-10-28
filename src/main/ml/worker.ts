@@ -11,9 +11,15 @@ function reply(response: MlResponse): void {
 
 process.parentPort.on('message', ({ data }) => {
   const request = data as MlRequest
-  tasks.run(request).then(
-    (result) => reply({ id: request.id, ok: true, result }),
-    (err: unknown) =>
-      reply({ id: request.id, ok: false, error: err instanceof Error ? err.message : String(err) })
-  )
+  tasks
+    .run(request, (progress) => reply({ id: request.id, progress }))
+    .then(
+      (result) => reply({ id: request.id, ok: true, result }),
+      (err: unknown) =>
+        reply({
+          id: request.id,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+    )
 })

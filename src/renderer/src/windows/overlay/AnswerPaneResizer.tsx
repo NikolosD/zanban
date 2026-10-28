@@ -121,10 +121,15 @@ export function AnswerPaneResizer({ value, hardCap, onChange, onCommit }: Props)
       onDoubleClick={onDoubleClick}
       onKeyDown={onKeyDown}
       style={{ cursor: 'ns-resize', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      className={cn(
-        'h-1.5 w-full shrink-0 bg-white/5 transition-colors',
-        'outline-none hover:bg-white/15 focus-visible:bg-white/25 active:bg-white/25'
-      )}
-    />
+      // A full-width bar read as an empty progress bar; a short grip reads as a handle.
+      className="group flex h-2.5 w-full shrink-0 items-center justify-center outline-none"
+    >
+      <span
+        className={cn(
+          'h-1 w-10 rounded-full bg-white/15 transition-colors',
+          'group-hover:bg-white/35 group-focus-visible:bg-white/50 group-active:bg-white/50'
+        )}
+      />
+    </div>
   )
 }

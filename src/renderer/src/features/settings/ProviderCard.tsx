@@ -26,6 +26,8 @@ export interface ProviderCardProps {
   onActivate?: () => void
   /** External link to the provider's API console (the "get key →" affordance). */
   keyUrl?: string
+  /** Label for that link when it isn't a key page (Ollama links to its download). */
+  keyLabel?: string
   /** Renders inside the body — typically an API key input + auxiliary fields. */
   children?: React.ReactNode
 }
@@ -52,6 +54,7 @@ export function ProviderCard({
   status,
   onActivate,
   keyUrl,
+  keyLabel,
   children
 }: ProviderCardProps) {
   const { t } = useTranslation()
@@ -102,7 +105,7 @@ export function ProviderCard({
             className="inline-flex shrink-0 items-center gap-1 self-start rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-meta text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
             title={t('settings.providers.get_key_title')}
           >
-            {t('settings.providers.get_key')}
+            {keyLabel ?? t('settings.providers.get_key')}
             <ExternalLink className="size-3" />
           </a>
         )}

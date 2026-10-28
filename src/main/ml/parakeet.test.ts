@@ -9,8 +9,8 @@ const sha = (text: string): string => createHash('sha256').update(text).digest('
 vi.mock('./models.js', () => ({
   PARAKEET_DIR: 'parakeet',
   PARAKEET_FILES: [
-    { name: 'model.onnx', url: 'https://hf.test/model.onnx', sha256: sha('model') },
-    { name: 'vad.onnx', url: 'https://hf.test/vad.onnx', sha256: sha('vad') }
+    { name: 'model.onnx', url: 'https://hf.test/model.onnx', sha256: sha('model'), bytes: 5 },
+    { name: 'vad.onnx', url: 'https://hf.test/vad.onnx', sha256: sha('vad'), bytes: 3 }
   ]
 }))
 
@@ -98,6 +98,12 @@ describe('createParakeet', () => {
 
     await createParakeet(dir).load()
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports how much of the first-run download is done', async () => {
+    const seen: number[] = []
+    await createParakeet(dir).load((p) => seen.push(p))
+    expect(seen).toEqual([5 / 8, 1])
   })
 
   it('refuses a download whose checksum does not match and leaves nothing behind', async () => {

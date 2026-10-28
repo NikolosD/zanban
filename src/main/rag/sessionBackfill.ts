@@ -30,17 +30,24 @@ export function backfillSessions(): Promise<void> {
 }
 
 async function runBackfill(): Promise<void> {
-  // Without an embedder nothing would be indexed; the pending flag stays set so
-  // the next launch retries.
-  if (!(await getLocalEmbedder())) return
   // Imported lazily: sessionSync → sessionManager → rag/index would cycle back here.
   const { listSessionsFromDisk, readSessionFromDisk, getSessionsDir } =
     await import('../sync/sessionSync.js')
+  const sessions = await listSessionsFromDisk()
+  // A fresh install has nothing to re-index, and loading the embedder would
+  // download it for nothing.
+  if (sessions.length === 0) {
+    await clearBackfillPending()
+    return
+  }
+  // Without an embedder nothing would be indexed; the pending flag stays set so
+  // the next launch retries.
+  if (!(await getLocalEmbedder())) return
   const { readRecap } = await import('../services/recap/recapPersistence.js')
   const { sessionManager } = await import('../transcription/sessionManager.js')
 
   let failed = 0
-  for (const item of await listSessionsFromDisk()) {
+  for (const item of sessions) {
     const live = sessionManager.getState()
     // The live indexer owns the running call's chunks.
     if (live.kind === 'running' && live.sessionId === item.id) continue

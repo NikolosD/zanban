@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { redactSecret } from '../shared/settingsBoundary.js'
+import { DEFAULT_SETTINGS } from '../shared/types.js'
 
 const h = vi.hoisted(() => ({
   data: {} as Record<string, unknown>,
@@ -117,5 +118,15 @@ describe('settings', () => {
     const { getSettings } = await load()
     getSettings()
     expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('initialUiLocale', () => {
+  it('follows a Russian system until onboarding is done', async () => {
+    const { initialUiLocale } = await import('./settings.js')
+    const fresh = { ...DEFAULT_SETTINGS, onboardingCompleted: false }
+    expect(initialUiLocale(fresh, 'ru-RU')).toBe('ru')
+    expect(initialUiLocale(fresh, 'de-DE')).toBe('en')
+    expect(initialUiLocale({ ...fresh, onboardingCompleted: true }, 'ru-RU')).toBe('en')
   })
 })

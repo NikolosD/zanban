@@ -19,26 +19,31 @@ export const PARAKEET_FILES = [
   {
     name: 'encoder.int8.onnx',
     url: `${PARAKEET_REPO}/encoder.int8.onnx`,
+    bytes: 652_184_281,
     sha256: 'acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247'
   },
   {
     name: 'decoder.int8.onnx',
     url: `${PARAKEET_REPO}/decoder.int8.onnx`,
+    bytes: 11_845_275,
     sha256: '179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e'
   },
   {
     name: 'joiner.int8.onnx',
     url: `${PARAKEET_REPO}/joiner.int8.onnx`,
+    bytes: 6_355_277,
     sha256: '3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3'
   },
   {
     name: 'tokens.txt',
     url: `${PARAKEET_REPO}/tokens.txt`,
+    bytes: 93_939,
     sha256: 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d'
   },
   {
     name: 'silero_vad.onnx',
     url: `${VAD_REPO}/silero_vad.onnx`,
+    bytes: 1_807_522,
     sha256: 'a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28'
   }
 ]

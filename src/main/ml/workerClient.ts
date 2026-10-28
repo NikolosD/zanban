@@ -19,6 +19,7 @@ export interface MlWorkerClientOptions {
 interface Pending {
   resolve: (result: unknown) => void
   reject: (err: Error) => void
+  onProgress?: (fraction: number) => void
   timer: ReturnType<typeof setTimeout>
 }
 
@@ -44,7 +45,11 @@ export class MlWorkerClient {
 
   constructor(private readonly opts: MlWorkerClientOptions) {}
 
-  request<T extends MlTask>(task: T, timeoutMs: number): Promise<MlResults[T['kind']]> {
+  request<T extends MlTask>(
+    task: T,
+    timeoutMs: number,
+    onProgress?: (fraction: number) => void
+  ): Promise<MlResults[T['kind']]> {
     if (this.isShutDown) return Promise.reject(new Error('ML worker is shut down'))
     const id = this.nextId++
     return new Promise((resolve, reject) => {
@@ -52,7 +57,12 @@ export class MlWorkerClient {
         () => this.settle(id)?.reject(new Error(`ML ${task.kind} timed out after ${timeoutMs} ms`)),
         timeoutMs
       )
-      this.pending.set(id, { resolve: resolve as (result: unknown) => void, reject, timer })
+      this.pending.set(id, {
+        resolve: resolve as (result: unknown) => void,
+        reject,
+        onProgress,
+        timer
+      })
       this.clearIdleTimer()
       this.send({ ...task, id })
     })
@@ -96,6 +106,10 @@ export class MlWorkerClient {
   }
 
   private onResponse(response: MlResponse): void {
+    if ('progress' in response) {
+      this.pending.get(response.id)?.onProgress?.(response.progress)
+      return
+    }
     const entry = this.settle(response.id)
     if (!entry) return
     if (response.ok) entry.resolve(response.result)
