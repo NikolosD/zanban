@@ -1,9 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
-import { recapToText, type IndexableRecap } from './recapIndexer.js'
+import { indexRecap, recapToText, type IndexableRecap } from './recapIndexer.js'
+import type { Chunk } from './semanticChunker.js'
 
 // recapIndexer → vectorStore → db imports electron, whose binary isn't
 // installed when CI runs `pnpm install --ignore-scripts`.
 vi.mock('electron', () => ({ app: {} }))
+
+const indexed = vi.hoisted(() => ({ chunks: [] as Chunk[] }))
+vi.mock('./vectorStore.js', () => ({
+  deleteRecap: async () => 0,
+  indexRecapChunks: async (_id: string, chunks: Chunk[]) => {
+    indexed.chunks = chunks
+    return chunks.length
+  }
+}))
+vi.mock('../services/jobsManager.js', () => ({
+  trackJob: (_id: string, _title: string, _kind: string, fn: () => Promise<number>) => fn()
+}))
+vi.mock('../sync/sessionSync.js', () => ({
+  readSessionFromDisk: async () => ({ startedAt: Date.UTC(2026, 2, 3) })
+}))
 
 function recap(over: Partial<IndexableRecap> = {}): IndexableRecap {
   return {
@@ -57,5 +73,17 @@ describe('recapToText', () => {
     expect(out).not.toContain('Decisions:')
     expect(out).not.toContain('Action items:')
     expect(out).not.toContain('Open questions:')
+  })
+})
+
+describe('indexRecap', () => {
+  it("dates chunks with the meeting's start, not the indexing time", async () => {
+    await indexRecap('sess-1', recap({ tldr: 'Agreed on Postgres.' }))
+    expect(indexed.chunks.map((c) => c.ts)).toEqual([Date.UTC(2026, 2, 3)])
+  })
+
+  it('prefers an explicit meeting time', async () => {
+    await indexRecap('sess-1', recap({ tldr: 'Agreed on Postgres.' }), 42)
+    expect(indexed.chunks.map((c) => c.ts)).toEqual([42])
   })
 })

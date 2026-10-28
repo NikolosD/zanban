@@ -1,5 +1,17 @@
-/** Model id baked into the vec schema meta — change forces a reindex. */
-export const LOCAL_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2'
+import { IdleResource } from '../services/idleResource.js'
+import { loadTransformers, type TransformersPipeline } from '../services/transformers.js'
+
+/** Multilingual (50+ languages incl. Russian) sentence encoder, 384-dim, ONNX. */
+export const LOCAL_EMBEDDING_MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
+// Pinned so an upstream re-export can't silently change the vectors already stored.
+export const LOCAL_EMBEDDING_REVISION = '2c4055b12046f11709e9df2c122e59ffbdc2f900'
+export const LOCAL_EMBEDDING_DIM = 384
+/** Identity baked into the vec schema meta — a model or revision change forces a reindex. */
+export const LOCAL_EMBEDDING_ID = `${LOCAL_EMBEDDING_MODEL}@${LOCAL_EMBEDDING_REVISION}`
+
+// The loaded encoder holds ~700 MB, and RAG runs in bursts (an ask, an index
+// flush), so it is dropped between them and reloaded from the disk cache.
+const EMBEDDER_IDLE_MS = 5 * 60_000
 
 export interface IEmbeddingProvider {
   /** Output dimensionality. RAG schema is bound to this — keep stable. */
@@ -10,53 +22,65 @@ export interface IEmbeddingProvider {
   embed(texts: string[]): Promise<Float32Array[]>
 }
 
-let local: IEmbeddingProvider | null = null
-let localPromise: Promise<IEmbeddingProvider | null> | null = null
+type Extractor = TransformersPipeline &
+  ((
+    input: string,
+    opts: { pooling: 'mean'; normalize: boolean }
+  ) => Promise<{ data: Float32Array }>)
+
+/** First use downloads ~120 MB of quantized weights into userData/models. */
+async function loadExtractor(): Promise<Extractor> {
+  const { pipeline } = await loadTransformers()
+  return (await pipeline('feature-extraction', LOCAL_EMBEDDING_MODEL, {
+    revision: LOCAL_EMBEDDING_REVISION
+  })) as Extractor
+}
+
+async function embedWith(extractor: Extractor, texts: string[]): Promise<Float32Array[]> {
+  const out: Float32Array[] = []
+  // Run sequentially — the pipeline is single-threaded in this build.
+  for (const text of texts) {
+    const r = await extractor(text, { pooling: 'mean', normalize: true })
+    // `r.data` is a backing tensor — clone so callers can hold it
+    // without locking the next inference.
+    out.push(new Float32Array(r.data))
+  }
+  return out
+}
+
+/** Load a standalone instance of the pinned local encoder. */
+export async function loadEmbedder(): Promise<IEmbeddingProvider> {
+  const extractor = await loadExtractor()
+  return {
+    dim: LOCAL_EMBEDDING_DIM,
+    model: LOCAL_EMBEDDING_ID,
+    embed: (texts) => embedWith(extractor, texts)
+  }
+}
+
+const sharedExtractor = new IdleResource<Extractor>({
+  load: loadExtractor,
+  dispose: (extractor) => extractor.dispose(),
+  idleMs: EMBEDDER_IDLE_MS
+})
+
+const localEmbedder: IEmbeddingProvider = {
+  dim: LOCAL_EMBEDDING_DIM,
+  model: LOCAL_EMBEDDING_ID,
+  embed: (texts) => sharedExtractor.use((extractor) => embedWith(extractor, texts))
+}
 
 /**
- * Lazy-init Xenova MiniLM-L6-v2 (384-dim, ONNX, on-device).
- * First call downloads ~22 MB of model weights into the user cache; subsequent
- * calls are instant. Returns null if the import fails (e.g. ONNX runtime not
- * available) so callers can degrade gracefully.
+ * Shared on-device embedder, or null when it can't load (ONNX runtime missing,
+ * first-run download offline) so callers degrade gracefully. A failed load is
+ * retried on the next call rather than disabling RAG until restart.
  */
 export async function getLocalEmbedder(): Promise<IEmbeddingProvider | null> {
-  if (local) return local
-  if (localPromise) return localPromise
-  localPromise = (async () => {
-    try {
-      const mod = await import('@xenova/transformers')
-      const { pipeline } = mod as unknown as {
-        pipeline: (
-          task: string,
-          model: string
-        ) => Promise<
-          (
-            input: string | string[],
-            opts: { pooling?: string; normalize?: boolean }
-          ) => Promise<{ data: Float32Array; dims: number[] }>
-        >
-      }
-      const extractor = await pipeline('feature-extraction', LOCAL_EMBEDDING_MODEL)
-      local = {
-        dim: 384,
-        model: LOCAL_EMBEDDING_MODEL,
-        async embed(texts) {
-          const out: Float32Array[] = []
-          // Run sequentially — the pipeline is single-threaded in this build.
-          for (const text of texts) {
-            const r = await extractor(text, { pooling: 'mean', normalize: true })
-            // `r.data` is a backing tensor — clone so callers can hold it
-            // without locking the next inference.
-            out.push(new Float32Array(r.data))
-          }
-          return out
-        }
-      }
-      return local
-    } catch (err) {
-      console.error('[rag] local embedder init failed', err)
-      return null
-    }
-  })()
-  return localPromise
+  try {
+    await sharedExtractor.use(async () => {})
+    return localEmbedder
+  } catch (err) {
+    console.error('[rag] local embedder init failed', err)
+    return null
+  }
 }

@@ -78,4 +78,29 @@ describe('chunkSegments (regression)', () => {
     const s = { ...seg('skip me entirely please'), isFinal: false }
     expect(chunkSegments([s])).toEqual([])
   })
+
+  it('keeps speaker turns as You:/Them: lines inside a chunk', () => {
+    const chunks = chunkSegments([
+      seg('Какие ожидания по зарплате?', 'system'),
+      seg('Пятьдесят тысяч.', 'mic'),
+      seg('В месяц на руки.', 'mic'),
+      seg('Хорошо.', 'system')
+    ])
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]!.text).toBe(
+      'Them: Какие ожидания по зарплате?\nYou: Пятьдесят тысяч. В месяц на руки.\nThem: Хорошо.'
+    )
+  })
+
+  it('prefixes a turn that continues across a chunk boundary', () => {
+    const chunks = chunkSegments([seg(words(100), 'system')])
+    expect(chunks).toHaveLength(2)
+    expect(chunks[1]!.text.startsWith('Them: ')).toBe(true)
+  })
+
+  it("stamps chunks with the first segment's wall-clock time, not its offset", () => {
+    const first = { ...seg('first words here'), startMs: 5_000, createdAt: 1_700_000_000_000 }
+    const second = { ...seg('later words here'), startMs: 9_000, createdAt: 1_700_000_004_000 }
+    expect(chunkSegments([first, second])[0]!.ts).toBe(1_700_000_000_000)
+  })
 })

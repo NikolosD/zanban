@@ -34,12 +34,32 @@ interface IndexOptions {
   sourceKind: SourceKind
   sourceId: string
   sourceLabel?: string | null
+  /** Drop the source's existing chunks in the same transaction as the insert. */
+  replace?: boolean
+}
+
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>
+
+function deleteSourceRows(db: Db, sourceKind: SourceKind, sourceId: string): number {
+  const ids = db
+    .prepare('SELECT id FROM chunks WHERE source_kind = ? AND source_id = ?')
+    .all<{ id: number | bigint }>(sourceKind, sourceId)
+  if (ids.length === 0) return 0
+  const delVec = db.prepare('DELETE FROM chunks_vec WHERE rowid = ?')
+  for (const { id } of ids) delVec.run(toBigIntId(id))
+  return Number(
+    db
+      .prepare('DELETE FROM chunks WHERE source_kind = ? AND source_id = ?')
+      .run(sourceKind, sourceId).changes
+  )
 }
 
 /**
  * Embed + persist a batch of chunks under a given source. Shared by the
  * transcript indexer, the document indexer, and the recap indexer. Returns the
- * number of chunks actually inserted (0 if RAG is unavailable).
+ * number of chunks actually inserted (0 if RAG is unavailable). Embedding runs
+ * first; the writes then land in one transaction, so concurrent re-indexes of
+ * the same source can't interleave into duplicates.
  */
 async function indexSource(chunks: Chunk[], opts: IndexOptions): Promise<number> {
   if (chunks.length === 0) return 0
@@ -47,33 +67,35 @@ async function indexSource(chunks: Chunk[], opts: IndexOptions): Promise<number>
   const embedder = await getLocalEmbedder()
   if (!db || !embedder) return 0
 
+  const vectors = await embedder.embed(chunks.map((c) => c.text))
   const insertChunk = db.prepare(
     'INSERT INTO chunks (source_kind, source_id, source_label, speaker, ts, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
   )
   const insertVec = db.prepare('INSERT INTO chunks_vec (rowid, embedding) VALUES (?, ?)')
-
   const now = Date.now()
-  const vectors = await embedder.embed(chunks.map((c) => c.text))
-  let inserted = 0
-  for (let i = 0; i < chunks.length; i++) {
-    const c = chunks[i]
-    const v = vectors[i]
-    if (!c || !v) continue
-    const result = insertChunk.run(
-      opts.sourceKind,
-      opts.sourceId,
-      opts.sourceLabel ?? null,
-      c.speaker,
-      c.ts,
-      c.text,
-      now
-    )
-    // sqlite-vec's vec0 strictly requires SQLITE_INTEGER for rowid binding.
-    // better-sqlite3 may bind a JS number as REAL; force BigInt to guarantee INTEGER.
-    insertVec.run(toBigIntId(result.lastInsertRowid), embeddingToBlob(v))
-    inserted++
-  }
-  return inserted
+  return db.transaction(() => {
+    if (opts.replace) deleteSourceRows(db, opts.sourceKind, opts.sourceId)
+    let inserted = 0
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i]
+      const v = vectors[i]
+      if (!c || !v) continue
+      const result = insertChunk.run(
+        opts.sourceKind,
+        opts.sourceId,
+        opts.sourceLabel ?? null,
+        c.speaker,
+        c.ts,
+        c.text,
+        now
+      )
+      // sqlite-vec's vec0 strictly requires SQLITE_INTEGER for rowid binding.
+      // better-sqlite3 may bind a JS number as REAL; force BigInt to guarantee INTEGER.
+      insertVec.run(toBigIntId(result.lastInsertRowid), embeddingToBlob(v))
+      inserted++
+    }
+    return inserted
+  })()
 }
 
 /** Index transcript chunks for a live session. */
@@ -81,18 +103,23 @@ export async function indexChunks(sessionId: string, chunks: Chunk[]): Promise<n
   return indexSource(chunks, { sourceKind: 'session', sourceId: sessionId })
 }
 
-/** Index reference-document chunks under a doc id (filename as label). */
+/** Replace a reference document's chunks (filename as label). */
 export async function indexDocChunks(
   docId: string,
   label: string,
   chunks: Chunk[]
 ): Promise<number> {
-  return indexSource(chunks, { sourceKind: 'doc', sourceId: docId, sourceLabel: label })
+  return indexSource(chunks, {
+    sourceKind: 'doc',
+    sourceId: docId,
+    sourceLabel: label,
+    replace: true
+  })
 }
 
-/** Index structured-recap chunks under their session id. */
+/** Replace a session's structured-recap chunks. */
 export async function indexRecapChunks(sessionId: string, chunks: Chunk[]): Promise<number> {
-  return indexSource(chunks, { sourceKind: 'recap', sourceId: sessionId })
+  return indexSource(chunks, { sourceKind: 'recap', sourceId: sessionId, replace: true })
 }
 
 const SELECT_COLS = `c.id as id, c.source_kind as sourceKind, c.source_id as sourceId,
@@ -128,24 +155,25 @@ export async function search(query: string, k = 6): Promise<RetrievedChunk[]> {
 async function deleteSource(sourceKind: SourceKind, sourceId: string): Promise<number> {
   const db = await getDb()
   if (!db) return 0
-  const ids = db
-    .prepare('SELECT id FROM chunks WHERE source_kind = ? AND source_id = ?')
-    .all<{ id: number | bigint }>(sourceKind, sourceId)
-  if (ids.length === 0) return 0
-  const delVec = db.prepare('DELETE FROM chunks_vec WHERE rowid = ?')
-  for (const { id } of ids) delVec.run(toBigIntId(id))
-  return Number(
-    db
-      .prepare('DELETE FROM chunks WHERE source_kind = ? AND source_id = ?')
-      .run(sourceKind, sourceId).changes
-  )
+  return db.transaction(() => deleteSourceRows(db, sourceKind, sourceId))()
+}
+
+/** Whether any chunk of the given source is indexed. */
+export async function hasSource(sourceKind: SourceKind, sourceId: string): Promise<boolean> {
+  const db = await getDb()
+  if (!db) return false
+  return !!db
+    .prepare('SELECT 1 FROM chunks WHERE source_kind = ? AND source_id = ? LIMIT 1')
+    .get(sourceKind, sourceId)
 }
 
 /** Remove a session's transcript chunks AND its recap chunks. */
 export async function deleteSession(sessionId: string): Promise<number> {
-  const transcript = await deleteSource('session', sessionId)
-  const recap = await deleteSource('recap', sessionId)
-  return transcript + recap
+  const db = await getDb()
+  if (!db) return 0
+  return db.transaction(
+    () => deleteSourceRows(db, 'session', sessionId) + deleteSourceRows(db, 'recap', sessionId)
+  )()
 }
 
 /** Remove all chunks for a reference document. */

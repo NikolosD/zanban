@@ -6,23 +6,30 @@ export interface Chunk {
   text: string
 }
 
+interface SpokenWord {
+  word: string
+  speaker: string
+  ts: number
+}
+
 const TARGET_WORDS = 80
 const OVERLAP_WORDS = 12
 
 /**
  * Pack a stream of transcript segments into chunks of ~TARGET_WORDS each,
- * with a small tail overlap so semantic boundaries aren't lost. Speakers are
- * recorded but a single chunk can span multiple speakers — we anchor to the
- * majority speaker (good enough for retrieval).
+ * with a small tail overlap so semantic boundaries aren't lost. A chunk can
+ * span several speaker turns; each turn becomes its own "You:" / "Them:" line
+ * so who-said-what survives into the embedding and the prompt. `speaker` is
+ * the majority speaker and `ts` the epoch time of the chunk's first segment.
  */
 export function chunkSegments(segs: TranscriptSegment[]): Chunk[] {
   const chunks: Chunk[] = []
-  let words: Array<{ word: string; speaker: string; ts: number }> = []
+  let words: SpokenWord[] = []
   for (const s of segs) {
     if (!s.isFinal) continue
     const spk = s.channel === 'mic' ? 'You' : 'Them'
     for (const w of s.text.split(/\s+/).filter(Boolean)) {
-      words.push({ word: w, speaker: spk, ts: s.startMs })
+      words.push({ word: w, speaker: spk, ts: s.createdAt })
     }
     while (words.length >= TARGET_WORDS) {
       const slice = words.slice(0, TARGET_WORDS)
@@ -59,8 +66,14 @@ export function chunkText(text: string, ts: number): Chunk[] {
   return chunks
 }
 
-function packChunk(slice: Array<{ word: string; speaker: string; ts: number }>): Chunk {
-  const text = slice.map((w) => w.word).join(' ')
+function packChunk(slice: SpokenWord[]): Chunk {
+  const lines: Array<{ speaker: string; words: string[] }> = []
+  for (const w of slice) {
+    const last = lines[lines.length - 1]
+    if (last?.speaker === w.speaker) last.words.push(w.word)
+    else lines.push({ speaker: w.speaker, words: [w.word] })
+  }
+  const text = lines.map((l) => `${l.speaker}: ${l.words.join(' ')}`).join('\n')
   const ts = slice[0]?.ts ?? 0
   // Majority speaker — count occurrences; ties resolved by first-seen.
   const counts = new Map<string, number>()

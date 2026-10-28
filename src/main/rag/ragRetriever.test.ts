@@ -8,7 +8,7 @@ vi.mock('./vectorStore.js', () => ({
   search: async () => hits.value
 }))
 
-const { retrieve, retrieveContext } = await import('./ragRetriever.js')
+const { retrieve, retrieveContext, looksLikeHistoryQuestion } = await import('./ragRetriever.js')
 
 function hit(over: Partial<RetrievedChunk>): RetrievedChunk {
   return {
@@ -42,9 +42,9 @@ describe('retrieve', () => {
 
   it('labels and tags doc / session / recap sources distinctly', async () => {
     hits.value = [
-      hit({ id: 1, sourceKind: 'doc', sourceLabel: 'resume.pdf', distance: 0.2 }),
-      hit({ id: 2, sourceKind: 'session', sourceId: 'abcdef0123', distance: 0.3 }),
-      hit({ id: 3, sourceKind: 'recap', sourceId: 'fedcba9876', distance: 0.4 })
+      hit({ id: 1, sourceKind: 'doc', sourceLabel: 'resume.pdf', text: 'cv', distance: 0.2 }),
+      hit({ id: 2, sourceKind: 'session', sourceId: 'abcdef0123', text: 'call', distance: 0.3 }),
+      hit({ id: 3, sourceKind: 'recap', sourceId: 'fedcba9876', text: 'recap', distance: 0.4 })
     ]
     const r = await retrieve('q')
     const byId = new Map(r.sources.map((s) => [s.id, s]))
@@ -59,7 +59,7 @@ describe('retrieve', () => {
     ]
     const r = await retrieve('q')
     expect(r.prompt).toContain('<retrieved_context>')
-    expect(r.prompt).toContain('[document · spec.md]')
+    expect(r.prompt).toContain('[1] document · spec.md')
     expect(r.prompt).toContain('the spec body')
   })
 
@@ -83,4 +83,90 @@ describe('retrieve', () => {
     hits.value = [hit({ text: 'hello', distance: 0.1 })]
     expect(await retrieveContext('q')).toContain('<retrieved_context>')
   })
+
+  it('lets a per-call threshold tighten but not loosen the calibrated default', async () => {
+    hits.value = [hit({ id: 1, distance: 1.0 }), hit({ id: 2, text: 'other', distance: 1.18 })]
+    expect((await retrieve('q', { distanceThreshold: 1.2 })).sources.map((s) => s.id)).toEqual([1])
+    expect((await retrieve('q', { distanceThreshold: 0.9 })).sources).toEqual([])
+  })
+
+  it('drops hits much farther than the best one', async () => {
+    hits.value = [
+      hit({ id: 1, text: 'alpha', distance: 0.6 }),
+      hit({ id: 2, text: 'beta', distance: 0.75 }),
+      hit({ id: 3, text: 'gamma', distance: 0.95 })
+    ]
+    expect((await retrieve('q')).sources.map((s) => s.id)).toEqual([1, 2])
+  })
+
+  it('dedupes near-identical fragments, keeping the closest', async () => {
+    const text =
+      'Them: the enterprise tier is 49 dollars per seat per month with a discount on annual'
+    hits.value = [
+      hit({ id: 1, sourceKind: 'doc', sourceLabel: 'a.pdf', text, distance: 0.3 }),
+      hit({ id: 2, sourceKind: 'doc', sourceLabel: 'b.pdf', text, distance: 0.31 }),
+      hit({ id: 3, text: text.replace('annual', 'yearly'), distance: 0.32 }),
+      hit({ id: 4, text: 'something else entirely', distance: 0.4 })
+    ]
+    expect((await retrieve('q')).sources.map((s) => s.id)).toEqual([1, 4])
+  })
+
+  it('caps the result at topK after filtering', async () => {
+    hits.value = [1, 2, 3, 4].map((id) => hit({ id, text: `fragment ${id}`, distance: 0.5 }))
+    expect((await retrieve('q', { topK: 2 })).sources.map((s) => s.id)).toEqual([1, 2])
+  })
+
+  it('skips live-call chunks inside the transcript window and labels older ones', async () => {
+    const windowStart = Date.UTC(2026, 0, 2, 12)
+    hits.value = [
+      hit({ id: 1, sourceId: 'live', text: 'recent', ts: windowStart + 1000, distance: 0.2 }),
+      hit({ id: 2, sourceId: 'live', text: 'older', ts: windowStart - 60_000, distance: 0.3 }),
+      hit({ id: 3, sourceId: 'past-session', text: 'past', distance: 0.4 })
+    ]
+    const r = await retrieve('q', { currentSessionId: 'live', transcriptWindowStart: windowStart })
+    expect(r.sources.map((s) => s.id)).toEqual([2, 3])
+    expect(r.sources[0]!.label).toBe('earlier in this call')
+    expect(r.prompt).toContain('[1] earlier in this call\nolder')
+    expect(r.prompt).toContain('[2] past meeting · 2026-01-02\npast')
+  })
+
+  it('numbers fragments in similarity order and dates recaps', async () => {
+    hits.value = [
+      hit({ id: 1, sourceKind: 'doc', sourceLabel: 'cv.pdf', text: 'one', distance: 0.2 }),
+      hit({ id: 2, sourceKind: 'recap', text: 'two', distance: 0.3 })
+    ]
+    const r = await retrieve('q')
+    expect(r.prompt.indexOf('[1] document · cv.pdf')).toBeLessThan(
+      r.prompt.indexOf('[2] meeting recap · 2026-01-02')
+    )
+  })
+
+  it('says so explicitly when a question about past meetings finds nothing', async () => {
+    const empty = await retrieve('What did we agree on last time?')
+    expect(empty.prompt).toContain('No matching past sessions or documents.')
+    expect(empty.sources).toEqual([])
+    expect((await retrieve('Что мы обсуждали на прошлой встрече?')).prompt).toContain('No matching')
+    expect((await retrieve('How do I reverse a linked list?')).prompt).toBe('')
+  })
+})
+
+describe('looksLikeHistoryQuestion', () => {
+  it.each([
+    'What did we decide about pricing?',
+    'remind me what the contract says',
+    'Did they mention a budget?',
+    'Что я говорил про зарплату?',
+    'Какие сроки в договоре?',
+    'О чём договорились в прошлый раз?',
+    'Что в моём резюме про React?'
+  ])('matches %s', (q) => {
+    expect(looksLikeHistoryQuestion(q)).toBe(true)
+  })
+
+  it.each(['How do I reverse a linked list?', 'Объясни, что такое замыкание', 'Как дела?'])(
+    'ignores %s',
+    (q) => {
+      expect(looksLikeHistoryQuestion(q)).toBe(false)
+    }
+  )
 })

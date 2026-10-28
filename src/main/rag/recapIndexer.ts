@@ -39,16 +39,31 @@ export function recapToText(recap: IndexableRecap): string {
   return parts.join('\n')
 }
 
+async function meetingStartedAt(sessionId: string): Promise<number> {
+  // Imported lazily: sessionSync → sessionManager → rag/index would cycle back here.
+  const { readSessionFromDisk } = await import('../sync/sessionSync.js')
+  return (await readSessionFromDisk(sessionId))?.startedAt ?? Date.now()
+}
+
 /**
- * (Re)index a session's structured recap. Drops any prior recap chunks for the
- * session first so a regenerated recap replaces the old one. Best-effort.
+ * (Re)index a session's structured recap, replacing any prior recap chunks so a
+ * regenerated recap doesn't duplicate the old one. Chunks carry the meeting's
+ * date (not the recap's generation time) so they're labeled by when it
+ * happened. Best-effort.
  */
-export async function indexRecap(sessionId: string, recap: IndexableRecap): Promise<number> {
-  await deleteRecap(sessionId)
+export async function indexRecap(
+  sessionId: string,
+  recap: IndexableRecap,
+  meetingAt?: number
+): Promise<number> {
   const text = recapToText(recap)
-  if (!text.trim()) return 0
-  const chunks = chunkText(text, Date.now())
-  if (chunks.length === 0) return 0
+  const chunks = text.trim()
+    ? chunkText(text, meetingAt ?? (await meetingStartedAt(sessionId)))
+    : []
+  if (chunks.length === 0) {
+    await deleteRecap(sessionId)
+    return 0
+  }
   return trackJob(`rag-recap-${sessionId}-${Date.now()}`, 'Indexing recap', 'rag', () =>
     indexRecapChunks(sessionId, chunks)
   )

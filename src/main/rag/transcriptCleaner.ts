@@ -27,32 +27,17 @@ const EN_FILLERS = new Set([
   'mm-hmm'
 ])
 
-const RU_FILLERS = new Set([
-  'э',
-  'эм',
-  'мм',
-  'ммм',
-  'ну',
-  'вот',
-  'это',
-  'эээ',
-  'ага',
-  'угу'
-])
+const RU_FILLERS = new Set(['э', 'эм', 'мм', 'ммм', 'ну', 'вот', 'это', 'эээ', 'ага', 'угу'])
 
-const EN_MULTI_FILLERS = [
-  /\byou know\b/gi,
-  /\bi mean\b/gi,
-  /\bsort of\b/gi,
-  /\bkind of\b/gi
-]
+// JS `\b` only knows ASCII word characters (even with the `u` flag), so it never
+// matches next to Cyrillic; letter/digit lookarounds work for both scripts.
+function phrase(words: string): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{N}])${words.replace(/ /g, '\\s+')}(?![\\p{L}\\p{N}])`, 'giu')
+}
 
-const RU_MULTI_FILLERS = [
-  /\bкак бы\b/gi,
-  /\bтипа того\b/gi,
-  /\bв общем-то\b/gi,
-  /\bэто самое\b/gi
-]
+const EN_MULTI_FILLERS = ['you know', 'i mean', 'sort of', 'kind of'].map(phrase)
+
+const RU_MULTI_FILLERS = ['как бы', 'типа того', 'в общем-то', 'это самое'].map(phrase)
 
 const FILLERS = new Set<string>([...EN_FILLERS, ...RU_FILLERS])
 
@@ -64,7 +49,7 @@ function cleanText(input: string): string {
   for (const re of RU_MULTI_FILLERS) s = s.replace(re, '')
 
   // Collapse adjacent duplicate words (case-insensitive): "yeah yeah" → "yeah".
-  s = s.replace(/\b(\p{L}+)(\s+\1\b)+/giu, '$1')
+  s = s.replace(/(?<![\p{L}\p{N}])(\p{L}+)(?:\s+\1)+(?![\p{L}\p{N}])/giu, '$1')
 
   // Token-level filler removal.
   const tokens = s.split(/\s+/)
@@ -85,15 +70,22 @@ function cleanText(input: string): string {
   return s
 }
 
-/** Word count heuristic — segments below this after cleaning are dropped. */
+/** Segments that lost filler and are left with fewer words than this are dropped. */
 const MIN_WORDS = 3
+
+function wordCount(s: string): number {
+  return s.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length
+}
 
 export function cleanSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   const out: TranscriptSegment[] = []
   for (const s of segments) {
     const cleaned = cleanText(s.text)
     if (!cleaned) continue
-    if (cleaned.split(/\s+/).length < MIN_WORDS) continue
+    // A short leftover of a filler-heavy segment ("ну вот да") is noise, but a
+    // terse real answer ("Пятьдесят тысяч.") had nothing stripped and stays.
+    const words = wordCount(cleaned)
+    if (words < MIN_WORDS && words < wordCount(s.text)) continue
     out.push({ ...s, text: cleaned })
   }
   return out
