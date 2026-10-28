@@ -14,6 +14,10 @@ interface SessionBuffer {
 }
 
 const buffers = new Map<string, SessionBuffer>()
+// A flush takes its segments out of the buffer synchronously, so flushAll() must
+// also wait on flushes that are already embedding — otherwise quit can close the
+// DB underneath them.
+const inFlight = new Set<Promise<void>>()
 
 /**
  * Feed a finalized transcript segment into the live indexer. Chunks accumulate
@@ -38,7 +42,14 @@ export function pushSegment(sessionId: string, segment: TranscriptSegment): void
   }
 }
 
-export async function flushSession(sessionId: string): Promise<void> {
+export function flushSession(sessionId: string): Promise<void> {
+  const run = runFlush(sessionId)
+  inFlight.add(run)
+  void run.finally(() => inFlight.delete(run))
+  return run
+}
+
+async function runFlush(sessionId: string): Promise<void> {
   const buf = buffers.get(sessionId)
   if (!buf || buf.segments.length === 0) return
   const segments = buf.segments
@@ -63,7 +74,8 @@ export async function flushSession(sessionId: string): Promise<void> {
 }
 
 export async function flushAll(): Promise<void> {
-  await Promise.all([...buffers.keys()].map(flushSession))
+  for (const sessionId of buffers.keys()) void flushSession(sessionId)
+  await Promise.all(inFlight)
 }
 
 export function clearSession(sessionId: string): void {

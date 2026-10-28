@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, writeFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { sessionManager } from '../transcription/sessionManager.js'
 import { generateSessionTitle } from '../ai/titleGen.js'
-import { readRecap } from '../services/recap/recapPersistence.js'
+import { deleteRecap, readRecap } from '../services/recap/recapPersistence.js'
 import { renderRecapMarkdown, insertRecapSection } from '../services/recap/recapMarkdown.js'
 import type { TranscriptSegment } from '../../shared/types.js'
 import type {
@@ -169,16 +169,26 @@ export function registerSyncWindow(_win: BrowserWindow): void {
   })
 
   sessionManager.onSessionEnd((sessionId) => {
+    // flush() bails on an empty buffer before ensureRecord() can notice the
+    // session ended, so clear the live marker here.
+    if (activeSessionId === sessionId) activeSessionId = null
     // Resolve the record by id (manager state is 'idle' by now) and drain the
     // 0–4s tail of finals still in the buffer since the last interval flush.
     const work = serialize(async () => {
       const rec = getOrCreateRecord(sessionId, Date.now())
       drainFinalsInto(rec)
-      await finalize(rec)
+      rec.endedAt = Date.now()
+      await persist(rec)
+      return rec
     })
-    const tracked = work.finally(() => finalizedWaiters.delete(sessionId))
+    const tracked = work
+      .then(
+        () => undefined,
+        (err) => console.error('[sync] finalize failed', err)
+      )
+      .finally(() => finalizedWaiters.delete(sessionId))
     finalizedWaiters.set(sessionId, tracked)
-    void tracked
+    void work.then(addGeneratedTitle, () => undefined)
   })
 
   timer = setInterval(() => void serialize(flush), FLUSH_INTERVAL_MS)
@@ -197,8 +207,12 @@ async function flush(): Promise<void> {
   if (changed) await persist(rec)
 }
 
-async function finalize(rec: SessionRecord): Promise<void> {
-  rec.endedAt = Date.now()
+// Runs outside the write chain: a slow or hung LLM call must never hold up other
+// session saves (or the final save on quit).
+async function addGeneratedTitle(rec: SessionRecord): Promise<void> {
+  // Only set a title if there isn't one yet — protects a user rename and avoids
+  // clobbering a good title with a fresh generation on resume+stop.
+  if (rec.title) return
   const titleSegments: TranscriptSegment[] = rec.segments.map((s, i) => ({
     id: String(i),
     channel: s.channel,
@@ -209,13 +223,15 @@ async function finalize(rec: SessionRecord): Promise<void> {
     isFinal: true,
     createdAt: rec.startedAt + s.startMs
   }))
-  // Only set a title if there isn't one yet — protects a user rename and avoids
-  // clobbering a good title with a fresh generation on resume+stop.
-  if (!rec.title) {
-    const title = await generateSessionTitle(titleSegments).catch(() => null)
-    if (title) rec.title = title
-  }
-  await persist(rec)
+  const title = await generateSessionTitle(titleSegments).catch(() => null)
+  if (!title) return
+  await serialize(async () => {
+    // Re-checked inside the chain: the user may have renamed or deleted the
+    // session while the title was generating.
+    if (rec.title || sessions.get(rec.id) !== rec) return
+    rec.title = title
+    await persist(rec)
+  })
 }
 
 export async function recordAiExchange(
@@ -289,15 +305,20 @@ export async function listSessionsFromDisk(): Promise<SessionListItem[]> {
   const items: SessionListItem[] = []
   for (const name of entries) {
     if (!name.endsWith('.json')) continue
+    // Rejects sidecars like `<id>.recap.json` — the dot fails the id pattern.
+    const id = name.slice(0, -'.json'.length)
+    if (!isValidSessionId(id)) continue
     try {
       const raw = await readFile(join(sessionsDir(), name), 'utf8')
-      const rec = JSON.parse(raw) as SessionRecord
+      const rec = JSON.parse(raw) as Partial<SessionRecord> | null
+      if (rec?.id !== id || typeof rec.startedAt !== 'number') continue
+      const endedAt = typeof rec.endedAt === 'number' ? rec.endedAt : null
       items.push({
-        id: rec.id,
+        id,
         startedAt: rec.startedAt,
-        endedAt: rec.endedAt,
-        title: rec.title,
-        durationMs: rec.endedAt ? rec.endedAt - rec.startedAt : null
+        endedAt,
+        title: typeof rec.title === 'string' ? rec.title : null,
+        durationMs: endedAt ? endedAt - rec.startedAt : null
       })
     } catch {
       /* skip corrupt files */
@@ -377,20 +398,28 @@ export async function deleteSessionFromDisk(id: string): Promise<{ ok: boolean }
   if (!isValidSessionId(id)) return { ok: false }
   await ensureDir()
   // Refuse if this is the live session — caller must stop it first.
-  if (activeSessionId === id) {
+  const state = sessionManager.getState()
+  if (state.kind === 'running' && state.sessionId === id) {
     return { ok: false }
   }
-  sessions.delete(id)
-  let removedAny = false
-  for (const p of [jsonPath(id), mdPath(id)]) {
-    try {
-      await unlink(p)
-      removedAny = true
-    } catch {
-      /* file may not exist — ignore */
+  // Queued behind any pending persist (e.g. the end-of-session finalize) so it
+  // can't recreate the files or the cached record afterwards.
+  return serialize(async () => {
+    sessions.delete(id)
+    let removedAny = false
+    for (const p of [jsonPath(id), mdPath(id)]) {
+      try {
+        await unlink(p)
+        removedAny = true
+      } catch {
+        /* file may not exist — ignore */
+      }
     }
-  }
-  return { ok: removedAny }
+    await deleteRecap(sessionsDir(), id).catch((err) =>
+      console.warn('[sync] recap delete failed', err)
+    )
+    return { ok: removedAny }
+  })
 }
 
 export async function copySessionMarkdown(id: string, dest: string): Promise<void> {

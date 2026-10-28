@@ -113,6 +113,7 @@ export class DeepgramSttChannel {
     }
     this.connection = null
     this.pending = []
+    this.opts.onStatus({ kind: 'closed', channel: this.opts.channel })
   }
 
   private async connect(): Promise<void> {
@@ -152,9 +153,14 @@ export class DeepgramSttChannel {
         }
       ).v1.connect(params)) as DgConnection
 
+      if (this.closed) {
+        conn.close()
+        return
+      }
       this.connection = conn
 
       conn.on('open', () => {
+        if (this.connection !== conn) return
         this.ready = true
         this.retries = 0
         console.log(`[deepgram:${this.opts.channel}] open (model=nova-3, language=${language})`)
@@ -184,6 +190,7 @@ export class DeepgramSttChannel {
       })
 
       conn.on('message', (raw) => {
+        if (this.connection !== conn) return
         const data = raw as DgResult
         if (data.type !== 'Results') return
         const text = data.channel?.alternatives?.[0]?.transcript?.trim()
@@ -193,7 +200,8 @@ export class DeepgramSttChannel {
         const durSec = Number(data.duration ?? 0)
         const startMs = Math.round(startSec * 1000)
         const endMs = Math.round((startSec + durSec) * 1000)
-        console.log(`[deepgram:${this.opts.channel}] final=${isFinal} text="${text}"`)
+        // Never write transcript text to zanban.log — users attach it to bug reports.
+        console.debug(`[deepgram:${this.opts.channel}] final=${isFinal} chars=${text.length}`)
         this.opts.onSegment({
           id: randomUUID(),
           channel: this.opts.channel,
@@ -207,6 +215,7 @@ export class DeepgramSttChannel {
       })
 
       conn.on('error', (raw) => {
+        if (this.connection !== conn) return
         const err = raw as { message?: string } | Error
         const message = err instanceof Error ? err.message : (err?.message ?? 'unknown')
         console.error(`[deepgram:${this.opts.channel}] error`, message)
@@ -220,6 +229,7 @@ export class DeepgramSttChannel {
       })
 
       conn.on('close', () => {
+        if (this.connection !== conn) return
         console.log(`[deepgram:${this.opts.channel}] closed`)
         this.ready = false
         if (this.keepAliveTimer) clearInterval(this.keepAliveTimer)
@@ -231,6 +241,7 @@ export class DeepgramSttChannel {
       conn.connect()
       await conn.waitForOpen()
     } catch (err) {
+      if (this.closed) return
       console.error(`[deepgram:${this.opts.channel}] connect failed`, err)
       this.opts.onStatus({
         kind: 'error',

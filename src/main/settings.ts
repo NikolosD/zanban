@@ -130,8 +130,6 @@ export function setSettings(patch: Partial<AppSettings>): AppSettings {
       )
     }
   }
-  for (const [k, v] of Object.entries(next)) {
-    ;(store as unknown as { set(k: string, v: unknown): void }).set(k, v)
-  }
+  store.set(next)
   return getSettings()
 }

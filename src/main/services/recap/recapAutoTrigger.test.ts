@@ -108,4 +108,16 @@ describe('recapAutoTrigger', () => {
     expect(order).toEqual(['awaitFinalized', 'trackJob'])
     expect(trackJob).toHaveBeenCalledTimes(1)
   })
+
+  it('warns when generate resolves with a failure result', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate: async () => ({ ok: false, code: 'rate_limit', message: '429' }),
+      trackJob: async (_id, _t, _k, fn) => fn()
+    })
+    await trigger.onSessionStopped('sess1')
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('rate_limit'))
+    warn.mockRestore()
+  })
 })
