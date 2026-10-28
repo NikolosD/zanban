@@ -20,7 +20,8 @@ const LOAD_TIMEOUT_MS = 10 * 60_000
 const RECOGNIZE_TIMEOUT_MS = 60_000
 
 /**
- * Privacy-Mode STT: 5-second batches of 16 kHz PCM are decoded with Whisper-tiny
+ * Privacy-Mode STT for the languages Parakeet doesn't cover (see
+ * localParakeetClient.ts): 5-second batches of 16 kHz PCM are decoded with Whisper-tiny
  * via @xenova/transformers (ONNX, on-device) in the ML utility process. Not
  * real-time, but no audio ever leaves the machine.
  *

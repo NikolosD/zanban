@@ -21,7 +21,7 @@ import type { AudioChannel, CaptureNotice } from '../shared/types.js'
 import { redactSettings } from '../shared/settingsBoundary.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
-import { mlWorker } from './ml/index.js'
+import { mlWorker, speechWorker } from './ml/index.js'
 import { raceTimeout } from './ai/raceTimeout.js'
 import { hardenWebContents, isAppUrl } from './security.js'
 import { captureInstant, getActiveDisplay } from './screenshot/index.js'
@@ -697,6 +697,7 @@ app.on('before-quit', (e) => {
   e.preventDefault()
   void raceTimeout(finalizeBeforeQuit(), QUIT_FINALIZE_TIMEOUT_MS, undefined).finally(() => {
     mlWorker.shutdown()
+    speechWorker.shutdown()
     app.quit()
   })
 })

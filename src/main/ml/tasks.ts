@@ -1,7 +1,8 @@
 import { IdleResource } from '../services/idleResource.js'
 import { loadTransformers, type TransformersPipeline } from '../services/transformers.js'
 import { LOCAL_EMBEDDING_MODEL, LOCAL_EMBEDDING_REVISION, WHISPER_MODEL } from './models.js'
-import type { MlResults, MlTask } from './protocol.js'
+import { createParakeet } from './parakeet.js'
+import type { MlModel, MlResults, MlTask } from './protocol.js'
 
 type Asr = TransformersPipeline &
   ((
@@ -52,9 +53,18 @@ export function createMlTasks(cacheDir: string): MlTasks {
     idleMs: EMBEDDER_IDLE_MS
   })
 
+  const parakeet = createParakeet(cacheDir)
+
+  const loaders: Record<MlModel, () => Promise<void>> = {
+    whisper: () => whisper.use(async () => {}),
+    embedder: () => embedder.use(async () => {}),
+    parakeet: async () => {
+      await parakeet.load()
+    }
+  }
+
   const handlers: Handlers = {
-    load: (task) =>
-      task.model === 'whisper' ? whisper.use(async () => {}) : embedder.use(async () => {}),
+    load: (task) => loaders[task.model](),
     transcribe: (task) =>
       whisper.use(async (asr) => {
         const r = await asr(task.samples, {
@@ -64,6 +74,8 @@ export function createMlTasks(cacheDir: string): MlTasks {
         })
         return (r.text ?? '').trim()
       }),
+    speechFeed: (task) => parakeet.feed(task.stream, task.samples),
+    speechEnd: (task) => parakeet.end(task.stream),
     embed: (task) => embedder.use((extractor) => embedTexts(extractor, task.texts)),
     extract: (task) => (task.format === 'pdf' ? extractPdf(task.data) : extractDocx(task.data))
   }

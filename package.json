@@ -44,6 +44,7 @@
     "groq-sdk": "^1.1.2",
     "mammoth": "^1.12.0",
     "openai": "^6.35.0",
+    "sherpa-onnx-node": "2.0.1",
     "sqlite-vec": "^0.1.9",
     "tesseract.js": "^7.0.0",
     "unpdf": "1.8.1",

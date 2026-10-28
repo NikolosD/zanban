@@ -256,7 +256,7 @@
     },
     "about": {
       "title": "about",
-      "description": "Desktop AI meeting assistant. Real-time transcription via Deepgram, Google, OpenAI Whisper, ElevenLabs or local Whisper; answers via Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq or local Ollama. Sessions stored locally.",
+      "description": "Desktop AI meeting assistant. Real-time transcription via Deepgram, Google, OpenAI Whisper, ElevenLabs or on-device Parakeet; answers via Vercel AI Gateway, Anthropic, OpenAI, Gemini, Groq or local Ollama. Sessions stored locally.",
       "updates_title": "updates",
       "updates_hint": "Zanban updates itself in the background. Check manually any time.",
       "check_updates": "Check for updates",
@@ -278,7 +278,7 @@
       "web_search_title": "web search",
       "web_search_hint": "Optional. Lets answers look things up — say, the company you're about to talk to.",
       "privacy_mode_label": "Privacy mode",
-      "privacy_mode_on": "On — answers come from Ollama and speech-to-text runs on local Whisper. Nothing leaves your machine.",
+      "privacy_mode_on": "On — answers come from Ollama and speech-to-text runs on-device. Nothing leaves your machine.",
       "privacy_mode_off": "Off — turn on to switch answers and speech-to-text to local models at once. Slower and less accurate, fully private.",
       "get_key": "get key",
       "get_key_title": "Open the provider's console to get a key",
@@ -290,7 +290,7 @@
       "google_project_id_placeholder": "my-gcp-project-12345",
       "google_service_account_label": "Service account JSON",
       "google_service_account_optional": "(optional — leave empty for ADC)",
-      "local_whisper_note": "On-device — no key needed. Whisper-tiny via @xenova/transformers (~70 MB on first use).",
+      "local_whisper_note": "On-device — no key needed. Parakeet v3 for 25 European languages incl. Russian, Whisper for the rest (~670 MB on first use).",
       "ollama_host_placeholder": "http://127.0.0.1:11434 (default)",
       "ollama_refresh_aria": "Refresh",
       "ollama_connected_one": "connected · {{count}} model",
@@ -367,8 +367,8 @@
           "key_label": "ElevenLabs API key"
         },
         "local-whisper": {
-          "name": "Local Whisper",
-          "description": "On-device — no key needed. Whisper-tiny via @xenova/transformers."
+          "name": "On-device",
+          "description": "On-device — no key needed. Parakeet v3 for 25 European languages, Whisper for the rest."
         }
       },
       "test_connection": "Test",
@@ -617,7 +617,7 @@
     "dialog_description": "API keys, audio devices, hotkeys.",
     "search_keywords": {
       "general": "general, overlay, privacy, stealth, detectable, taskbar, app switcher, alt+tab, dock, opacity, appearance, language, interface language, answer language, speech language, transcription language, recap language, multilingual, data, sessions folder, setup wizard, onboarding",
-      "keys": "keys, providers, api key, token, secret, llm, gateway, vercel, openai, gpt, claude, anthropic, gemini, groq, ollama, privacy mode, fallback, stt, speech to text, transcription, deepgram, whisper, elevenlabs, google, tavily, web search",
+      "keys": "keys, providers, api key, token, secret, llm, gateway, vercel, openai, gpt, claude, anthropic, gemini, groq, ollama, privacy mode, fallback, stt, speech to text, transcription, deepgram, whisper, parakeet, elevenlabs, google, tavily, web search",
       "ai": "ai, models, model overrides, detailed answers, context window, transcript window, follow-up, summary, session title, vision, screenshots",
       "audio": "audio, mic, microphone, system audio, loopback, device, vad, silence",
       "identity": "context, role, roles, persona, preset, answer language override, system prompt, instructions, documents, reference, pdf, docx, txt, resume, spec, brief, rag",
@@ -658,7 +658,7 @@
     },
     "language": {
       "title": "Welcome to Zanban",
-      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes it with the speech-to-text provider you pick, and answers questions for you. Audio goes to that provider (local Whisper keeps it on-device); sessions are stored on your machine.",
+      "body": "A stealth meeting copilot that listens to mic + system audio, transcribes it with the speech-to-text provider you pick, and answers questions for you. Audio goes to that provider (on-device recognition keeps it on your machine); sessions are stored on your machine.",
       "section_label": "interface language",
       "english_label": "English",
       "english_sublabel": "Full support today.",
@@ -714,8 +714,8 @@
           "blurb": "Multilingual streaming. Needs a Google Cloud project + auth."
         },
         "local-whisper": {
-          "label": "Local Whisper",
-          "blurb": "Whisper-tiny on-device. No API key, slower, lower quality."
+          "label": "On-device",
+          "blurb": "Parakeet v3 on this machine. No API key, fully private; ~670 MB download on first use."
         }
       },
       "llm": {
