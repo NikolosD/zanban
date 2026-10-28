@@ -4,8 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import { CheckSquare } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { queryKeys } from '@renderer/lib/queryKeys'
+import { formatFallbackTitle } from '@renderer/lib/dateFormat'
 import type { GlobalActionItem } from '@shared/recap-types'
 import { isActionItemChecked, setActionItemChecked } from './actionItemState'
+
+const COLLAPSED_COUNT = 5
 
 /**
  * Global Action Items panel — every "owner: you" action item that the user
@@ -15,7 +18,7 @@ import { isActionItemChecked, setActionItemChecked } from './actionItemState'
  * in sync with the RecapTab and vice-versa.
  */
 export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data } = useQuery({
     queryKey: queryKeys.globalActionItems,
     queryFn: () => window.zanban.recap.listActionItems(),
@@ -25,6 +28,7 @@ export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): v
   // Items the user has locally checked off. Tracked in component state so a
   // tick removes the row immediately without a server round-trip.
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(() => new Set())
+  const [showAll, setShowAll] = useState(false)
 
   const open = useMemo(() => {
     if (!data) return []
@@ -34,6 +38,7 @@ export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): v
   }, [data, checkedKeys])
 
   if (open.length === 0) return null
+  const visible = showAll ? open : open.slice(0, COLLAPSED_COUNT)
 
   function check(it: GlobalActionItem): void {
     setActionItemChecked(it.sessionId, it, true)
@@ -44,17 +49,17 @@ export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): v
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <CheckSquare className="size-3.5 text-muted-foreground" />
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+        <h2 className="font-mono text-meta uppercase tracking-[0.16em] text-muted-foreground">
           {t('action_items_panel.title', { count: open.length })}
         </h2>
       </div>
       <ul className="flex flex-col rounded-lg border border-white/[0.06] bg-white/[0.015]">
-        {open.map((it, i) => (
+        {visible.map((it, i) => (
           <li
             key={keyOf(it)}
             className={cn(
               'flex items-start gap-3 px-3 py-2.5',
-              i < open.length - 1 && 'border-b border-white/[0.045]'
+              i < visible.length - 1 && 'border-b border-white/[0.045]'
             )}
           >
             <input
@@ -65,23 +70,35 @@ export function GlobalActionItems({ onSelect }: { onSelect(sessionId: string): v
               aria-label={t('action_items_panel.mark_done')}
             />
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] leading-relaxed text-foreground/90">{it.text}</div>
+              <div className="text-body leading-relaxed text-foreground/90">{it.text}</div>
               <button
                 type="button"
                 onClick={() => onSelect(it.sessionId)}
-                className="mt-0.5 truncate text-left font-mono text-[10px] text-muted-foreground/70 hover:text-foreground"
+                className="mt-0.5 truncate text-left font-mono text-meta text-muted-foreground hover:text-foreground"
               >
-                {it.sessionTitle || new Date(it.sessionStartedAt).toLocaleString()}
+                {it.sessionTitle ||
+                  formatFallbackTitle(new Date(it.sessionStartedAt), i18n.language)}
               </button>
             </div>
             {it.dueHint && (
-              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+              <span className="shrink-0 font-mono text-meta text-muted-foreground">
                 {it.dueHint}
               </span>
             )}
           </li>
         ))}
       </ul>
+      {open.length > COLLAPSED_COUNT && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="self-start px-1 text-small text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {showAll
+            ? t('dashboard.action_items.show_less')
+            : t('dashboard.action_items.show_all', { count: open.length })}
+        </button>
+      )}
     </section>
   )
 }

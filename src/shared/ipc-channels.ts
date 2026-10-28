@@ -48,7 +48,10 @@ export const IPC = {
   session: {
     start: 'session:start',
     stop: 'session:stop',
-    state: 'session:state'
+    state: 'session:state',
+    /** Overlay → main: start or stop via the dashboard capture path, like the
+     *  toggleSession hotkey. */
+    requestToggle: 'session:request-toggle'
   },
   audio: {
     chunk: 'audio:chunk',

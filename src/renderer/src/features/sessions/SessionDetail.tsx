@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { TFunction } from 'i18next'
 import { Tabs } from 'radix-ui'
-import { ArrowLeft, ArrowRight, Loader2, Play, Download, Pencil } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Download, Pencil, X } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { errorMessage } from '@renderer/lib/errors'
 import { queryKeys } from '@renderer/lib/queryKeys'
+import { formatDuration } from '@renderer/lib/dateFormat'
+import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { resumeSession } from '@renderer/features/transcript/sessionStart'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
@@ -18,7 +20,7 @@ import type { SessionExportPayload } from '@shared/types'
 import type { RecapPayload } from '@shared/recap-types'
 import { toast } from 'sonner'
 
-type TabId = 'recap' | 'transcript' | 'usage'
+type TabId = 'recap' | 'transcript' | 'stats'
 
 export function SessionDetail({
   sessionId,
@@ -29,7 +31,7 @@ export function SessionDetail({
   onBack(): void
   onOpenSettings?(): void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<TabId>('recap')
 
   const { data, isLoading, error } = useQuery({
@@ -39,14 +41,14 @@ export function SessionDetail({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-body text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" /> {t('session_detail.loading')}
       </div>
     )
   }
   if (error) {
     return (
-      <p className="text-sm text-destructive">
+      <p className="text-body text-destructive">
         {error instanceof Error ? error.message : t('dashboard.load_failed')}
       </p>
     )
@@ -57,14 +59,14 @@ export function SessionDetail({
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="size-3.5" /> {t('session_detail.back')}
         </Button>
-        <p className="text-sm text-muted-foreground">{t('session_detail.not_found')}</p>
+        <p className="text-body text-muted-foreground">{t('session_detail.not_found')}</p>
       </div>
     )
   }
 
   const started = new Date(data.startedAt)
   const ended = data.endedAt ? new Date(data.endedAt) : null
-  const dateLine = formatDateLine(started, t)
+  const dateLine = formatDateLine(started, t, i18n.language)
 
   return (
     <div className="flex h-[calc(100vh-3rem)] flex-col gap-5">
@@ -80,7 +82,7 @@ export function SessionDetail({
         </Button>
         <div className="flex items-center gap-3">
           <ExportPdfButton session={data} />
-          <div className="text-[12px] text-muted-foreground">{dateLine}</div>
+          <div className="text-small text-muted-foreground">{dateLine}</div>
         </div>
       </div>
 
@@ -88,7 +90,7 @@ export function SessionDetail({
       <EditableTitle
         sessionId={data.id}
         title={data.title}
-        fallback={formatFallbackTitle(started)}
+        fallback={formatFallbackTitle(started, i18n.language)}
       />
 
       <Tabs.Root
@@ -96,17 +98,15 @@ export function SessionDetail({
         onValueChange={(v) => setTab(v as TabId)}
         className="flex min-h-0 flex-1 flex-col gap-5"
       >
-        <div className="flex items-center justify-between gap-3">
-          <TabSwitcher tab={tab} />
-        </div>
+        <TabSwitcher />
         <Tabs.Content value="recap" className="min-h-0 flex-1 overflow-hidden">
           <RecapTab session={data} />
         </Tabs.Content>
         <Tabs.Content value="transcript" className="min-h-0 flex-1 overflow-hidden">
-          <TranscriptTab segments={data.segments} />
+          <TranscriptTab session={data} />
         </Tabs.Content>
-        <Tabs.Content value="usage" className="min-h-0 flex-1 overflow-hidden">
-          <UsageTab session={data} ended={ended} startedAt={data.startedAt} />
+        <Tabs.Content value="stats" className="min-h-0 flex-1 overflow-hidden">
+          <StatsTab session={data} ended={ended} />
         </Tabs.Content>
       </Tabs.Root>
 
@@ -189,7 +189,7 @@ function EditableTitle({
           onBlur={() => void commit()}
           placeholder={fallback}
           aria-label={t('session_detail.rename_label')}
-          className="w-full bg-transparent text-3xl font-semibold tracking-tight text-foreground outline-none border-b border-white/15 focus:border-white/40"
+          className="w-full bg-transparent text-display font-semibold tracking-tight text-foreground outline-none border-b border-white/15 focus:border-white/40"
         />
         {saving && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
       </div>
@@ -199,7 +199,7 @@ function EditableTitle({
   return (
     <div className="group flex items-center gap-2">
       <h1
-        className="text-3xl font-semibold tracking-tight cursor-text"
+        className="text-display font-semibold tracking-tight cursor-text"
         onDoubleClick={() => setEditing(true)}
         title={t('session_detail.rename_label')}
       >
@@ -218,21 +218,19 @@ function EditableTitle({
   )
 }
 
-const TAB_IDS: TabId[] = ['recap', 'transcript', 'usage']
+const TAB_IDS: TabId[] = ['recap', 'transcript', 'stats']
 
-function TabSwitcher({ tab }: { tab: TabId }) {
+function TabSwitcher() {
   const { t } = useTranslation()
   return (
-    <Tabs.List className="inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
+    <Tabs.List className="flex items-center gap-6 border-b border-border">
       {TAB_IDS.map((id) => (
         <Tabs.Trigger
           key={id}
           value={id}
           className={cn(
-            'rounded-full px-3.5 py-1.5 text-[13px] transition-colors',
-            tab === id
-              ? 'bg-white/[0.08] text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
+            '-mb-px border-b border-transparent pb-2 text-body text-muted-foreground transition-colors',
+            'hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground'
           )}
         >
           {t(`session_detail.tabs.${id}`)}
@@ -243,7 +241,7 @@ function TabSwitcher({ tab }: { tab: TabId }) {
 }
 
 function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [busy, setBusy] = useState(false)
 
   async function exportPdf() {
@@ -253,7 +251,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
       // structured recap on top, the timeline below. recap.get returns null
       // when no recap was generated, in which case the section is simply omitted.
       const recap = await window.zanban.recap.get(session.id).catch(() => null)
-      const payload = buildExportPayload(session, t, recap)
+      const payload = buildExportPayload(session, t, i18n.language, recap)
       const path = await window.zanban.documents.exportSessionPdf(payload)
       if (path) toast.success(t('session_detail.exported_toast'), { description: path })
     } catch (err) {
@@ -269,7 +267,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
     <Button
       variant="ghost"
       size="sm"
-      className="gap-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+      className="gap-1.5 text-small text-muted-foreground hover:text-foreground"
       onClick={() => void exportPdf()}
       disabled={busy}
     >
@@ -282,6 +280,7 @@ function ExportPdfButton({ session }: { session: SessionDetailPayload }) {
 function buildExportPayload(
   session: SessionDetailPayload,
   t: TFunction,
+  locale: string,
   recap?: RecapPayload | null
 ): SessionExportPayload {
   type Block = SessionExportPayload['blocks'][number]
@@ -310,7 +309,7 @@ function buildExportPayload(
     title:
       session.title ||
       t('session_detail.export_title_fallback', {
-        date: new Date(session.startedAt).toLocaleString()
+        date: formatDateTime(session.startedAt, locale)
       }),
     startedAt: session.startedAt,
     blocks,
@@ -326,82 +325,158 @@ function buildExportPayload(
   }
 }
 
-function TranscriptTab({ segments }: { segments: StoredSegment[] }) {
+type TimelineItem =
+  | { kind: 'turn'; channel: StoredSegment['channel']; startMs: number; lines: string[] }
+  | { kind: 'exchange'; exchange: StoredExchange; atMs: number }
+
+/**
+ * Transcript as speaker turns (consecutive segments from one channel merged)
+ * with the AI exchanges from the call slotted in by time — the same ordering
+ * the PDF export uses.
+ */
+function buildTimeline(session: SessionDetailPayload): TimelineItem[] {
+  const events: Array<
+    { ts: number; segment: StoredSegment } | { ts: number; exchange: StoredExchange }
+  > = [
+    ...session.segments.map((segment) => ({ ts: session.startedAt + segment.startMs, segment })),
+    ...session.exchanges.map((exchange) => ({ ts: exchange.createdAt, exchange }))
+  ]
+  events.sort((a, b) => a.ts - b.ts)
+
+  const items: TimelineItem[] = []
+  for (const ev of events) {
+    if ('exchange' in ev) {
+      items.push({
+        kind: 'exchange',
+        exchange: ev.exchange,
+        atMs: Math.max(0, ev.ts - session.startedAt)
+      })
+      continue
+    }
+    const { segment } = ev
+    const last = items.at(-1)
+    if (last?.kind === 'turn' && last.channel === segment.channel) {
+      last.lines.push(segment.text)
+    } else {
+      items.push({
+        kind: 'turn',
+        channel: segment.channel,
+        startMs: segment.startMs,
+        lines: [segment.text]
+      })
+    }
+  }
+  return items
+}
+
+function TranscriptTab({ session }: { session: SessionDetailPayload }) {
   const { t } = useTranslation()
-  if (segments.length === 0) {
+  const timeline = useMemo(() => buildTimeline(session), [session])
+  if (timeline.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-body text-muted-foreground">
         {t('session_detail.no_transcript')}
       </div>
     )
   }
   return (
     <ScrollArea className="h-full pr-3">
-      <div className="flex flex-col gap-1.5">
-        {segments.map((s, i) => (
-          <SegmentLine key={`${s.startMs}-${i}`} segment={s} />
-        ))}
+      <div className="flex flex-col gap-4">
+        {timeline.map((item, i) =>
+          item.kind === 'turn' ? (
+            <SpeakerTurn
+              key={`turn-${i}`}
+              channel={item.channel}
+              startMs={item.startMs}
+              lines={item.lines}
+            />
+          ) : (
+            <ExchangeRow
+              key={`exchange-${i}`}
+              exchange={item.exchange}
+              stamp={formatMs(item.atMs)}
+            />
+          )
+        )}
       </div>
     </ScrollArea>
   )
 }
 
-function UsageTab({
-  session,
-  startedAt,
-  ended
+function SpeakerTurn({
+  channel,
+  startMs,
+  lines
 }: {
-  session: SessionDetailPayload
-  startedAt: number
-  ended: Date | null
+  channel: StoredSegment['channel']
+  startMs: number
+  lines: string[]
 }) {
   const { t } = useTranslation()
-  const stats = useMemo(() => computeStats(session, startedAt, ended), [session, startedAt, ended])
+  const isYou = channel === 'mic'
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline gap-2 font-mono text-small">
+        <span className={isYou ? 'text-foreground' : 'text-muted-foreground'}>
+          {isYou ? t('session_detail.speaker.you') : t('session_detail.speaker.them')}
+        </span>
+        <span className="tabular-nums text-muted-foreground">{formatMs(startMs)}</span>
+      </div>
+      {lines.map((line, i) => (
+        <p key={i} className="max-w-[70ch] text-sm leading-[1.6] text-foreground/90">
+          {line}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function StatsTab({ session, ended }: { session: SessionDetailPayload; ended: Date | null }) {
+  const { t, i18n } = useTranslation()
+  const stats = useMemo(
+    () => computeStats(session, ended, i18n.language),
+    [session, ended, i18n.language]
+  )
+  const rows: Array<[string, string]> = [
+    [t('session_detail.stats.duration'), stats.duration],
+    [
+      t('session_detail.stats.status'),
+      ended ? t('session_detail.stats.completed') : t('session_detail.stats.in_progress')
+    ],
+    [t('session_detail.stats.segments'), String(stats.totalSegments)],
+    [t('session_detail.stats.you_them'), `${stats.youSegments} / ${stats.themSegments}`],
+    [t('session_detail.stats.ai_exchanges'), String(stats.exchangeCount)],
+    [
+      t('session_detail.stats.avg_answer'),
+      stats.avgAnswerChars ? t('session_detail.stats.chars', { count: stats.avgAnswerChars }) : '—'
+    ],
+    [t('session_detail.stats.models_used'), stats.models.join(', ') || '—'],
+    [t('session_detail.stats.last_activity'), stats.lastActivity || '—']
+  ]
   return (
     <ScrollArea className="h-full pr-3">
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label={t('session_detail.stats.duration')} value={stats.duration} />
-        <Stat
-          label={t('session_detail.stats.status')}
-          value={
-            ended ? t('session_detail.stats.completed') : t('session_detail.stats.in_progress')
-          }
-        />
-        <Stat label={t('session_detail.stats.segments')} value={String(stats.totalSegments)} />
-        <Stat
-          label={t('session_detail.stats.you_them')}
-          value={`${stats.youSegments} / ${stats.themSegments}`}
-        />
-        <Stat label={t('session_detail.stats.ai_exchanges')} value={String(stats.exchangeCount)} />
-        <Stat
-          label={t('session_detail.stats.avg_answer')}
-          value={
-            stats.avgAnswerChars
-              ? t('session_detail.stats.chars', { count: stats.avgAnswerChars })
-              : '—'
-          }
-        />
-        <Stat
-          label={t('session_detail.stats.models_used')}
-          value={stats.models.join(', ') || '—'}
-          className="col-span-2"
-        />
-        <Stat
-          label={t('session_detail.stats.last_activity')}
-          value={stats.lastActivity || '—'}
-          className="col-span-2"
-        />
-      </div>
+      <dl className="grid max-w-xl grid-cols-[max-content_minmax(0,1fr)] gap-x-8 gap-y-2 text-body">
+        {rows.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="truncate tabular-nums text-foreground">{value}</dd>
+          </Fragment>
+        ))}
+      </dl>
       {session.exchanges.length > 0 && (
-        <div className="mt-6 flex flex-col gap-2">
-          <div className="px-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="mt-8 flex flex-col gap-2">
+          <div className="px-1 font-mono text-meta uppercase tracking-wider text-muted-foreground">
             {t('session_detail.recent_ai_exchanges')}
           </div>
           {session.exchanges
             .slice(-5)
             .reverse()
             .map((ex, i) => (
-              <ExchangeRow key={`${ex.createdAt}-${i}`} exchange={ex} />
+              <ExchangeRow
+                key={`${ex.createdAt}-${i}`}
+                exchange={ex}
+                stamp={formatDateTime(ex.createdAt, i18n.language)}
+              />
             ))}
         </div>
       )}
@@ -409,11 +484,11 @@ function UsageTab({
   )
 }
 
-function ExchangeRow({ exchange: ex }: { exchange: StoredExchange }) {
+function ExchangeRow({ exchange: ex, stamp }: { exchange: StoredExchange; stamp: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-md border border-white/[0.06] bg-white/[0.015]">
+    <div className="max-w-[70ch] rounded-md border border-white/[0.06] bg-white/[0.015]">
       <button
         type="button"
         aria-expanded={open}
@@ -421,11 +496,11 @@ function ExchangeRow({ exchange: ex }: { exchange: StoredExchange }) {
         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px]">
+          <div className="truncate text-body">
             {t('session_detail.question_label', { question: ex.prompt })}
           </div>
-          <div className="font-mono text-[10px] text-muted-foreground">
-            {new Date(ex.createdAt).toLocaleString()}
+          <div className="font-mono text-meta text-muted-foreground">
+            {stamp}
             {ex.model && ` · ${ex.model}`}
           </div>
         </div>
@@ -438,23 +513,10 @@ function ExchangeRow({ exchange: ex }: { exchange: StoredExchange }) {
         />
       </button>
       {open && (
-        <div className="border-t border-white/[0.06] px-3 py-2 text-[13px] leading-relaxed text-foreground/90">
+        <div className="border-t border-white/[0.06] px-3 py-2 text-body leading-relaxed text-foreground/90">
           <StreamingMarkdown text={ex.answer} />
         </div>
       )}
-    </div>
-  )
-}
-
-function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div
-      className={cn('rounded-lg border border-white/[0.06] bg-white/[0.015] px-4 py-3', className)}
-    >
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 truncate text-[15px] font-medium tabular-nums">{value}</div>
     </div>
   )
 }
@@ -464,6 +526,9 @@ function BottomBar({ sessionId, onOpenSettings }: { sessionId: string; onOpenSet
   const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const answer = useAi((s) => s.messages.find((m) => m.id === requestId))
+  const { rootRef: answerRef } = useStickToBottom<HTMLDivElement>(answer?.id, answer?.answer.length)
 
   async function send() {
     const q = text.trim()
@@ -487,80 +552,91 @@ ${q}
 </question>`
     setBusy(true)
     setText('')
-    const requestId = crypto.randomUUID()
-    useAi.getState().newRequest(t('session_detail.question_label', { question: q }), requestId)
+    const id = crypto.randomUUID()
+    useAi.getState().newRequest(t('session_detail.question_label', { question: q }), id)
+    setRequestId(id)
     try {
-      await window.zanban.ai.ask({ requestId, prompt })
-      toast.success(t('session_detail.asked_toast'))
+      await window.zanban.ai.ask({ requestId: id, prompt })
     } catch (err) {
-      const message = errorMessage(err)
-      useAi.getState().failRequest(requestId, message)
-      toast.error(t('session_detail.ask_failed'), { description: message })
+      useAi.getState().failRequest(id, errorMessage(err))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/[0.06] bg-white/[0.02] p-1.5">
-      <Button
-        variant="default"
-        size="sm"
-        className="shrink-0 gap-1.5 rounded-full"
-        onClick={() => void resumeSession(sessionId, onOpenSettings)}
-      >
-        <Play className="size-3.5 fill-current" /> {t('session_detail.resume_session')}
-      </Button>
-      <input
-        ref={inputRef}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            void send()
-          }
-        }}
-        placeholder={t('session_detail.ask_placeholder')}
-        aria-label={t('session_detail.ask_placeholder')}
-        className="flex-1 bg-transparent px-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none"
-      />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8 shrink-0 rounded-full"
-        onClick={() => void send()}
-        disabled={busy || !text.trim()}
-        title={t('session_detail.send')}
-        aria-label={t('session_detail.send')}
-      >
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />}
-      </Button>
-    </div>
-  )
-}
-
-function SegmentLine({ segment: s }: { segment: StoredSegment }) {
-  const { t } = useTranslation()
-  const isYou = s.channel === 'mic'
-  return (
-    <div className="flex items-start gap-2 leading-snug">
-      <span
-        className={cn(
-          'mt-0.5 shrink-0 select-none font-mono text-[9px] font-semibold uppercase tracking-wider',
-          isYou ? 'text-blue-400' : 'text-orange-400'
-        )}
-        style={{ width: 32 }}
-      >
-        {isYou ? t('session_detail.speaker.you') : t('session_detail.speaker.them')}
-      </span>
-      <span
-        className="font-mono text-[9px] text-muted-foreground/70 shrink-0"
-        style={{ width: 36 }}
-      >
-        {formatMs(s.startMs)}
-      </span>
-      <span className="flex-1 text-[13px]">{s.text}</span>
+    <div className="flex shrink-0 flex-col gap-2">
+      {answer && (
+        <div
+          ref={answerRef}
+          className="max-h-[40vh] overflow-y-auto rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+        >
+          <div className="mb-2 flex items-center gap-2 font-mono text-meta text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">{answer.prompt}</span>
+            {answer.status === 'streaming' && (
+              <Loader2
+                className="size-3 shrink-0 animate-spin"
+                aria-label={t('ask_panel.streaming')}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setRequestId(null)}
+              aria-label={t('session_detail.dismiss_answer')}
+              title={t('session_detail.dismiss_answer')}
+              className="shrink-0 transition-colors hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+          {answer.status === 'error' ? (
+            <p className="text-small text-destructive">{answer.error}</p>
+          ) : (
+            <div className="max-w-[70ch] text-body">
+              <StreamingMarkdown text={answer.answer} streaming={answer.status === 'streaming'} />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex items-center gap-2 rounded-full border border-white/[0.06] bg-white/[0.02] p-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 rounded-full text-small text-muted-foreground hover:text-foreground"
+          onClick={() => void resumeSession(sessionId, onOpenSettings)}
+        >
+          {t('session_detail.resume_session')}
+        </Button>
+        <input
+          ref={inputRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void send()
+            }
+          }}
+          placeholder={t('session_detail.ask_placeholder')}
+          aria-label={t('session_detail.ask_placeholder')}
+          className="flex-1 bg-transparent px-2 text-body text-foreground placeholder:text-muted-foreground/60 outline-none"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 rounded-full"
+          onClick={() => void send()}
+          disabled={busy || !text.trim()}
+          title={t('session_detail.send')}
+          aria-label={t('session_detail.send')}
+        >
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <ArrowRight className="size-3.5" />
+          )}
+        </Button>
+      </div>
     </div>
   )
 }
@@ -570,16 +646,20 @@ function formatMs(ms: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
-function formatDateLine(d: Date, t: TFunction): string {
+function formatDateTime(ts: number, locale: string): string {
+  return new Date(ts).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function formatDateLine(d: Date, t: TFunction, locale: string): string {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const dDay = new Date(d)
   dDay.setHours(0, 0, 0, 0)
   const diffDays = Math.round((today.getTime() - dDay.getTime()) / 86_400_000)
-  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
   if (diffDays === 0) return t('session_detail.today_at', { time })
   if (diffDays === 1) return t('session_detail.yesterday_at', { time })
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -587,8 +667,8 @@ function formatDateLine(d: Date, t: TFunction): string {
   })
 }
 
-function formatFallbackTitle(d: Date): string {
-  return d.toLocaleString(undefined, {
+function formatFallbackTitle(d: Date, locale: string): string {
+  return d.toLocaleString(locale, {
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
@@ -598,8 +678,8 @@ function formatFallbackTitle(d: Date): string {
 
 function computeStats(
   session: SessionDetailPayload,
-  startedAt: number,
-  ended: Date | null
+  ended: Date | null,
+  locale: string
 ): {
   duration: string
   totalSegments: number
@@ -611,7 +691,7 @@ function computeStats(
   lastActivity: string | null
 } {
   const endMs = ended ? ended.getTime() : Date.now()
-  const durMs = Math.max(0, endMs - startedAt)
+  const durMs = Math.max(0, endMs - session.startedAt)
   const totalSegments = session.segments.length
   const youSegments = session.segments.filter((s) => s.channel === 'mic').length
   const themSegments = totalSegments - youSegments
@@ -623,9 +703,9 @@ function computeStats(
     new Set(session.exchanges.map((e) => e.model).filter((m): m is string => !!m))
   )
   const lastEx = session.exchanges.at(-1)
-  const lastActivity = lastEx ? new Date(lastEx.createdAt).toLocaleString() : null
+  const lastActivity = lastEx ? formatDateTime(lastEx.createdAt, locale) : null
   return {
-    duration: formatDuration(durMs),
+    duration: formatDuration(durMs) ?? '—',
     totalSegments,
     youSegments,
     themSegments,
@@ -634,14 +714,4 @@ function computeStats(
     models,
     lastActivity
   }
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return '0s'
-  const s = Math.floor(ms / 1000)
-  const m = Math.floor(s / 60)
-  if (m === 0) return `${s}s`
-  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`
-  const h = Math.floor(m / 60)
-  return `${h}h ${String(m % 60).padStart(2, '0')}m`
 }

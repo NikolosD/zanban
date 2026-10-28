@@ -32,14 +32,14 @@ export function TranscriptOrNotice({ error }: { error: string | null }) {
       data-notice={notice ?? 'transcription-error'}
       className={cn(
         'flex min-w-0 items-center gap-2 px-3 py-1.5 text-[12px] leading-5',
-        healed ? 'text-muted-foreground' : notice ? 'text-amber-200' : 'text-red-300'
+        healed ? 'text-muted-foreground' : notice ? 'text-warn' : 'text-red-300'
       )}
     >
       {healed ? (
         <Check className="size-3 shrink-0" aria-hidden />
       ) : (
         <AlertTriangle
-          className={cn('size-3 shrink-0', notice ? 'text-amber-400' : 'text-red-400')}
+          className={cn('size-3 shrink-0', notice ? 'text-warn' : 'text-red-400')}
           aria-hidden
         />
       )}

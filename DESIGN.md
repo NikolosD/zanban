@@ -66,7 +66,7 @@ Never apply a single `gap` to a vertical stack of mixed-importance children. Use
 
 ## Surfaces
 
-**Overlay** uses heavy backdrop-blur with low surface alpha (`bg-overlay / 0.55`). The OS behind partially shows through — that's intentional, it preserves the floating-not-attached feeling.
+**Overlay** uses heavy backdrop-blur over a dense dark glass: `--bg-overlay-deep` at alpha `--overlay-glass`. The Interface Opacity setting (40–100%) maps linearly to that alpha (0.60–0.95; default 100% → 0.95) and changes **only the glass** — text and controls stay fully opaque. Never fade the window (`BrowserWindow.setOpacity`) or a wrapper: that fades the text with the glass, and muted text over a white document drops to ~1.5:1. At the default, muted text holds ~6:1 even over a white page; the blur still lets the OS show through as shape and colour, which keeps the floating-not-attached feeling. The status pill uses the same glass at 0.85× alpha — a touch lighter, it carries no reading text.
 
 **Dashboard** uses opaque surfaces. No blur on the desktop home; blur is reserved for the overlay so it remains the "lighter" object visually.
 
@@ -97,9 +97,15 @@ Single pill, not three stacked. Three slots, separated by 1px dividers, never wr
 
 State word lowercase + monospace. The signal dot is always position 1. ✕ collapses, never closes.
 
+Idle, slot 1 is a neutral `start` button carrying the start/stop-session chord. It starts through the dashboard capture path (same as the hotkey). While idle the action-chip row is hidden — only the ask input stays.
+
 ### Action chips
 
-Pill row, no nested borders inside chips. The "Answer" chip is the only emphasis-styled chip — solid foreground, no icon padding inflation. Other chips read as lighter siblings.
+Pill row, no nested borders inside chips. The "Answer" chip is the only emphasis-styled chip — solid foreground, no icon padding inflation. Other chips read as lighter siblings. Visible: "Catch up" (last ~90s — not "Recap", which is the post-meeting summary) and `more` ("Which question?", shorten, follow-up, model override).
+
+### Ask row
+
+Input (placeholder carries the focus-ask chord), camera icon button (chord in its tooltip), send. The per-request model picker appears here only while an override is active, so it can be seen and reset; otherwise it lives in `more`.
 
 ### Question pill
 
@@ -108,6 +114,8 @@ When a detected question fires, it is the **only** signal-coloured element on sc
 ### Answer pane
 
 Streaming markdown. No fixed-height container — grows with content, capped at 60vh, then scrolls. No internal cards. The pane itself IS the card.
+
+Newest answer first at 14px / 1.5; the question above it at `small`, normal case, muted. Older answers fold to one `small` row (question · first line). Markdown headings are body-sized-plus (13–14px, 600) with space above; tables use 1px borders and cell padding. Nothing in the overlay goes below `small` except kbd glyphs and the transcript row's speaker label (`meta` mono). Degraded states use `warn`, never raw amber.
 
 ### Hotkey hint
 

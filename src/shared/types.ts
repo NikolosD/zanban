@@ -346,9 +346,9 @@ export interface AppSettings {
    */
   hideFromAppSwitcher: boolean
   /**
-   * Overall opacity of the overlay window in [0.4, 1]. Lets the user blend
-   * the HUD into the screen background — useful in glance-only mode or when
-   * a meeting tile is bright. Applied via BrowserWindow.setOpacity.
+   * Overlay glass density in [0.4, 1]. Lets the user blend the HUD into the
+   * screen background; the overlay maps it to the glass alpha only, so the
+   * text always stays fully opaque.
    */
   overlayOpacity: number
   /**

@@ -49,7 +49,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger
 } from '@renderer/components/ui/dropdown-menu'
 import { Toaster } from '@renderer/components/ui/sonner'
 import { Kbd } from '@renderer/components/ui/kbd'
@@ -63,6 +67,7 @@ import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 import { TranscriptOrNotice } from './CaptureNoticeLine'
 import { useCaptureNotices, wireCaptureNotices } from './captureNotices'
+import { GLASS_PANEL, GLASS_PILL, overlayGlassVars } from './glass'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -88,6 +93,7 @@ export function OverlayApp() {
   const session = useTranscript((s) => s.session)
   const startedAt = session.kind === 'running' ? session.startedAt : null
   const running = startedAt !== null
+  const sessionPending = session.kind === 'starting' || session.kind === 'stopping'
   const settings = useSettingsStore((s) => s.settings)
   const refreshSettings = useSettingsStore((s) => s.load)
   const status = useTranscript((s) => s.status)
@@ -144,6 +150,10 @@ export function OverlayApp() {
 
   const missingProviders = settings ? missingProviderNames(settings) : []
   const apiKeysMissing = missingProviders.length > 0
+  const activeProvider = settings?.llmProvider ?? 'vercel-gateway'
+  const activeDefaultModel =
+    settings?.aiModels?.[settings.llmProvider]?.fast ||
+    (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
 
   // Auto-grow the OS window to fit the visible panel. Mirrors the approach
   // used in natively-cluely-ai-assistant: useLayoutEffect runs before paint,
@@ -367,7 +377,12 @@ export function OverlayApp() {
     <TooltipProvider delayDuration={250}>
       <div
         className="pointer-events-none p-3"
-        style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}
+        style={{
+          height: '100vh',
+          width: '100vw',
+          overflow: 'hidden',
+          ...overlayGlassVars(settings?.overlayOpacity ?? 1)
+        }}
       >
         <div
           ref={panelRef}
@@ -380,8 +395,11 @@ export function OverlayApp() {
           <StatusBar
             startedAt={startedAt}
             busy={stoppingSession}
+            sessionPending={sessionPending}
             stealth={stealth}
             toggleHotkey={settings?.hotkeys?.toggleOverlay ?? null}
+            sessionHotkey={settings?.hotkeys?.toggleSession ?? null}
+            onStart={() => void window.zanban.session.requestToggle()}
             onStop={() => void stopSession()}
             onToggleStealth={() => void toggleStealth()}
             onCollapse={() => void collapse()}
@@ -395,8 +413,8 @@ export function OverlayApp() {
           <div
             className={cn(
               'flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
-              'bg-black/55 backdrop-blur-2xl backdrop-saturate-150 text-foreground',
-              'shadow-2xl overflow-hidden'
+              GLASS_PANEL,
+              'text-foreground shadow-2xl overflow-hidden'
             )}
           >
             {hasContent && (
@@ -404,11 +422,8 @@ export function OverlayApp() {
                 {apiKeysMissing && (
                   <div className="space-y-2">
                     {apiKeysMissing && (
-                      <Alert
-                        variant="default"
-                        className="bg-amber-500/10 border-amber-500/30 text-amber-200"
-                      >
-                        <AlertTriangle className="size-4 text-amber-400" />
+                      <Alert variant="default" className="border-warn/30 bg-warn/10 text-warn">
+                        <AlertTriangle className="size-4 text-warn" />
                         <AlertTitle>{t('overlay.api_keys_missing_title')}</AlertTitle>
                         <AlertDescription>
                           {t('overlay.api_keys_missing_body', {
@@ -455,24 +470,33 @@ export function OverlayApp() {
 
             <TranscriptOrNotice error={transcriptionError} />
 
-            <ActionChipsRow
-              busy={busy}
-              running={running}
-              hasAnswer={hasHistory}
-              answerHotkey={settings?.hotkeys?.answerLast ?? null}
-              onWhatToAnswer={() =>
-                void runPrompt(
-                  WHAT_TO_ANSWER_PROMPT,
-                  t('overlay.chips.what_to_answer'),
-                  undefined,
-                  true
-                )
-              }
-              onShorten={() => void runPrompt(SHORTEN_PROMPT, t('overlay.chips.shorten'))}
-              onRecap={() => void runPrompt(RECAP_PROMPT, t('overlay.chips.recap'))}
-              onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, t('overlay.chips.follow_up'))}
-              onAnswer={handleAnswer}
-            />
+            {running && (
+              <ActionChipsRow
+                busy={busy}
+                hasAnswer={hasHistory}
+                answerHotkey={settings?.hotkeys?.answerLast ?? null}
+                onWhichQuestion={() =>
+                  void runPrompt(
+                    WHAT_TO_ANSWER_PROMPT,
+                    t('overlay.chips.which_question'),
+                    undefined,
+                    true
+                  )
+                }
+                onShorten={() => void runPrompt(SHORTEN_PROMPT, t('overlay.chips.shorten'))}
+                onCatchUp={() => void runPrompt(RECAP_PROMPT, t('overlay.chips.catch_up'))}
+                onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, t('overlay.chips.follow_up'))}
+                onAnswer={handleAnswer}
+                modelMenu={
+                  <ModelOverrideSubmenu
+                    value={modelOverride}
+                    onChange={setModelOverride}
+                    provider={activeProvider}
+                    defaultModel={activeDefaultModel}
+                  />
+                }
+              />
+            )}
 
             <InputPill
               text={text}
@@ -489,12 +513,10 @@ export function OverlayApp() {
               onClearImage={clearAttachment}
               modelOverride={modelOverride}
               onModelChange={setModelOverride}
-              activeProvider={settings?.llmProvider ?? 'vercel-gateway'}
-              activeDefaultModel={
-                settings?.aiModels?.[settings.llmProvider]?.fast ||
-                (settings ? PROVIDER_MODEL_DEFAULTS[settings.llmProvider].fast : '')
-              }
+              activeProvider={activeProvider}
+              activeDefaultModel={activeDefaultModel}
               screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
+              askHotkey={settings?.hotkeys?.askAi ?? null}
             />
           </div>
         </div>
@@ -507,8 +529,11 @@ export function OverlayApp() {
 function StatusBar({
   startedAt,
   busy,
+  sessionPending,
   stealth,
   toggleHotkey,
+  sessionHotkey,
+  onStart,
   onStop,
   onToggleStealth,
   onCollapse,
@@ -517,9 +542,14 @@ function StatusBar({
   /** Session start time; null while idle. */
   startedAt: number | null
   busy: boolean
+  /** The session is starting or stopping. */
+  sessionPending: boolean
   stealth: boolean
   /** Configured show/hide-overlay accelerator; null until settings load. */
   toggleHotkey: string | null
+  /** Configured start/stop-session accelerator; null until settings load. */
+  sessionHotkey: string | null
+  onStart: () => void
   onStop: () => void
   onToggleStealth: () => void
   onCollapse: () => void
@@ -536,8 +566,8 @@ function StatusBar({
   return (
     <div
       className={cn(
-        'mx-auto flex items-center gap-2 rounded-full border border-white/10',
-        'bg-black/55 px-2 py-1 backdrop-blur-2xl backdrop-saturate-150 shadow-xl'
+        'mx-auto flex items-center gap-2 rounded-full border border-white/10 px-2 py-1 shadow-xl',
+        GLASS_PILL
       )}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
@@ -572,13 +602,32 @@ function StatusBar({
         {startedAt !== null ? (
           <RecordingChip startedAt={startedAt} busy={busy} onStop={onStop} />
         ) : (
-          <span
-            data-interactive
-            className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2.5 font-mono text-[10px] text-muted-foreground"
-          >
-            <span className="inline-flex size-1.5 rounded-full bg-muted-foreground/40" />
-            {t('overlay.idle')}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                data-interactive
+                onClick={onStart}
+                disabled={sessionPending}
+                aria-label={t('overlay.start_tooltip')}
+                className={cn(
+                  'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
+                  'border border-white/15 bg-white/[0.06] font-mono text-small text-foreground',
+                  'transition-colors hover:bg-white/[0.1] disabled:opacity-60'
+                )}
+              >
+                {sessionPending ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <span className="inline-flex size-1.5 rounded-full bg-muted-foreground" />
+                )}
+                {t('overlay.start')}
+                {sessionHotkey && (
+                  <HotkeyKbd tokens={acceleratorTokens(sessionHotkey)} className="ml-0.5" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t('overlay.start_tooltip')}</TooltipContent>
+          </Tooltip>
         )}
 
         <Tooltip>
@@ -588,12 +637,12 @@ function StatusBar({
               variant="ghost"
               size="sm"
               className={cn(
-                'h-6 gap-1 px-2 text-[11px] font-mono lowercase tracking-tight',
+                'h-6 gap-1 px-2 text-small font-mono lowercase tracking-tight',
                 // Stealth-on (invisible to others) = calm default. Stealth-off
                 // (visible to screen-share) = amber warning. We label the
                 // STATE itself so the user doesn't have to translate
                 // "visible" into "uh-oh, others can see this".
-                stealth ? 'text-muted-foreground hover:text-foreground' : 'text-amber-300'
+                stealth ? 'text-muted-foreground hover:text-foreground' : 'text-warn'
               )}
               onClick={onToggleStealth}
             >
@@ -656,11 +705,11 @@ function RecordingChip({
           aria-label={stopLabel}
           className={cn(
             'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5',
-            'border font-mono text-[10px] transition-colors',
+            'border font-mono text-small transition-colors',
             stopConfirm.armed
               ? 'border-signal/60 bg-signal/20 text-signal'
               : micLost
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15'
+                ? 'border-warn/40 bg-warn/10 text-warn hover:bg-warn/15'
                 : 'border-signal/30 bg-signal/10 text-signal hover:border-signal/50 hover:bg-signal/15'
           )}
         >
@@ -670,7 +719,7 @@ function RecordingChip({
             className={cn(
               'inline-flex size-1.5 rounded-full',
               micLost
-                ? 'bg-amber-400'
+                ? 'bg-warn'
                 : 'bg-signal motion-safe:animate-[pulse_1.6s_ease-in-out_infinite]'
             )}
           />
@@ -689,55 +738,39 @@ function RecordingChip({
 
 function ActionChipsRow({
   busy,
-  running,
   hasAnswer,
   answerHotkey,
-  onWhatToAnswer,
+  onWhichQuestion,
   onShorten,
-  onRecap,
+  onCatchUp,
   onFollowUp,
-  onAnswer
+  onAnswer,
+  modelMenu
 }: {
   busy: boolean
-  running: boolean
   hasAnswer: boolean
   /** Configured answer-last accelerator; null until settings load. */
   answerHotkey: string | null
-  onWhatToAnswer: () => void
+  onWhichQuestion: () => void
   onShorten: () => void
-  onRecap: () => void
+  onCatchUp: () => void
   onFollowUp: () => void
   onAnswer: () => void
+  /** Per-request model override, offered from the `more` menu. */
+  modelMenu: React.ReactNode
 }) {
   const { t } = useTranslation()
-  // Two disable axes, made explicit so the rules aren't opaque:
-  //   - requires-session: Answer, Recap, What-to-answer — useless with no live
-  //     transcript. Answer USED to be always-on (it could conjure an answer
-  //     "from nowhere"); it now needs a running session like the rest.
-  //   - requires-answer: Shorten, Follow-up, Continue — operate on an existing
-  //     answer, so they need one to exist.
-  // Each disabled chip carries a tooltip explaining WHY, so the user isn't left
-  // guessing why a control is greyed out.
-  const needsSession = t('overlay.chips.disabled_needs_session')
-  const needsAnswer = t('overlay.chips.disabled_needs_answer')
-  const sessionReason = !running ? needsSession : undefined
-  const answerReason = !hasAnswer ? needsAnswer : undefined
-  // Hierarchy revamp: 5 equally-weighted chips → 2 visible primaries (Answer
-  // + Recap) and a `more` dropdown for the rest. Reduces eye-traversal cost
-  // during a live call where attention is already fragmented.
+  // The row only renders during a session. Shorten / Follow-up operate on an
+  // existing answer, so they stay disabled (with a reason) until one exists.
+  const answerReason = !hasAnswer ? t('overlay.chips.disabled_needs_answer') : undefined
+  // Two visible primaries (Answer + Catch up) and a `more` dropdown for the
+  // rest — less eye travel while attention is split with the call.
   return (
     <div
       className="flex items-center gap-1.5 px-2.5 py-2"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Recap is the most-used "look back at the last 90s" gesture. Requires a
-          session — there's no transcript to recap when idle. */}
-      <ActionChip
-        label={t('overlay.chips.recap')}
-        disabled={busy || !running}
-        disabledReason={sessionReason}
-        onClick={onRecap}
-      />
+      <ActionChip label={t('overlay.chips.catch_up')} disabled={busy} onClick={onCatchUp} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -745,7 +778,7 @@ function ActionChipsRow({
             disabled={busy}
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             className={cn(
-              'inline-flex h-7 items-center gap-1 rounded-full px-3 text-[11px] transition-colors',
+              'inline-flex h-7 items-center gap-1 rounded-full px-3 text-small transition-colors',
               'border border-white/10 bg-white/[0.04] text-foreground/85',
               'hover:bg-white/[0.08] hover:text-foreground',
               'disabled:cursor-not-allowed disabled:opacity-40'
@@ -760,36 +793,27 @@ function ActionChipsRow({
           data-interactive
           className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
         >
-          <DropdownMenuItem
-            disabled={busy || !running}
-            onSelect={onWhatToAnswer}
-            title={sessionReason}
-          >
-            <span className="text-[12px]">{t('overlay.chips.what_to_answer')}</span>
+          <DropdownMenuItem onSelect={onWhichQuestion}>
+            <span className="text-[12px]">{t('overlay.chips.which_question')}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={busy || !hasAnswer} onSelect={onShorten} title={answerReason}>
+          <DropdownMenuItem disabled={!hasAnswer} onSelect={onShorten} title={answerReason}>
             <span className="text-[12px]">{t('overlay.chips.shorten')}</span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={busy || !hasAnswer}
-            onSelect={onFollowUp}
-            title={answerReason}
-          >
+          <DropdownMenuItem disabled={!hasAnswer} onSelect={onFollowUp} title={answerReason}>
             <span className="text-[12px]">{t('overlay.chips.follow_up')}</span>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {modelMenu}
         </DropdownMenuContent>
       </DropdownMenu>
 
       <span className="flex-1" />
 
-      {/* Answer — single primary CTA. Now requires a session: answering "the
-          last question" is meaningless without a live transcript. */}
       <ActionChip
         label={t('overlay.chips.answer')}
         emphasis
         hotkey={answerHotkey ? acceleratorTokens(answerHotkey) : undefined}
-        disabled={busy || !running}
-        disabledReason={sessionReason}
+        disabled={busy}
         onClick={onAnswer}
       />
     </div>
@@ -801,7 +825,6 @@ function ActionChip({
   emphasis,
   hotkey,
   disabled,
-  disabledReason,
   onClick
 }: {
   label: string
@@ -809,18 +832,16 @@ function ActionChip({
   /** Accelerator tokens shown as a kbd hint; the trigger key reads brighter than its modifiers. */
   hotkey?: string[]
   disabled?: boolean
-  /** Why the chip is disabled. When present (and disabled), shown as a tooltip. */
-  disabledReason?: string
   onClick: () => void
 }) {
-  const chip = (
+  return (
     <button
       data-interactive
       onClick={onClick}
       disabled={disabled}
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       className={cn(
-        'inline-flex h-7 items-center rounded-full px-3 text-[11px] transition-colors',
+        'inline-flex h-7 items-center rounded-full px-3 text-small transition-colors',
         emphasis
           ? 'bg-foreground text-background hover:bg-foreground/90 font-medium'
           : 'border border-white/10 bg-white/[0.04] text-foreground/85 hover:bg-white/[0.08] hover:text-foreground',
@@ -829,58 +850,122 @@ function ActionChip({
     >
       {label}
       {hotkey && hotkey.length > 0 && (
-        <Kbd className="ml-2 h-4 gap-1 bg-background/15 text-[10px] text-inherit">
-          {hotkey.map((tok, i) => (
-            <span key={i} className={cn(i < hotkey.length - 1 && 'opacity-60')}>
-              {tok}
-            </span>
-          ))}
-        </Kbd>
+        <HotkeyKbd tokens={hotkey} className="ml-2 bg-background/15" />
       )}
     </button>
   )
-  // Tooltip only when we actually have a reason to show — a disabled button
-  // swallows pointer events, so wrap in a span the Tooltip can hang off of.
-  if (disabled && disabledReason) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span data-interactive className="inline-flex">
-            {chip}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{disabledReason}</TooltipContent>
-      </Tooltip>
-    )
-  }
-  return chip
 }
 
-function ModelOverridePicker({
-  value,
-  onChange,
-  provider,
-  defaultModel,
-  noDrag
-}: {
+/** One key cap for a whole chord; modifiers read dimmer than the trigger key. */
+function HotkeyKbd({ tokens, className }: { tokens: string[]; className?: string }) {
+  return (
+    <Kbd className={cn('h-4 gap-1 text-inherit', className)}>
+      {tokens.map((tok, i) => (
+        <span key={i} className={cn(i < tokens.length - 1 && 'opacity-60')}>
+          {tok}
+        </span>
+      ))}
+    </Kbd>
+  )
+}
+
+interface ModelOverrideProps {
   value: string | null
   onChange: (m: string | null) => void
   /** Currently active LLM provider. Determines which model list to show. */
   provider: LlmProvider
-  /** Current default model for `fast` role under `provider` — shown in trigger. */
+  /** Current default model for `fast` role under `provider`. */
   defaultModel: string
-  noDrag: React.CSSProperties
-}) {
+}
+
+function modelLabel(value: string): string {
+  return value.includes('/') ? (value.split('/').pop() ?? value) : value
+}
+
+function ModelOverrideItems({ value, onChange, provider, defaultModel }: ModelOverrideProps) {
   const { t } = useTranslation()
   const fastModels = PROVIDER_FAST_MODELS[provider] ?? []
   const visionModels = PROVIDER_VISION_MODELS[provider] ?? []
+  return (
+    <>
+      <DropdownMenuLabel className="text-small font-normal text-muted-foreground">
+        {t('overlay.model_picker.override_label', { provider })}
+      </DropdownMenuLabel>
+      <DropdownMenuItem onSelect={() => onChange(null)}>
+        <span className={cn('flex-1 truncate text-[12px]', !value && 'text-foreground')}>
+          {t('overlay.model_picker.default')} ·{' '}
+          <span className="font-mono text-small text-muted-foreground">{defaultModel}</span>
+        </span>
+        {!value && <span className="text-small text-success">●</span>}
+      </DropdownMenuItem>
+      {fastModels.length > 0 && <DropdownMenuSeparator />}
+      {fastModels.length > 0 && (
+        <DropdownMenuLabel className="text-small font-normal text-muted-foreground">
+          {t('overlay.model_picker.text_answers')}
+        </DropdownMenuLabel>
+      )}
+      {fastModels.map((m) => (
+        <DropdownMenuItem key={`f-${m}`} onSelect={() => onChange(m)}>
+          <span
+            className={cn('flex-1 truncate font-mono text-small', value === m && 'text-foreground')}
+          >
+            {m}
+          </span>
+          {value === m && <span className="text-small text-success">●</span>}
+        </DropdownMenuItem>
+      ))}
+      {visionModels.length > 0 && <DropdownMenuSeparator />}
+      {visionModels.length > 0 && (
+        <DropdownMenuLabel className="text-small font-normal text-muted-foreground">
+          {t('overlay.model_picker.vision')}
+        </DropdownMenuLabel>
+      )}
+      {visionModels.map((m) => (
+        <DropdownMenuItem key={`v-${m}`} onSelect={() => onChange(m)}>
+          <span
+            className={cn('flex-1 truncate font-mono text-small', value === m && 'text-foreground')}
+          >
+            {m}
+          </span>
+          {value === m && <span className="text-small text-success">●</span>}
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
+}
 
-  const label = value
-    ? value.includes('/')
-      ? (value.split('/').pop() ?? value)
-      : value
-    : t('overlay.model_picker.default')
+const MODEL_MENU_CLASS = cn(
+  'min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl',
+  'max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto'
+)
 
+function ModelOverrideSubmenu(props: ModelOverrideProps) {
+  const { t } = useTranslation()
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <span className="text-[12px]">{t('overlay.model_picker.menu_label')}</span>
+        <span className="ml-auto max-w-[110px] truncate text-small text-muted-foreground">
+          {props.value ? modelLabel(props.value) : t('overlay.model_picker.default')}
+        </span>
+      </DropdownMenuSubTrigger>
+      {/* Portaled so the parent menu's overflow can't clip it; marked
+          interactive so the click-through detector lets clicks land. */}
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent data-interactive className={MODEL_MENU_CLASS}>
+          <ModelOverrideItems {...props} />
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
+  )
+}
+
+/** Shown in the ask row only while an override is active, so it can be seen and reset. */
+function ModelOverridePicker({
+  noDrag,
+  ...props
+}: ModelOverrideProps & { value: string; noDrag: React.CSSProperties }) {
+  const { t } = useTranslation()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -888,13 +973,13 @@ function ModelOverridePicker({
         style={noDrag}
         className={cn(
           'inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10',
-          'bg-white/[0.04] px-2 py-1 text-[10px] text-muted-foreground',
+          'bg-white/[0.04] px-2 py-1 text-small text-muted-foreground',
           'hover:bg-white/[0.08] hover:text-foreground transition-colors',
           'focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20'
         )}
-        title={t('overlay.model_picker.tooltip', { provider })}
+        title={t('overlay.model_picker.tooltip', { provider: props.provider })}
       >
-        <span className="max-w-[110px] truncate">{label}</span>
+        <span className="max-w-[110px] truncate">{modelLabel(props.value)}</span>
         <ChevronDown className="size-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -904,56 +989,9 @@ function ModelOverridePicker({
         // on ancestors. Mark it explicitly so clicks on items don't get
         // forwarded through the click-through window.
         data-interactive
-        className="min-w-[200px] border-white/10 bg-[#111114]/95 backdrop-blur-xl"
+        className={MODEL_MENU_CLASS}
       >
-        <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-          {t('overlay.model_picker.override_label', { provider })}
-        </DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => onChange(null)}>
-          <span className={cn('flex-1 truncate text-[12px]', !value && 'text-foreground')}>
-            {t('overlay.model_picker.default')} ·{' '}
-            <span className="font-mono text-[10px] text-muted-foreground">{defaultModel}</span>
-          </span>
-          {!value && <span className="text-[10px] text-emerald-400">●</span>}
-        </DropdownMenuItem>
-        {fastModels.length > 0 && <DropdownMenuSeparator />}
-        {fastModels.length > 0 && (
-          <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-            {t('overlay.model_picker.text_answers')}
-          </DropdownMenuLabel>
-        )}
-        {fastModels.map((m) => (
-          <DropdownMenuItem key={`f-${m}`} onSelect={() => onChange(m)}>
-            <span
-              className={cn(
-                'flex-1 truncate font-mono text-[11px]',
-                value === m && 'text-foreground'
-              )}
-            >
-              {m}
-            </span>
-            {value === m && <span className="text-[10px] text-emerald-400">●</span>}
-          </DropdownMenuItem>
-        ))}
-        {visionModels.length > 0 && <DropdownMenuSeparator />}
-        {visionModels.length > 0 && (
-          <DropdownMenuLabel className="text-[10px] font-mono uppercase text-muted-foreground">
-            {t('overlay.model_picker.vision')}
-          </DropdownMenuLabel>
-        )}
-        {visionModels.map((m) => (
-          <DropdownMenuItem key={`v-${m}`} onSelect={() => onChange(m)}>
-            <span
-              className={cn(
-                'flex-1 truncate font-mono text-[11px]',
-                value === m && 'text-foreground'
-              )}
-            >
-              {m}
-            </span>
-            {value === m && <span className="text-[10px] text-emerald-400">●</span>}
-          </DropdownMenuItem>
-        ))}
+        <ModelOverrideItems {...props} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -976,7 +1014,8 @@ function InputPill({
   onModelChange,
   activeProvider,
   activeDefaultModel,
-  screenshotHotkey
+  screenshotHotkey,
+  askHotkey
 }: {
   text: string
   image: string | null
@@ -996,14 +1035,21 @@ function InputPill({
   activeDefaultModel: string
   /** Configured screenshot accelerator (e.g. "Control+Shift+S"); null until settings load. */
   screenshotHotkey: string | null
+  /** Configured focus-ask accelerator; null until settings load. */
+  askHotkey: string | null
 }) {
   const { t } = useTranslation()
   const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
-  // Render the REAL screenshot chord from settings, not a hardcoded ⌘+H (which
-  // is wrong on Windows and clashed with the hideShow 'H' binding). Falls back
-  // to a camera glyph if no binding is set.
-  const snapTokens = screenshotHotkey ? acceleratorTokens(screenshotHotkey) : []
-  const snapChord = snapTokens.length > 0 ? snapTokens.join(' + ') : t('overlay.input.snap_tooltip')
+  const snapLabel = screenshotHotkey
+    ? t('overlay.input.snap_hotkey_tooltip', {
+        chord: acceleratorTokens(screenshotHotkey).join(' + ')
+      })
+    : t('overlay.input.snap_tooltip')
+  const placeholder = image
+    ? t('overlay.ask_about_screenshot')
+    : askHotkey
+      ? t('overlay.ask_placeholder_hotkey', { chord: acceleratorTokens(askHotkey).join('+') })
+      : t('overlay.ask_placeholder')
   return (
     <div
       className="flex items-center gap-2 px-3 py-2"
@@ -1039,54 +1085,43 @@ function InputPill({
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
         onKeyDown={onKey}
-        placeholder={image ? t('overlay.ask_about_screenshot') : t('overlay.ask_placeholder')}
+        placeholder={placeholder}
         style={noDrag}
         className={cn(
-          'flex-1 resize-none bg-transparent py-1 text-[13px] text-foreground placeholder:text-muted-foreground/60',
+          'flex-1 resize-none bg-transparent py-1 text-body text-foreground placeholder:text-muted-foreground',
           'border-0 outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0'
         )}
       />
-      <ModelOverridePicker
-        value={modelOverride}
-        onChange={onModelChange}
-        provider={activeProvider}
-        defaultModel={activeDefaultModel}
-        noDrag={noDrag}
-      />
+      {modelOverride && (
+        <ModelOverridePicker
+          value={modelOverride}
+          onChange={onModelChange}
+          provider={activeProvider}
+          defaultModel={activeDefaultModel}
+          noDrag={noDrag}
+        />
+      )}
       {!image && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
               data-interactive
               onClick={onSnap}
               disabled={snapping || busy}
+              size="icon"
+              variant="ghost"
+              aria-label={snapLabel}
               style={noDrag}
-              className={cn(
-                'inline-flex h-6 items-center gap-1 rounded-md border border-white/10',
-                'bg-white/5 px-1.5 font-mono text-[10px] text-muted-foreground',
-                'hover:bg-white/10 hover:text-foreground transition-colors',
-                'disabled:opacity-50'
-              )}
+              className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             >
               {snapping ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : snapTokens.length > 0 ? (
-                snapTokens.map((tok, i) => (
-                  <span key={i} className="inline-flex items-center gap-1">
-                    {i > 0 && <span>+</span>}
-                    <Kbd>{tok}</Kbd>
-                  </span>
-                ))
+                <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <Camera className="size-3" />
+                <Camera className="size-3.5" />
               )}
-            </button>
+            </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {snapTokens.length > 0
-              ? t('overlay.input.snap_hotkey_tooltip', { chord: snapChord })
-              : t('overlay.input.snap_tooltip')}
-          </TooltipContent>
+          <TooltipContent>{snapLabel}</TooltipContent>
         </Tooltip>
       )}
       {streaming ? (
@@ -1191,26 +1226,29 @@ const AnswerPane = memo(function AnswerPane({
   const { t } = useTranslation()
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80">
+      <div className="flex items-start gap-2">
+        <div
+          title={m.prompt}
+          className="line-clamp-2 min-w-0 flex-1 text-small text-muted-foreground"
+        >
           {m.prompt}
         </div>
         {m.status === 'streaming' && (
-          <span className="shrink-0 font-mono text-[10px] lowercase text-muted-foreground">
+          <span className="shrink-0 font-mono text-small lowercase text-muted-foreground">
             {t('overlay.streaming')}
           </span>
         )}
         <CopyAnswerButton message={m} />
       </div>
-      <AnswerBody message={m} />
+      <AnswerBody message={m} lead />
       {m.status === 'done' && m.finishReason === 'length' && (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-300">
+        <div className="flex items-center gap-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 font-mono text-small text-warn">
           <span className="flex-1">{t('overlay.answer_truncated')}</span>
           <button
             data-interactive
             onClick={onContinue}
             title={t('overlay.continue_tooltip')}
-            className="inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 hover:bg-amber-500/20"
+            className="inline-flex items-center gap-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 hover:bg-warn/20"
           >
             <ArrowDownToLine className="size-3" />
             {t('overlay.continue')}
@@ -1236,20 +1274,16 @@ const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: Ask
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left',
-            'text-muted-foreground/80 transition-colors hover:bg-white/[0.04] hover:text-foreground'
+            'flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-small',
+            'text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground'
           )}
         >
           <ChevronRight
             className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')}
             aria-hidden
           />
-          <span className="max-w-[40%] shrink-0 truncate font-mono text-[10px] uppercase tracking-wider">
-            {m.prompt}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/60">
-            {preview}
-          </span>
+          <span className="max-w-[40%] shrink-0 truncate text-foreground/80">{m.prompt}</span>
+          <span className="min-w-0 flex-1 truncate">{preview}</span>
         </button>
         {open && <CopyAnswerButton message={m} />}
       </div>
@@ -1262,10 +1296,10 @@ const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: Ask
   )
 })
 
-function AnswerBody({ message: m }: { message: AskMessage }) {
+function AnswerBody({ message: m, lead }: { message: AskMessage; lead?: boolean }) {
   if (m.status === 'error') return <div className="text-xs text-destructive">{m.error}</div>
   return (
-    <div className="max-w-[65ch]">
+    <div className={cn('max-w-[65ch]', lead && '[--md-text:14px]')}>
       <StreamingMarkdown text={m.answer} streaming={m.status === 'streaming'} />
     </div>
   )

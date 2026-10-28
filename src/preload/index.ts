@@ -43,6 +43,7 @@ const api: ZanbanApi = {
   session: {
     start: (input) => ipcRenderer.invoke(IPC.session.start, input),
     stop: () => ipcRenderer.invoke(IPC.session.stop),
+    requestToggle: () => ipcRenderer.invoke(IPC.session.requestToggle),
     onState: (cb) => on(IPC.session.state, cb)
   },
   audio: {

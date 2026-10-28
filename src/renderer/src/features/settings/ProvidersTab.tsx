@@ -19,6 +19,7 @@ import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
+import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
@@ -71,8 +72,8 @@ const STT_CARDS: SttProviderEntry[] = [
 ]
 
 /**
- * AI providers tab body — LLM cards only. STT lives in the Audio tab,
- * Tavily lives in its own section below the model overrides.
+ * Keys & providers tab: privacy mode, then every credential the app needs —
+ * AI models, speech-to-text, web search — so setup happens in one place.
  */
 export function ProvidersTab({ settings, update }: Props) {
   const { t } = useTranslation()
@@ -115,18 +116,17 @@ export function ProvidersTab({ settings, update }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <>
       {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
           at the top because it overrides the provider selection below. */}
-      <PrivacyModeRow active={settings.privacyMode} onToggle={togglePrivacy} />
+      <div className="mb-10">
+        <PrivacyModeRow active={settings.privacyMode} onToggle={togglePrivacy} />
+      </div>
 
-      {/* LLM provider cards */}
-      <div className="flex flex-col gap-3">
-        <SectionHead
-          title={t('settings.providers.ai_section_title')}
-          hint={t('settings.providers.ai_section_hint')}
-        />
-
+      <Section
+        title={t('settings.providers.ai_section_title')}
+        hint={t('settings.providers.ai_section_hint')}
+      >
         <div className="flex flex-col gap-2.5">
           {LLM_PROVIDERS.map((p) => {
             const active = settings.llmProvider === p.value
@@ -156,18 +156,27 @@ export function ProvidersTab({ settings, update }: Props) {
             )
           })}
         </div>
-
         <LlmFallbackOrderField settings={settings} update={update} />
-      </div>
-    </div>
+      </Section>
+
+      <Section
+        title={t('settings.providers.stt_section_title')}
+        hint={t('settings.providers.stt_section_hint')}
+      >
+        <SttProviderCards settings={settings} update={update} />
+      </Section>
+
+      <Section
+        title={t('settings.providers.web_search_title')}
+        hint={t('settings.providers.web_search_hint')}
+      >
+        <WebSearchCard settings={settings} update={update} />
+      </Section>
+    </>
   )
 }
 
-/**
- * STT provider cards — exported so AudioTab can render them next to the
- * mic / VAD / language settings (their natural sibling group).
- */
-export function SttProviderCards({ settings, update }: Props) {
+function SttProviderCards({ settings, update }: Props) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2.5">
@@ -192,18 +201,14 @@ export function SttProviderCards({ settings, update }: Props) {
   )
 }
 
-/**
- * Tavily web-search section — exported so it can render at the very bottom
- * of the AI tab, after model overrides.
- */
-export function WebSearchCard({ settings, update }: Props) {
+function WebSearchCard({ settings, update }: Props) {
   const { t } = useTranslation()
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="min-w-0">
-          <div className="text-[14px] font-medium">{t('settings.providers.tavily_title')}</div>
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <div className="text-body font-medium">{t('settings.providers.tavily_title')}</div>
+          <p className="mt-1 text-small text-muted-foreground">
             {t('settings.providers.tavily_hint')}
           </p>
         </div>
@@ -211,7 +216,7 @@ export function WebSearchCard({ settings, update }: Props) {
           href="https://tavily.com/"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 font-mono text-meta text-muted-foreground transition-colors hover:border-white/[0.14] hover:text-foreground"
         >
           {t('settings.providers.get_key')}
         </a>
@@ -222,10 +227,10 @@ export function WebSearchCard({ settings, update }: Props) {
         value={settings.tavilyApiKey ?? ''}
         onChange={(v) => update('tavilyApiKey', v || null)}
       />
-      <div className="mt-3 flex items-center justify-between rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
-        <div className="text-[12px]">
+      <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
+        <div className="text-body">
           {t('settings.providers.tavily_auto_label')}
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-small text-muted-foreground">
             {t('settings.providers.tavily_auto_hint')}
           </div>
         </div>
@@ -233,23 +238,12 @@ export function WebSearchCard({ settings, update }: Props) {
           checked={settings.autoWebSearch}
           onCheckedChange={(v) => update('autoWebSearch', v)}
         />
-      </div>
+      </label>
     </div>
   )
 }
 
 // — — — small atoms reused inside this tab — — —
-
-function SectionHead({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <div>
-      <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        {title}
-      </h3>
-      {hint && <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{hint}</p>}
-    </div>
-  )
-}
 
 function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boolean): void }) {
   const { t } = useTranslation()
@@ -265,10 +259,8 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
           className={cn('size-4 shrink-0', active ? 'text-success' : 'text-muted-foreground')}
         />
         <div>
-          <div className="text-[13px] font-medium">
-            {t('settings.providers.privacy_mode_label')}
-          </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-body font-medium">{t('settings.providers.privacy_mode_label')}</div>
+          <div className="text-small text-muted-foreground">
             {active
               ? t('settings.providers.privacy_mode_on')
               : t('settings.providers.privacy_mode_off')}
@@ -310,7 +302,7 @@ function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; dis
         type="button"
         variant="outline"
         size="sm"
-        className="h-7 gap-1.5 px-2.5 text-[11px]"
+        className="h-7 gap-1.5 px-2.5 text-small"
         disabled={disabled || state === 'testing'}
         onClick={() => void run()}
       >
@@ -324,8 +316,8 @@ function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; dis
       {result && (
         <span
           className={cn(
-            'flex min-w-0 items-center gap-1 text-[11px]',
-            result.ok ? 'text-success' : 'text-amber-400'
+            'flex min-w-0 items-center gap-1 text-small',
+            result.ok ? 'text-success' : 'text-warn'
           )}
         >
           {result.ok ? (
@@ -390,12 +382,12 @@ function OllamaModelManager({
   return (
     <div className="flex flex-col gap-2">
       {privacyMode && noModels && (
-        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300">
+        <div className="flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn/10 px-2.5 py-1.5 text-small text-warn">
           <AlertTriangle className="mt-0.5 size-3 shrink-0" />
           <span>{t('settings.providers.ollama_privacy_no_models')}</span>
         </div>
       )}
-      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
         {t('settings.providers.ollama_recommended_label')}
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -408,7 +400,7 @@ function OllamaModelManager({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 gap-1.5 px-2 font-mono text-[11px]"
+              className="h-7 gap-1.5 px-2 font-mono text-small"
               disabled={has || busy || pulling !== null}
               onClick={() => void pull(name)}
               title={
@@ -429,7 +421,7 @@ function OllamaModelManager({
           )
         })}
       </div>
-      {error && <div className="text-[11px] text-amber-400">{error}</div>}
+      {error && <div className="text-small text-warn">{error}</div>}
     </div>
   )
 }
@@ -510,7 +502,7 @@ function LlmCredentials({
             placeholder={t('settings.providers.ollama_host_placeholder')}
             aria-label={t('onboarding.keys.llm.ollama.label')}
             aria-invalid={!isValidOllamaHost(hostDraft)}
-            className="flex-1 font-mono text-xs"
+            className="flex-1 font-mono text-small"
           />
           <Button
             variant="ghost"
@@ -522,7 +514,7 @@ function LlmCredentials({
           </Button>
         </div>
         {ollama && (
-          <div className={ok ? 'text-[11px] text-success' : 'text-[11px] text-amber-400'}>
+          <div className={cn('text-small', ok ? 'text-success' : 'text-warn')}>
             {ok
               ? t(
                   modelCount === 1
@@ -536,7 +528,7 @@ function LlmCredentials({
           </div>
         )}
         {ok && ollama.models.length > 0 && (
-          <div className="font-mono text-[11px] text-muted-foreground">
+          <div className="font-mono text-small text-muted-foreground">
             {ollama.models.slice(0, 5).join(' · ')}
             {ollama.models.length > 5 &&
               t('settings.providers.ollama_more_models', { count: ollama.models.length - 5 })}
@@ -601,7 +593,7 @@ function SttCredentials({
         <div className="flex flex-col gap-1">
           <label
             htmlFor={projectIdId}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground"
           >
             {t('settings.providers.google_project_id_label')}
           </label>
@@ -610,16 +602,16 @@ function SttCredentials({
             value={settings.googleProjectId ?? ''}
             onChange={(e) => update('googleProjectId', e.target.value || null)}
             placeholder={t('settings.providers.google_project_id_placeholder')}
-            className="font-mono text-xs"
+            className="font-mono text-small"
           />
         </div>
         <div className="flex flex-col gap-1">
           <label
             htmlFor={serviceAccountId}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            className="font-mono text-meta uppercase tracking-[0.14em] text-muted-foreground"
           >
             {t('settings.providers.google_service_account_label')}{' '}
-            <span className="normal-case tracking-normal text-muted-foreground/60">
+            <span className="normal-case tracking-normal text-muted-foreground">
               {t('settings.providers.google_service_account_optional')}
             </span>
           </label>
@@ -629,7 +621,7 @@ function SttCredentials({
             value={serviceAccount.shown}
             onChange={(e) => serviceAccount.edit(e.target.value)}
             placeholder={serviceAccount.placeholder}
-            className="font-mono text-[11px]"
+            className="font-mono text-small"
           />
         </div>
       </div>
@@ -637,7 +629,7 @@ function SttCredentials({
   }
   if (provider === 'local-whisper') {
     return (
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-small text-muted-foreground">
         {t('settings.providers.local_whisper_note')}
       </p>
     )

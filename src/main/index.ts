@@ -257,16 +257,6 @@ app.whenReady().then(async () => {
     mainWindow.setSkipTaskbar(lowProfile)
   }
 
-  function applyOverlayOpacity(): void {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
-    const raw = getSettings().overlayOpacity ?? 1
-    // Clamp to a useful range — fully transparent overlays are unreachable
-    // and 100%+ has no effect. Floor at 0.4 so the user can never lose the
-    // window completely from the screen by accident.
-    const opacity = Math.min(1, Math.max(0.4, raw))
-    overlayWindow.setOpacity(opacity)
-  }
-
   // Cross-platform "hide me from the OS app-switcher". On macOS this is the
   // dock; on Windows/Linux it's the taskbar/Alt+Tab. Called once on launch
   // and again whenever the user toggles the setting.
@@ -412,9 +402,6 @@ app.whenReady().then(async () => {
     if (Object.prototype.hasOwnProperty.call(patch, 'hideFromAppSwitcher')) {
       applyAppSwitcherVisibility()
     }
-    if (Object.prototype.hasOwnProperty.call(patch, 'overlayOpacity')) {
-      applyOverlayOpacity()
-    }
     // Re-register global shortcuts when hotkeys change so a rebind takes effect
     // immediately instead of waiting for an app restart. Surface any accelerator
     // that failed to bind (already taken by another app, malformed) back to the
@@ -436,7 +423,6 @@ app.whenReady().then(async () => {
 
   mainWindow = createMainWindow()
   overlayWindow = createOverlayWindow()
-  applyOverlayOpacity()
 
   for (const win of [mainWindow, overlayWindow]) {
     sessionManager.registerWindow(win)
@@ -609,14 +595,17 @@ app.whenReady().then(async () => {
       handleCropperSubmit(rect)
   )
 
+  // Same route as the tray (capture lives in the dashboard renderer), but
+  // without surfacing the dashboard — the overlay is the live surface.
+  function toggleSession(): void {
+    const { kind } = sessionManager.getState()
+    if (kind === 'running') mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
+    else if (kind === 'idle') mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
+  }
+  handleIpc(IPC.session.requestToggle, () => toggleSession())
+
   const { failed: failedHotkeys } = registerShortcuts({
-    // Same route as the tray (capture lives in the dashboard renderer), but
-    // without surfacing the dashboard — the overlay is the live surface.
-    onToggleSession: () => {
-      const { kind } = sessionManager.getState()
-      if (kind === 'running') mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
-      else if (kind === 'idle') mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
-    },
+    onToggleSession: toggleSession,
     onToggleOverlay: () => {
       if (!overlayWindow) return
       if (overlayWindow.isVisible()) overlayWindow.hide()

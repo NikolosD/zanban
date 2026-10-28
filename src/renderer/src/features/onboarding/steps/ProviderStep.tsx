@@ -24,6 +24,13 @@ const OPTIONS: ProviderOption[] = [
   { id: 'ollama', badge: 'no_key' }
 ]
 
+// Same treatment as the provider cards in Settings: sage for the recommended
+// pick, neutral for a plain fact.
+const BADGE_STYLES: Record<BadgeKey, string> = {
+  recommended: 'border-success/30 bg-success/10 text-success',
+  no_key: 'border-border text-muted-foreground'
+}
+
 export function ProviderStep({
   draftProvider,
   setDraftProvider,
@@ -35,8 +42,8 @@ export function ProviderStep({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-medium tracking-tight">{t('onboarding.provider.title')}</h2>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <h2 className="text-lead font-medium tracking-tight">{t('onboarding.provider.title')}</h2>
+        <p className="mt-1 text-body leading-relaxed text-muted-foreground">
           {t('onboarding.provider.body')}
         </p>
       </div>
@@ -63,14 +70,21 @@ export function ProviderStep({
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm">{t(`onboarding.provider.options.${opt.id}.label`)}</span>
+                <span className="text-body">
+                  {t(`onboarding.provider.options.${opt.id}.label`)}
+                </span>
                 {opt.badge && (
-                  <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1 font-mono text-[9px] uppercase tracking-wider text-amber-300">
+                  <span
+                    className={cn(
+                      'rounded border px-1 font-mono text-meta uppercase tracking-wider',
+                      BADGE_STYLES[opt.badge]
+                    )}
+                  >
                     {t(`onboarding.provider.${opt.badge}_badge`)}
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
                 {t(`onboarding.provider.options.${opt.id}.blurb`)}
               </div>
             </div>

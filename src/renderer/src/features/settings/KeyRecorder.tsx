@@ -91,7 +91,7 @@ export function KeyRecorder({
         )}
       >
         {recording ? (
-          <span className="flex items-center gap-2 font-mono text-[11px] text-signal">
+          <span className="flex items-center gap-2 font-mono text-small text-signal">
             <span className="size-1.5 animate-pulse rounded-full bg-signal" />
             {t('settings.key_recorder.recording')}
           </span>
@@ -99,13 +99,13 @@ export function KeyRecorder({
           <span className="flex flex-wrap items-center gap-1">
             {segments.map((s, i) => (
               <span key={i} className="flex items-center gap-1">
-                {i > 0 && <span className="text-muted-foreground/40">+</span>}
+                {i > 0 && <span className="text-muted-foreground">+</span>}
                 <Kbd size="md">{s}</Kbd>
               </span>
             ))}
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-small text-muted-foreground">
             {t('settings.key_recorder.placeholder')}
           </span>
         )}

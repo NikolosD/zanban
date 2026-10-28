@@ -101,6 +101,9 @@ export interface ZanbanApi {
   session: {
     start(input?: { resumeId?: string }): Promise<{ sessionId: string }>
     stop(): Promise<void>
+    /** Start (when idle) or stop (when running) through the dashboard's capture
+     *  pipeline — the same route as the toggleSession hotkey. */
+    requestToggle(): Promise<void>
     onState(cb: (state: SessionState) => void): () => void
   }
   audio: {

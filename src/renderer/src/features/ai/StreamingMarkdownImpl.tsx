@@ -52,7 +52,7 @@ const components = {
     return (
       <div className="zb-codeblock relative my-2 overflow-hidden rounded-lg border border-white/[0.08] bg-[#0d1117]">
         {lang && (
-          <div className="pointer-events-none absolute right-2 top-1.5 select-none rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+          <div className="pointer-events-none absolute right-2 top-1.5 select-none rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-small text-muted-foreground">
             {lang}
           </div>
         )}
@@ -68,6 +68,39 @@ const components = {
   },
   p(props: { children?: React.ReactNode }) {
     return <p className="my-1">{props.children}</p>
+  },
+  h1(props: { children?: React.ReactNode }) {
+    return <h1 className="mb-1 mt-3 text-[1.08em] font-semibold first:mt-0">{props.children}</h1>
+  },
+  h2(props: { children?: React.ReactNode }) {
+    return <h2 className="mb-1 mt-3 text-[1.04em] font-semibold first:mt-0">{props.children}</h2>
+  },
+  h3(props: { children?: React.ReactNode }) {
+    return <h3 className="mb-0.5 mt-2.5 font-semibold first:mt-0">{props.children}</h3>
+  },
+  table(props: { children?: React.ReactNode }) {
+    return (
+      <div className="my-2 overflow-x-auto">
+        <table className="w-full border-collapse text-left">{props.children}</table>
+      </div>
+    )
+  },
+  th(props: { style?: React.CSSProperties; children?: React.ReactNode }) {
+    return (
+      <th
+        style={props.style}
+        className="border border-white/15 bg-white/[0.04] px-2 py-1 font-semibold"
+      >
+        {props.children}
+      </th>
+    )
+  },
+  td(props: { style?: React.CSSProperties; children?: React.ReactNode }) {
+    return (
+      <td style={props.style} className="border border-white/15 px-2 py-1 align-top">
+        {props.children}
+      </td>
+    )
   },
   // Never fetch images from model output: a prompt-injected answer could
   // smuggle transcript text out in an image URL the moment it renders.
@@ -101,7 +134,8 @@ const NO_PLUGINS: Options['rehypePlugins'] = []
 
 function StreamingMarkdownImpl({ text, highlight }: { text: string; highlight: boolean }) {
   return (
-    <div className="min-w-0 text-[13px] leading-[1.5] text-foreground break-words">
+    // --md-text lets a host enlarge one answer (the overlay's newest) without a prop.
+    <div className="min-w-0 text-[length:var(--md-text,13px)] leading-[1.5] text-foreground break-words">
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={highlight ? HIGHLIGHT_PLUGINS : NO_PLUGINS}
