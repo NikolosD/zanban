@@ -44,19 +44,65 @@ export async function checkOllama(): Promise<OllamaHealth> {
   }
 }
 
+interface PullEvent {
+  status?: string
+  digest?: string
+  total?: number
+  completed?: number
+  error?: string
+}
+
 /**
  * Pull (download) a model into the local Ollama. Returns true on success,
- * false on failure. Does not stream progress — for that, use the IPC channel.
+ * false on failure. Reports the bytes downloaded so far, summed over the
+ * model's layers, each time the whole percent changes.
  */
-export async function pullModel(name: string): Promise<boolean> {
+export async function pullModel(
+  name: string,
+  onProgress: (completed: number, total: number) => void
+): Promise<boolean> {
   try {
     const res = await fetch(`${host()}/api/pull`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, stream: false })
+      body: JSON.stringify({ model: name })
     })
-    return res.ok
-  } catch {
+    if (!res.ok || !res.body) return false
+    const layers = new Map<string, { completed: number; total: number }>()
+    const decoder = new TextDecoder()
+    let pending = ''
+    let reported = -1
+    let succeeded = false
+    // One JSON object per line; a line can be split across chunks.
+    for await (const chunk of res.body) {
+      pending += decoder.decode(chunk, { stream: true })
+      const lines = pending.split('\n')
+      pending = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.trim()) continue
+        const event = JSON.parse(line) as PullEvent
+        if (event.error) {
+          console.warn(`[ollama] pull ${name} failed: ${event.error}`)
+          return false
+        }
+        if (event.status === 'success') succeeded = true
+        if (!event.digest || !event.total) continue
+        layers.set(event.digest, { completed: event.completed ?? 0, total: event.total })
+        let completed = 0
+        let total = 0
+        for (const layer of layers.values()) {
+          completed += layer.completed
+          total += layer.total
+        }
+        const percent = Math.floor((completed / total) * 100)
+        if (percent === reported) continue
+        reported = percent
+        onProgress(completed, total)
+      }
+    }
+    return succeeded
+  } catch (err) {
+    console.warn(`[ollama] pull ${name} failed`, err)
     return false
   }
 }

@@ -213,6 +213,8 @@ export interface ZanbanApi {
   ollama: {
     health(): Promise<OllamaHealth>
     pull(name: string): Promise<boolean>
+    /** Download progress of a running pull(), across the model's layers. */
+    onPullProgress(cb: (progress: OllamaPullProgress) => void): () => void
   }
   cropper: {
     open(): Promise<void>
@@ -280,6 +282,13 @@ export interface OllamaHealth {
   host: string
   models: string[]
   error?: string
+}
+
+export interface OllamaPullProgress {
+  name: string
+  /** Bytes. */
+  completed: number
+  total: number
 }
 
 export interface ProviderTestResult {

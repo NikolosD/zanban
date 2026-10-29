@@ -127,7 +127,8 @@ export const IPC = {
   },
   ollama: {
     health: 'ollama:health',
-    pull: 'ollama:pull'
+    pull: 'ollama:pull',
+    pullProgress: 'ollama:pull-progress'
   },
   cropper: {
     open: 'cropper:open',

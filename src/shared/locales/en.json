@@ -388,6 +388,8 @@
       "ollama_pull_title": "Download {{name}}",
       "ollama_installed_title": "Already installed",
       "ollama_pull_failed": "Could not pull {{name}}",
+      "ollama_pull_starting": "Starting the {{name}} download…",
+      "ollama_pull_progress": "Downloading {{name}} · {{done}} of {{total}} ({{percent}}%)",
       "ollama_privacy_no_models": "Privacy Mode uses Ollama, but no models are installed. Pull one below or the assistant will fail on the first prompt.",
       "key_configured": "configured · {{mask}}",
       "status": {

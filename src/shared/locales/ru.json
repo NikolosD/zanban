@@ -394,6 +394,8 @@
       "ollama_pull_title": "Скачать {{name}}",
       "ollama_installed_title": "Уже установлена",
       "ollama_pull_failed": "Не удалось скачать {{name}}",
+      "ollama_pull_starting": "Начинаю скачивать {{name}}…",
+      "ollama_pull_progress": "Скачиваю {{name}} · {{done}} из {{total}} ({{percent}}%)",
       "ollama_privacy_no_models": "Режим конфиденциальности использует Ollama, но модели не установлены. Скачайте одну ниже, иначе ассистент не ответит на первый запрос.",
       "key_configured": "задан · {{mask}}",
       "status": {
