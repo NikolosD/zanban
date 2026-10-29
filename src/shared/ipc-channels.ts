@@ -122,7 +122,8 @@ export const IPC = {
     exportJson: 'personas:export-json'
   },
   providers: {
-    testConnection: 'providers:test-connection'
+    testConnection: 'providers:test-connection',
+    testStt: 'providers:test-stt'
   },
   ollama: {
     health: 'ollama:health',

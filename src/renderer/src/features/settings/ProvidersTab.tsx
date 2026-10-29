@@ -10,7 +10,12 @@ import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
 import { ActiveFirst } from './ActiveFirst'
-import { ProviderCheckResult, useProviderCheck } from './ProviderCheck'
+import {
+  ProviderCheckResult,
+  useProviderCheck,
+  useSttCheck,
+  type ProviderCheck
+} from './ProviderCheck'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
 import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
@@ -284,15 +289,15 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
  * config-presence dot, which only knows whether a key string is set.
  */
 function ProviderTestButton({
-  provider,
+  probe,
   savedKey
 }: {
-  provider: LlmProvider
+  probe: ProviderCheck
   /** The stored key; main sends it back redacted once it has been saved. */
   savedKey: string | null
 }) {
   const { t } = useTranslation()
-  const { testing, result, check } = useProviderCheck(provider)
+  const { testing, result, check } = probe
   const checkedKey = useRef(savedKey)
 
   // A newly saved key comes back as a fresh redacted marker: check it right
@@ -458,6 +463,7 @@ function LlmCredentials({
   // Main rejects a malformed host, so only well-formed values (or empty) are
   // pushed while the user is still typing one.
   const [hostDraft, setHostDraft] = useState(settings.ollamaHost)
+  const probe = useProviderCheck(provider)
   const field = LLM_KEY_FIELDS[provider]
   if (field) {
     return (
@@ -468,7 +474,7 @@ function LlmCredentials({
           value={settings[field.settingsKey] ?? ''}
           onChange={(v) => update(field.settingsKey, v || null)}
         />
-        <ProviderTestButton provider={provider} savedKey={settings[field.settingsKey] ?? null} />
+        <ProviderTestButton probe={probe} savedKey={settings[field.settingsKey] ?? null} />
       </div>
     )
   }
@@ -563,14 +569,18 @@ function SttCredentials({
     (v) => update('googleServiceAccountJson', v || null),
     '{"type":"service_account",…}'
   )
+  const probe = useSttCheck(provider)
   const field = STT_KEY_FIELDS[provider]
   if (field) {
     return (
-      <SecretKeyField
-        label={t(`settings.providers.stt.${provider}.key_label`)}
-        value={settings[field.settingsKey] ?? ''}
-        onChange={(v) => update(field.settingsKey, v || null)}
-      />
+      <div className="flex flex-col gap-2">
+        <SecretKeyField
+          label={t(`settings.providers.stt.${provider}.key_label`)}
+          value={settings[field.settingsKey] ?? ''}
+          onChange={(v) => update(field.settingsKey, v || null)}
+        />
+        <ProviderTestButton probe={probe} savedKey={settings[field.settingsKey] ?? null} />
+      </div>
     )
   }
   if (provider === 'google') {
@@ -610,6 +620,10 @@ function SttCredentials({
             className="font-mono text-small"
           />
         </div>
+        <ProviderTestButton
+          probe={probe}
+          savedKey={settings.googleServiceAccountJson ?? settings.googleProjectId}
+        />
       </div>
     )
   }

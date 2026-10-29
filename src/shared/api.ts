@@ -14,6 +14,7 @@ import type {
   ScreenSnapshotOcr,
   SessionExportPayload,
   SessionState,
+  SttProvider,
   TranscriptSegment,
   TranscriptionStatus
 } from './types.js'
@@ -206,6 +207,8 @@ export interface ZanbanApi {
     /** Real connectivity probe for an LLM provider — a cheap live call that
      *  validates auth/routing, unlike the config-presence dot. */
     testConnection(id: LlmProvider): Promise<ProviderTestResult>
+    /** Free check of a speech-recognition engine's saved credentials. */
+    testStt(id: SttProvider): Promise<ProviderTestResult>
   }
   ollama: {
     health(): Promise<OllamaHealth>
