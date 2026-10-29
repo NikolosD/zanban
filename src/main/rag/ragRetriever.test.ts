@@ -8,7 +8,7 @@ vi.mock('./vectorStore.js', () => ({
   search: async () => hits.value
 }))
 
-const { retrieve, retrieveContext, looksLikeHistoryQuestion, selectHits } =
+const { retrieve, retrieveContext, retrievalTimedOut, looksLikeHistoryQuestion, selectHits } =
   await import('./ragRetriever.js')
 
 function hit(over: Partial<RetrievedChunk>): RetrievedChunk {
@@ -164,6 +164,26 @@ describe('retrieve', () => {
     expect(empty.sources).toEqual([])
     expect((await retrieve('Что мы обсуждали на прошлой встрече?')).prompt).toContain('No matching')
     expect((await retrieve('How do I reverse a linked list?')).prompt).toBe('')
+  })
+})
+
+describe('retrievalTimedOut', () => {
+  it.each(['What did we agree on last time?', 'Что мы обсуждали на прошлой встрече?'])(
+    'tells the model past sessions and documents were not searched in time: %s',
+    (question) => {
+      const r = retrievalTimedOut(question)
+      expect(r.prompt).toContain('<retrieved_context>')
+      expect(r.prompt).toContain("Past sessions and documents weren't searched in time")
+      expect(r.prompt).not.toContain('No matching')
+      expect(r.sources).toEqual([])
+    }
+  )
+
+  it('has nothing to add to a question that is not about the past', () => {
+    expect(retrievalTimedOut('How do I reverse a linked list?')).toEqual({
+      prompt: '',
+      sources: []
+    })
   })
 })
 

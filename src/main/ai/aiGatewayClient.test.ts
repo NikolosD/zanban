@@ -23,7 +23,10 @@ vi.mock('../settings.js', () => ({ getSettings: () => ({ meetingContext: '' }) }
 vi.mock('../transcription/sessionManager.js', () => ({
   sessionManager: { onSegment: () => {}, onState: () => {}, getState: () => ({ kind: 'idle' }) }
 }))
-vi.mock('../rag/index.js', () => ({ retrieve: async () => ({ prompt: '', sources: [] }) }))
+vi.mock('../rag/index.js', () => ({
+  retrieve: async () => ({ prompt: '', sources: [] }),
+  retrievalTimedOut: () => ({ prompt: '', sources: [] })
+}))
 vi.mock('../providers/registry.js', () => ({
   getActiveWebSearch: () => null,
   getLlmProviderById: (id: string) => ({

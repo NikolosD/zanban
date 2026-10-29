@@ -48,6 +48,9 @@ const CURRENT_CALL_LABEL = 'earlier in this call'
 const NO_MATCH_BLOCK =
   '\n\n<retrieved_context>\nNo matching past sessions or documents.\n</retrieved_context>'
 
+const NOT_SEARCHED_BLOCK =
+  "\n\n<retrieved_context>\nPast sessions and documents weren't searched in time, so they may hold an answer that is not shown here.\n</retrieved_context>"
+
 const EN_HISTORY =
   /\b(last time|last (meeting|call|session|week)|(previous|past|earlier) (meetings?|calls?|sessions?|conversations?)|we (discussed|agreed|decided|talked about)|did (we|i|you|they|he|she) (say|mention|agree|decide|discuss|promise)|what did (we|i|you|they|he|she)|recap|meeting notes|(my|the|this|that|our|their) (document|doc|file|resume|cv|contract|spec|presentation|deck)|according to|remind me)\b/i
 const RU_HISTORY =
@@ -56,6 +59,15 @@ const RU_HISTORY =
 /** Whether a question refers to past meetings or the user's documents. */
 export function looksLikeHistoryQuestion(query: string): boolean {
   return EN_HISTORY.test(query) || RU_HISTORY.test(query)
+}
+
+/**
+ * The result for a search that outlasted its time budget: nothing, except that
+ * a question about past meetings or documents is told they went unsearched, so
+ * the model doesn't claim there is nothing in them.
+ */
+export function retrievalTimedOut(query: string): RetrievalResult {
+  return { prompt: looksLikeHistoryQuestion(query) ? NOT_SEARCHED_BLOCK : '', sources: [] }
 }
 
 function shortLabel(h: RetrievedChunk, currentSessionId?: string): string {

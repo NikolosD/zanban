@@ -19,7 +19,7 @@ import {
 } from './prompts.js'
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
-import { retrieve, type RetrievalResult } from '../rag/index.js'
+import { retrieve, retrievalTimedOut, type RetrievalResult } from '../rag/index.js'
 import { ExplainedError, type IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback, type FallbackAttempt } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
@@ -353,7 +353,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
                 return noRetrieval
               }),
               RETRIEVAL_TIMEOUT_MS,
-              noRetrieval
+              retrievalTimedOut(searchQuery)
             )
 
       // Optional web search via Tavily. Triggered only when the user has

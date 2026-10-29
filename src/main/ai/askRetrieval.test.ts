@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   FOLLOW_UP_PROMPT,
@@ -203,6 +203,43 @@ describe('ask() with a prompt that carries a whole transcript', () => {
     expect(query).not.toContain('line0')
     expect(query).not.toContain('Answer from the saved transcript')
     expect(store.embedded).toEqual([query])
+  })
+})
+
+describe('ask() when the search outlasts its 1.5 s budget', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    store.rows = [{ one: 1 }]
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function promptAfterBudget(question: string): Promise<string> {
+    const requestId = `r${++requestSeq}`
+    await ask({ requestId, prompt: question })
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(llm.prompts).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.waitFor(() => expect(sent).toContainEqual({ channel: IPC.ai.done, requestId }))
+    return llm.prompts[0]!
+  }
+
+  it.each(['What did we agree on last time?', 'Что мы обсуждали на прошлой встрече?'])(
+    'tells the model past sessions were not searched, for a question about them: %s',
+    async (question) => {
+      const prompt = await promptAfterBudget(question)
+
+      expect(prompt).toContain("Past sessions and documents weren't searched in time")
+      expect(prompt).not.toContain('No matching past sessions or documents.')
+    }
+  )
+
+  it('adds nothing for a question that is not about the past', async () => {
+    const prompt = await promptAfterBudget('How do I reverse a linked list?')
+
+    expect(prompt).not.toContain('<retrieved_context>')
   })
 })
 
