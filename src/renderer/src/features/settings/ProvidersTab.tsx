@@ -330,13 +330,16 @@ function ProviderTestButton({
 // the user can still pull anything via `ollama pull` in a terminal.
 const OLLAMA_RECOMMENDED = PROVIDER_FAST_MODELS.ollama.slice(0, 4)
 
-// Decimal units, as Ollama's own CLI and model pages count them.
+// Decimal units, as Ollama's own CLI and model pages count them. A fixed digit
+// after the point keeps the line from jittering as the numbers grow.
 function formatSize(bytes: number, locale: string): string {
   const gigabytes = bytes >= 1e9
+  const digits = gigabytes ? 1 : 0
   return new Intl.NumberFormat(locale, {
     style: 'unit',
     unit: gigabytes ? 'gigabyte' : 'megabyte',
-    maximumFractionDigits: gigabytes ? 1 : 0
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
   }).format(gigabytes ? bytes / 1e9 : bytes / 1e6)
 }
 
