@@ -12,10 +12,12 @@ vi.mock('../settings.js', () => ({
 const {
   modelFor,
   fastMaxOutputTokens,
-  gatewayProviderOptions,
+  gatewayCallOptions,
+  availableGatewayModel,
   FAST_MAX_OUTPUT_TOKENS,
   DETAILED_MAX_OUTPUT_TOKENS
 } = await import('./models.js')
+const { setGatewayCatalogForTest } = await import('./gatewayCatalog.js')
 
 describe('modelFor', () => {
   beforeEach(() => {
@@ -98,11 +100,83 @@ describe('fastMaxOutputTokens', () => {
   })
 })
 
-describe('gatewayProviderOptions', () => {
-  it('lowers gpt-oss reasoning and leaves other models at their default', () => {
-    expect(gatewayProviderOptions('openai/gpt-oss-120b')).toEqual({
-      openai: { reasoningEffort: 'low' }
+describe('gatewayCallOptions', () => {
+  beforeEach(() => {
+    setGatewayCatalogForTest([
+      {
+        id: 'openai/gpt-6.1-terra',
+        temperature: true,
+        reasoning_options: [{ type: 'effort', values: ['none', 'low', 'medium'] }]
+      },
+      {
+        id: 'anthropic/claude-haiku-5.5',
+        temperature: false,
+        reasoning_options: [{ type: 'effort', values: ['none', 'low'] }]
+      },
+      {
+        id: 'anthropic/claude-sonnet-5.5',
+        temperature: false,
+        reasoning_options: [{ type: 'effort', values: ['low', 'medium'] }]
+      },
+      { id: 'xiaomi/mimo-v2.6-flash', temperature: true }
+    ])
+  })
+
+  it('turns reasoning off where the model allows it', () => {
+    expect(gatewayCallOptions('openai/gpt-6.1-terra', 0.4)).toEqual({
+      temperature: 0.4,
+      providerOptions: { openai: { reasoningEffort: 'none' } }
     })
-    expect(gatewayProviderOptions('xiaomi/mimo-v2.6-flash')).toBeUndefined()
+    expect(gatewayCallOptions('anthropic/claude-haiku-5.5', 0.4)).toEqual({
+      temperature: undefined,
+      providerOptions: { anthropic: { thinking: { type: 'disabled' } } }
+    })
+  })
+
+  it('falls back to the lowest effort and drops a temperature the model rejects', () => {
+    expect(gatewayCallOptions('anthropic/claude-sonnet-5.5', 0.3)).toEqual({
+      temperature: undefined,
+      providerOptions: { anthropic: { effort: 'low' } }
+    })
+    expect(gatewayCallOptions('xiaomi/mimo-v2.6-flash', 0.3)).toEqual({
+      temperature: 0.3,
+      providerOptions: undefined
+    })
+  })
+
+  it('sets up the default models right before the catalog has loaded', () => {
+    setGatewayCatalogForTest(null)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    expect(gatewayCallOptions('openai/gpt-6.1-terra', 0.4)).toEqual({
+      temperature: 0.4,
+      providerOptions: { openai: { reasoningEffort: 'none' } }
+    })
+    expect(gatewayCallOptions('anthropic/claude-haiku-5.5', 0.4)).toEqual({
+      temperature: undefined,
+      providerOptions: { anthropic: { thinking: { type: 'disabled' } } }
+    })
+    expect(gatewayCallOptions('openai/gpt-oss-120b', 0.4)).toEqual({
+      temperature: 0.4,
+      providerOptions: { openai: { reasoningEffort: 'low' } }
+    })
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('availableGatewayModel', () => {
+  it("swaps a model the catalog dropped for the role's default", () => {
+    setGatewayCatalogForTest([{ id: 'anthropic/claude-haiku-5.5' }, { id: 'openai/gpt-6.1-terra' }])
+    expect(availableGatewayModel('anthropic/claude-haiku-5.5', 'fast')).toBe(
+      'anthropic/claude-haiku-5.5'
+    )
+    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('openai/gpt-6.1-terra')
+  })
+
+  it('swaps nothing before the catalog has loaded', () => {
+    setGatewayCatalogForTest(null)
+    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('openai/gpt-4o')
   })
 })

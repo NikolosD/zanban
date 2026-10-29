@@ -69,7 +69,10 @@ export const IPC = {
     done: 'ai:done',
     error: 'ai:error',
     /** Main → renderer: RAG fragments retrieved for an ask, for the Sources UI. */
-    sources: 'ai:sources'
+    sources: 'ai:sources',
+    /** Main → renderer: a configured gateway model is gone from the catalog and a default answered. */
+    modelReplaced: 'ai:model-replaced',
+    gatewayModels: 'ai:gateway-models'
   },
   settings: {
     get: 'settings:get',

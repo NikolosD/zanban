@@ -1,5 +1,6 @@
 import { getSettings } from '../settings.js'
 import { PROVIDER_MODEL_DEFAULTS, type AiRole, type LlmProvider } from '../../shared/types.js'
+import { catalogModel, refreshGatewayCatalog, type CatalogModel } from './gatewayCatalog.js'
 
 /**
  * Resolve the model ID for a given role.
@@ -23,12 +24,75 @@ export function modelFor(role: AiRole): string {
   return PROVIDER_MODEL_DEFAULTS[provider][role]
 }
 
-// gpt-oss reasons at 'medium' unless told otherwise, which delays the first
-// token of a live answer; it can only turn reasoning down, not off.
-export function gatewayProviderOptions(
-  model: string
-): { openai: { reasoningEffort: 'low' } } | undefined {
-  return model.startsWith('openai/gpt-oss') ? { openai: { reasoningEffort: 'low' } } : undefined
+/**
+ * The gateway model to call for a role: the configured one, unless the catalog
+ * has dropped it — then the role's default, so a retired model doesn't fail
+ * the answer. Unknown while the catalog hasn't loaded, so nothing is swapped.
+ */
+export function availableGatewayModel(model: string, role: AiRole): string {
+  const fallback = PROVIDER_MODEL_DEFAULTS['vercel-gateway'][role]
+  if (model === fallback || catalogModel(model) || !catalogModel(fallback)) return model
+  return fallback
+}
+
+type GatewayReasoning =
+  | { openai: { reasoningEffort: string } }
+  | { anthropic: { thinking: { type: 'disabled' } } }
+  | { anthropic: { effort: string } }
+
+export interface GatewayCallOptions {
+  temperature?: number
+  providerOptions?: GatewayReasoning
+}
+
+// The default models as the catalog lists them, for answers asked before it
+// loads: Terra and Haiku 5.5 would think before answering, and Haiku would
+// reject the temperature.
+const KNOWN_MODELS: Record<string, CatalogModel> = {
+  'openai/gpt-6.1-terra': {
+    id: 'openai/gpt-6.1-terra',
+    reasoning_options: [{ type: 'effort', values: ['none', 'low'] }]
+  },
+  'anthropic/claude-haiku-5.5': {
+    id: 'anthropic/claude-haiku-5.5',
+    temperature: false,
+    reasoning_options: [{ type: 'effort', values: ['none', 'low'] }]
+  },
+  'openai/gpt-oss-20b': {
+    id: 'openai/gpt-oss-20b',
+    reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }]
+  },
+  'openai/gpt-oss-120b': {
+    id: 'openai/gpt-oss-120b',
+    reasoning_options: [{ type: 'effort', values: ['low', 'medium', 'high'] }]
+  }
+}
+
+/**
+ * Per-model options for a gateway call, read from the gateway's catalog.
+ * Reasoning delays the first token of a live answer, so each model gets the
+ * lowest level it accepts ('none' turns it off). Models that only take their
+ * default temperature (Claude 5.x, GPT-6 Astra…) reject any other value.
+ */
+export function gatewayCallOptions(model: string, temperature: number): GatewayCallOptions {
+  void refreshGatewayCatalog()
+  const entry = catalogModel(model) ?? KNOWN_MODELS[model]
+  const efforts = entry?.reasoning_options?.find((o) => o.type === 'effort')?.values
+  const lowest = efforts ? ['none', 'minimal', 'low'].find((v) => efforts.includes(v)) : undefined
+  return {
+    temperature: entry?.temperature === false ? undefined : temperature,
+    providerOptions: lowest ? reasoningFor(model.split('/')[0], lowest) : undefined
+  }
+}
+
+function reasoningFor(creator: string | undefined, effort: string): GatewayReasoning | undefined {
+  if (creator === 'openai') return { openai: { reasoningEffort: effort } }
+  if (creator === 'anthropic') {
+    return effort === 'none'
+      ? { anthropic: { thinking: { type: 'disabled' } } }
+      : { anthropic: { effort } }
+  }
+  return undefined
 }
 
 // Caps the streaming answer so the overlay never has to wait on an over-long

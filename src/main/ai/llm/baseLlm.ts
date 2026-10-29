@@ -1,6 +1,6 @@
 import type { AiRole } from '../../../shared/types.js'
 import { getSettings } from '../../settings.js'
-import { gatewayProviderOptions, modelFor } from '../models.js'
+import { availableGatewayModel, gatewayCallOptions, modelFor } from '../models.js'
 import { getActiveLlmProvider } from '../../providers/registry.js'
 
 export interface OneShotArgs {
@@ -49,14 +49,13 @@ export async function generateOneShot(args: OneShotArgs): Promise<string> {
   }
   const gw = await gateway()
   const { generateText } = await import('ai')
-  const model = modelFor(args.role)
+  const model = availableGatewayModel(modelFor(args.role), args.role)
   const result = await generateText({
     model: gw(model),
     system: args.system,
     prompt: args.prompt,
-    temperature: args.temperature ?? 0.2,
     maxOutputTokens: args.maxOutputTokens ?? 200,
-    providerOptions: gatewayProviderOptions(model),
+    ...gatewayCallOptions(model, args.temperature ?? 0.2),
     abortSignal: args.signal
   })
   return result.text.trim()

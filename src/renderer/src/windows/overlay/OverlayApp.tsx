@@ -56,6 +56,8 @@ import {
   DropdownMenuSubTrigger
 } from '@renderer/components/ui/dropdown-menu'
 import { Toaster } from '@renderer/components/ui/sonner'
+import { toast } from 'sonner'
+import { useAvailableModels } from '@renderer/features/ai/useAvailableModels'
 import { Kbd } from '@renderer/components/ui/kbd'
 import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
 import { cn } from '@renderer/lib/utils'
@@ -216,6 +218,9 @@ export function OverlayApp() {
     // Live-sync settings from main — needed so toggles changed in the
     // dashboard (e.g. hideWidgetWhenHidden) take effect here without an app restart.
     const offSettings = wireSettingsIpc()
+    const offReplaced = window.zanban.ai.onModelReplaced(({ from, to }) =>
+      toast.info(i18n.t('overlay.model_replaced', { from, to }))
+    )
 
     function onMove(e: MouseEvent): void {
       const el = document.elementFromPoint(e.clientX, e.clientY)
@@ -278,6 +283,7 @@ export function OverlayApp() {
       offSnapshotAnswer()
       offStealth()
       offSettings()
+      offReplaced()
       window.removeEventListener('mousemove', onMove)
     }
   }, [handleAnswer, attachSnapshot])
@@ -884,8 +890,9 @@ function modelLabel(value: string): string {
 
 function ModelOverrideItems({ value, onChange, provider, defaultModel }: ModelOverrideProps) {
   const { t } = useTranslation()
-  const fastModels = PROVIDER_FAST_MODELS[provider] ?? []
-  const visionModels = PROVIDER_VISION_MODELS[provider] ?? []
+  const available = useAvailableModels()
+  const fastModels = available(provider, PROVIDER_FAST_MODELS[provider] ?? [])
+  const visionModels = available(provider, PROVIDER_VISION_MODELS[provider] ?? [])
   return (
     <>
       <DropdownMenuLabel className="text-small font-normal text-muted-foreground">

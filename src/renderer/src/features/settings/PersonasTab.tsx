@@ -16,6 +16,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { cn } from '@renderer/lib/utils'
+import { useAvailableModels } from '@renderer/features/ai/useAvailableModels'
 import { personaBlurb, personaName } from './personaLabels'
 import { errorMessage } from '@renderer/lib/errors'
 
@@ -228,7 +229,8 @@ function PersonaEditor({
   const language: ResponseLanguage | '' = persona.responseLanguage ?? ''
   // Models for the active provider — keeps the picker honest so a saved
   // defaultModel is always a valid id for whoever will actually run it.
-  const modelOptions = PROVIDER_FAST_MODELS[activeProvider] ?? []
+  const available = useAvailableModels()
+  const modelOptions = available(activeProvider, PROVIDER_FAST_MODELS[activeProvider] ?? [])
 
   // Flush pending name/prompt edits if the editor unmounts (e.g. user clicks
   // another persona or closes the panel) before the input blurred. Without

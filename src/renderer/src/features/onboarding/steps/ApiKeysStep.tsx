@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -6,6 +6,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { cn } from '@renderer/lib/utils'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { isRedactedSecret, isValidOllamaHost, redactedSecretMask } from '@shared/settingsBoundary'
+import { ProviderCheckResult, useProviderCheck } from '@renderer/features/settings/ProviderCheck'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
@@ -33,7 +34,7 @@ const LLM_FIELD: Record<LlmProvider, KeyField> = {
 
 // OpenAI's transcription model is being retired, so the wizard doesn't offer it;
 // it stays available in Settings.
-const STT_OPTIONS: SttOption[] = ['deepgram', 'elevenlabs', 'google', 'local-whisper']
+const STT_OPTIONS: SttOption[] = ['local-whisper', 'elevenlabs', 'deepgram', 'google']
 
 function sttFieldsFor(stt: SttOption): KeyField[] {
   switch (stt) {
@@ -66,11 +67,11 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   const llmField = LLM_FIELD[provider]
 
   // STT picker is local until the user advances. Default to whatever the user
-  // already has configured, falling back to Deepgram (the recommended path)
-  // when they're on a not-yet-supported engine like ElevenLabs.
+  // already has configured, falling back to on-device recognition when they're
+  // on an engine the wizard doesn't offer (OpenAI).
   const initialStt: SttOption = STT_OPTIONS.includes(settings.sttProvider as SttOption)
     ? (settings.sttProvider as SttOption)
-    : 'deepgram'
+    : 'local-whisper'
   const [stt, setStt] = useState<SttOption>(initialStt)
   const sttFields = sttFieldsFor(stt)
 
@@ -95,6 +96,22 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   const [saving, setSaving] = useState(false)
   const hostInvalid =
     llmField.settingsKey === 'ollamaHost' && !isValidOllamaHost(drafts.ollamaHost ?? '')
+
+  // Once the user stops typing, save the key and try it, so a typo shows up
+  // here rather than on the first call. The ref stops a re-render after the
+  // save from checking the same value again.
+  const keyCheck = useProviderCheck(provider)
+  const llmDraft = (drafts[llmField.settingsKey] ?? '').trim()
+  const checkedDraft = useRef('')
+  useEffect(() => {
+    if (!llmDraft || llmDraft === checkedDraft.current || isRedactedSecret(llmDraft)) return
+    if (hostInvalid) return
+    const timer = setTimeout(() => {
+      checkedDraft.current = llmDraft
+      void update(llmField.settingsKey, llmDraft as never).then(keyCheck.check)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [llmDraft, hostInvalid, update, llmField.settingsKey, keyCheck.check])
 
   function setDraft(key: keyof AppSettings, value: string): void {
     setDrafts((d) => ({ ...d, [key as string]: value }))
@@ -144,6 +161,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         invalid={hostInvalid}
         onChange={(v) => setDraft(llmField.settingsKey, v)}
       />
+      <ProviderCheckResult testing={keyCheck.testing} result={keyCheck.result} />
 
       <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
         <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
@@ -170,7 +188,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-body">{t(`onboarding.keys.stt_options.${opt}.label`)}</span>
-                  {opt === 'deepgram' && (
+                  {opt === 'elevenlabs' && (
                     <span className="rounded border border-success/30 bg-success/10 px-1 font-mono text-meta uppercase tracking-wider text-success">
                       {t('onboarding.provider.recommended_badge')}
                     </span>

@@ -29,6 +29,7 @@ import {
   type LlmProvider
 } from '@shared/types'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
+import { useAvailableModels } from '@renderer/features/ai/useAvailableModels'
 import { errorMessage } from '@renderer/lib/errors'
 import { KeyRecorder } from './KeyRecorder'
 import { ReferenceDocsTab } from './ReferenceDocsTab'
@@ -501,14 +502,15 @@ function ModelsTab({
 
   // Merge installed Ollama models ahead of the curated list (deduped) so a
   // model the user has actually pulled shows up first.
+  const available = useAvailableModels()
   const fastOptionsFor = (p: LlmProvider): string[] =>
     p === 'ollama'
       ? Array.from(new Set([...ollamaModels, ...(PROVIDER_FAST_MODELS[p] ?? [])]))
-      : (PROVIDER_FAST_MODELS[p] ?? [])
+      : available(p, PROVIDER_FAST_MODELS[p] ?? [])
   const visionOptionsFor = (p: LlmProvider): string[] =>
     p === 'ollama'
       ? Array.from(new Set([...ollamaModels, ...(PROVIDER_VISION_MODELS[p] ?? [])]))
-      : (PROVIDER_VISION_MODELS[p] ?? [])
+      : available(p, PROVIDER_VISION_MODELS[p] ?? [])
   const providerOverrides: AiModelSettings = settings.aiModels?.[provider] ?? {
     fast: '',
     filter: '',
