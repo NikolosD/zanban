@@ -4,5 +4,11 @@ import { handleIpc } from './guard.js'
 
 export function registerOllamaHandlers(): void {
   handleIpc(IPC.ollama.health, () => checkOllama())
-  handleIpc(IPC.ollama.pull, (_e, name: string) => pullModel(name))
+  handleIpc(IPC.ollama.pull, (e, name: string) =>
+    pullModel(name, (completed, total) => {
+      if (!e.sender.isDestroyed()) {
+        e.sender.send(IPC.ollama.pullProgress, { name, completed, total })
+      }
+    })
+  )
 }

@@ -122,7 +122,8 @@ const api: ZanbanApi = {
   },
   ollama: {
     health: () => ipcRenderer.invoke(IPC.ollama.health),
-    pull: (name) => ipcRenderer.invoke(IPC.ollama.pull, name)
+    pull: (name) => ipcRenderer.invoke(IPC.ollama.pull, name),
+    onPullProgress: (cb) => on(IPC.ollama.pullProgress, cb)
   },
   cropper: {
     open: () => ipcRenderer.invoke(IPC.cropper.open),
