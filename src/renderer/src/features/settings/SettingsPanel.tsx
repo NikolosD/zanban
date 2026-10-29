@@ -372,30 +372,11 @@ function GeneralTab({
   const { t } = useTranslation()
   return (
     <>
+      <LanguageSection settings={settings} update={update} onOpenKeys={() => onOpenTab('keys')} />
       <Section
         title={t('settings.general.overlay_title')}
         hint={t('settings.general.overlay_hint')}
       >
-        <Field
-          label={t('settings.general.opacity_label')}
-          hint={t('settings.general.opacity_hint')}
-        >
-          {(control) => {
-            // Clamp stored value into the slider's range so legacy/manual sub-min
-            // values display correctly and don't desync the thumb position.
-            const opacity = Math.max(0.4, Math.min(1, settings.overlayOpacity ?? 1))
-            return (
-              <div className="flex min-w-0 flex-col gap-3">
-                <OpacitySlider
-                  {...control}
-                  value={opacity}
-                  onChange={(v) => update('overlayOpacity', v)}
-                />
-                <OverlayPreview opacity={opacity} />
-              </div>
-            )
-          }}
-        </Field>
         <Row label={t('settings.general.stealth_label')} hint={t('settings.general.stealth_hint')}>
           {/* Inverse of `detectable` to remove the double-negative ("off = invisible")
               that was confusing in the previous label. The setting key stays
@@ -423,8 +404,27 @@ function GeneralTab({
             onCheckedChange={(v) => update('hideFromAppSwitcher', v)}
           />
         </Row>
+        <Field
+          label={t('settings.general.opacity_label')}
+          hint={t('settings.general.opacity_hint')}
+        >
+          {(control) => {
+            // Clamp stored value into the slider's range so legacy/manual sub-min
+            // values display correctly and don't desync the thumb position.
+            const opacity = Math.max(0.4, Math.min(1, settings.overlayOpacity ?? 1))
+            return (
+              <div className="flex min-w-0 flex-col gap-3">
+                <OpacitySlider
+                  {...control}
+                  value={opacity}
+                  onChange={(v) => update('overlayOpacity', v)}
+                />
+                <OverlayPreview opacity={opacity} />
+              </div>
+            )
+          }}
+        </Field>
       </Section>
-      <LanguageSection settings={settings} update={update} onOpenKeys={() => onOpenTab('keys')} />
       <Section title={t('settings.general.data_title')} hint={t('settings.general.data_hint')}>
         <Field
           label={t('settings.general.sessions_label')}

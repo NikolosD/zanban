@@ -32,10 +32,12 @@ interface Props {
 export function LanguageSection({ settings, update, onOpenKeys }: Props) {
   const { t } = useTranslation()
   const sttName = t(`settings.providers.stt.${settings.sttProvider}.name`)
-  // Deepgram streams multilingual natively and Whisper detects per utterance;
-  // the other engines need one fixed language.
+  // Deepgram streams multilingual natively, OpenAI detects per utterance and the
+  // on-device Parakeet detects among its 25 languages; the others need one fixed language.
   const supportsMulti =
-    settings.sttProvider === 'deepgram' || settings.sttProvider === 'openai-whisper'
+    settings.sttProvider === 'deepgram' ||
+    settings.sttProvider === 'openai-whisper' ||
+    settings.sttProvider === 'local-whisper'
   const speechLabel = (v: string): string =>
     t(`settings.transcription.lang.${v}`, { defaultValue: v })
 
