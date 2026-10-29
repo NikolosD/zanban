@@ -18,21 +18,6 @@ export function getActiveLlmProvider(): ILlmProvider | null {
 }
 
 /**
- * Vision-only override. When the user has set `visionProvider` in Settings,
- * image-bearing requests route through that provider instead of the main LLM.
- * Falls back to the main provider when the override is null or missing its key.
- */
-export function getActiveVisionProvider(): ILlmProvider | null {
-  const s = getSettings()
-  if (!s.visionProvider) return getActiveLlmProvider()
-  const overridden = resolveProvider(s.visionProvider)
-  // If the override pointed to a provider with no key, don't silently fall
-  // back to the main provider — that would re-introduce the bug the override
-  // was meant to fix. Caller can detect null and surface a clear error.
-  return overridden
-}
-
-/**
  * Resolve a specific provider by id without consulting `settings.llmProvider`.
  * Used by the fallback chain to walk the user-configured fallback list, where
  * each entry is a known provider id and the active selection doesn't matter.

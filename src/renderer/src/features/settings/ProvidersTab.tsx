@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { DEFAULT_SETTINGS, PROVIDER_FAST_MODELS } from '@shared/types'
 import { isRedactedSecret, isValidOllamaHost } from '@shared/settingsBoundary'
+import { isPrivateSetup } from '@shared/privacy'
 import { Textarea } from '@renderer/components/ui/textarea'
 import type { OllamaHealth as OllamaHealthType } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
@@ -119,14 +120,11 @@ export function ProvidersTab({ settings, update }: Props) {
       {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
           at the top because it overrides the provider selection below. */}
       <div className="mb-10">
-        {/* Also on when both providers were made local by hand: that setup is
-            already private, and showing it as off reads as a leak. */}
         <PrivacyModeRow
-          active={
-            settings.privacyMode ||
-            (settings.llmProvider === 'ollama' && settings.sttProvider === 'local-whisper')
-          }
+          active={isPrivateSetup(settings)}
           onToggle={togglePrivacy}
+          cloudFallback={settings.privacyCloudFallback}
+          onCloudFallback={(v) => update('privacyCloudFallback', v)}
         />
       </div>
 
@@ -256,29 +254,66 @@ function WebSearchCard({ settings, update }: Props) {
 
 // — — — small atoms reused inside this tab — — —
 
-function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boolean): void }) {
+function PrivacyModeRow({
+  active,
+  onToggle,
+  cloudFallback,
+  onCloudFallback
+}: {
+  active: boolean
+  onToggle(v: boolean): void
+  cloudFallback: boolean
+  onCloudFallback(v: boolean): void
+}) {
   const { t } = useTranslation()
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors',
+        'rounded-xl border px-4 py-3 transition-colors',
         active ? 'border-success/40 bg-success/[0.06]' : 'border-white/[0.06] bg-white/[0.02]'
       )}
     >
-      <div className="flex items-center gap-3">
-        <Lock
-          className={cn('size-4 shrink-0', active ? 'text-success' : 'text-muted-foreground')}
-        />
-        <div>
-          <div className="text-body font-medium">{t('settings.providers.privacy_mode_label')}</div>
-          <div className="text-small text-muted-foreground">
-            {active
-              ? t('settings.providers.privacy_mode_on')
-              : t('settings.providers.privacy_mode_off')}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Lock
+            className={cn('size-4 shrink-0', active ? 'text-success' : 'text-muted-foreground')}
+          />
+          <div>
+            <div className="text-body font-medium">
+              {t('settings.providers.privacy_mode_label')}
+            </div>
+            <div className="text-small text-muted-foreground">
+              {active
+                ? t('settings.providers.privacy_mode_on')
+                : t('settings.providers.privacy_mode_off')}
+            </div>
           </div>
         </div>
+        <Switch
+          checked={active}
+          onCheckedChange={onToggle}
+          aria-label={t('settings.providers.privacy_mode_label')}
+        />
       </div>
-      <Switch checked={active} onCheckedChange={onToggle} />
+      {active && (
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3 pl-7">
+          <div>
+            <div className="text-small font-medium">
+              {t('settings.providers.privacy_cloud_fallback_label')}
+            </div>
+            <div className="text-small text-muted-foreground">
+              {cloudFallback
+                ? t('settings.providers.privacy_cloud_fallback_on')
+                : t('settings.providers.privacy_cloud_fallback_off')}
+            </div>
+          </div>
+          <Switch
+            checked={cloudFallback}
+            onCheckedChange={onCloudFallback}
+            aria-label={t('settings.providers.privacy_cloud_fallback_label')}
+          />
+        </div>
+      )}
     </div>
   )
 }

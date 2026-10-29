@@ -53,6 +53,7 @@ const settingsShape = {
   llmFallbackOrder: z.array(llmProvider),
   privacyMode: z.boolean(),
   privacyModeSnapshot: z.object({ llmProvider, sttProvider }).nullable(),
+  privacyCloudFallback: z.boolean(),
   autoWebSearch: z.boolean(),
   detailedAnswers: z.boolean(),
   aiModels: z.record(

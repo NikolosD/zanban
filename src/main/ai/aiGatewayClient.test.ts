@@ -10,8 +10,6 @@ vi.mock('../transcription/sessionManager.js', () => ({
 }))
 vi.mock('../rag/index.js', () => ({ retrieve: async () => ({ prompt: '', sources: [] }) }))
 vi.mock('../providers/registry.js', () => ({
-  getActiveLlmProvider: () => null,
-  getActiveVisionProvider: () => null,
   getActiveWebSearch: () => null,
   getLlmProviderById: () => null
 }))
