@@ -7,6 +7,7 @@ import type { LlmFinishReason } from '../types.js'
  *   - Anthropic:                      'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use'
  *   - Gemini:                         'STOP' | 'MAX_TOKENS' | 'SAFETY' | 'RECITATION' | …
  *   - Ollama (NDJSON `done_reason`):  'stop' | 'length' | 'load'
+ *   - AI SDK (Vercel AI Gateway):     'stop' | 'length' | 'content-filter' | 'tool-calls' | …
  *
  * Returns `undefined` for a missing/unknown raw value so callers can decide
  * whether to surface "other" or simply omit the reason.
@@ -18,8 +19,14 @@ export function normalizeFinishReason(raw: string | null | undefined): LlmFinish
   if (v === 'length' || v === 'max_tokens' || v === 'maxtokens') return 'length'
   // Natural completion.
   if (v === 'stop' || v === 'end_turn' || v === 'stop_sequence' || v === 'endofturn') return 'stop'
-  // Content / safety stops.
-  if (v === 'content_filter' || v === 'safety' || v === 'recitation' || v === 'blocklist')
+  // Content / safety stops ('content-filter' is the AI SDK's spelling).
+  if (
+    v === 'content_filter' ||
+    v === 'content-filter' ||
+    v === 'safety' ||
+    v === 'recitation' ||
+    v === 'blocklist'
+  )
     return 'content'
   return 'other'
 }

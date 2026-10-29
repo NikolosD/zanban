@@ -1,7 +1,6 @@
 import type { LlmProvider, SttProvider } from '../../shared/types.js'
 import { PROVIDER_MODEL_DEFAULTS } from '../../shared/types.js'
 import { getSettings } from '../settings.js'
-import { gatewayCallOptions } from '../ai/models.js'
 import { checkOllama } from '../services/ollamaManager.js'
 import { getLlmProviderById } from './registry.js'
 
@@ -44,12 +43,6 @@ export async function testProviderConnection(id: LlmProvider): Promise<ProviderT
     return { ok: false, message: health.error ?? 'Ollama not reachable' }
   }
 
-  const settings = getSettings()
-  if (id === 'vercel-gateway') {
-    if (!settings.vercelApiKey) return { ok: false, message: 'No API key set' }
-    return probeGateway()
-  }
-
   const provider = getLlmProviderById(id)
   if (!provider) return { ok: false, message: 'No API key set' }
 
@@ -61,31 +54,6 @@ export async function testProviderConnection(id: LlmProvider): Promise<ProviderT
       prompt: 'ping',
       maxOutputTokens: 1,
       temperature: 0
-    })
-    return { ok: true }
-  } catch (err) {
-    return failure(err)
-  }
-}
-
-/**
- * The Vercel AI Gateway path lives outside the ILlmProvider registry (it uses
- * the @ai-sdk/gateway streaming client). A minimal `generateText`-equivalent
- * is overkill here — instead we hit the gateway's model-list endpoint, which
- * validates the key without spending tokens.
- */
-async function probeGateway(): Promise<ProviderTestResult> {
-  const settings = getSettings()
-  try {
-    const { createGateway } = await import('@ai-sdk/gateway')
-    const { generateText } = await import('ai')
-    const gw = createGateway({ apiKey: settings.vercelApiKey! })
-    const model = PROVIDER_MODEL_DEFAULTS['vercel-gateway'].fast
-    await generateText({
-      model: gw(model),
-      prompt: 'ping',
-      maxOutputTokens: 1,
-      ...gatewayCallOptions(model, 0)
     })
     return { ok: true }
   } catch (err) {

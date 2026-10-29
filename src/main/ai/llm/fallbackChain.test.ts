@@ -34,7 +34,12 @@ function makeProvider(
   }
 }
 
-const ARGS = { model: 'm', system: 's', prompt: 'p' }
+const ARGS = { system: 's', prompt: 'p' }
+
+// Each provider gets its own model id, as the answer path builds them.
+function chain(...providers: ILlmProvider[]) {
+  return providers.map((provider) => ({ provider, model: `${provider.id}-model` }))
+}
 
 async function collect(gen: AsyncGenerator<FallbackStreamEvent>): Promise<FallbackStreamEvent[]> {
   const out: FallbackStreamEvent[] = []
@@ -45,7 +50,7 @@ async function collect(gen: AsyncGenerator<FallbackStreamEvent>): Promise<Fallba
 describe('streamWithFallback', () => {
   it('streams from the primary when it succeeds', async () => {
     const primary = makeProvider('anthropic', { kind: 'chunks', chunks: ['hi ', 'there'] })
-    const events = await collect(streamWithFallback([primary], ARGS))
+    const events = await collect(streamWithFallback(chain(primary), ARGS))
     expect(events).toEqual([
       { kind: 'chunk', text: 'hi ', providerId: 'anthropic' },
       { kind: 'chunk', text: 'there', providerId: 'anthropic' }
@@ -58,7 +63,7 @@ describe('streamWithFallback', () => {
       error: new Error('429 rate limited')
     })
     const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['ok'] })
-    const events = await collect(streamWithFallback([primary, secondary], ARGS))
+    const events = await collect(streamWithFallback(chain(primary, secondary), ARGS))
     expect(events).toEqual([
       {
         kind: 'fallback',
@@ -80,7 +85,7 @@ describe('streamWithFallback', () => {
       error: new Error('b-failed')
     })
     const c = makeProvider('groq', { kind: 'chunks', chunks: ['c'] })
-    const events = await collect(streamWithFallback([a, b, c], ARGS))
+    const events = await collect(streamWithFallback(chain(a, b, c), ARGS))
     expect(events.filter((e) => e.kind === 'fallback')).toHaveLength(2)
     expect(events.filter((e) => e.kind === 'chunk')).toEqual([
       { kind: 'chunk', text: 'c', providerId: 'groq' }
@@ -96,7 +101,7 @@ describe('streamWithFallback', () => {
       kind: 'throw-before',
       error: new Error('b-failed')
     })
-    await expect(collect(streamWithFallback([a, b], ARGS))).rejects.toThrow('b-failed')
+    await expect(collect(streamWithFallback(chain(a, b), ARGS))).rejects.toThrow('b-failed')
   })
 
   it('does not switch providers once chunks have been emitted', async () => {
@@ -108,7 +113,7 @@ describe('streamWithFallback', () => {
     const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['unused'] })
     await expect(
       (async () => {
-        for await (const _ of streamWithFallback([primary, secondary], ARGS)) void _
+        for await (const _ of streamWithFallback(chain(primary, secondary), ARGS)) void _
       })()
     ).rejects.toThrow('mid-stream-disconnect')
     // Secondary must never have been invoked once we committed to the primary.
@@ -124,13 +129,15 @@ describe('streamWithFallback', () => {
     })
     const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['unused'] })
     await expect(
-      collect(streamWithFallback([primary, secondary], { ...ARGS, signal: abort.signal }))
+      collect(streamWithFallback(chain(primary, secondary), { ...ARGS, signal: abort.signal }))
     ).rejects.toThrow('aborted')
     expect(secondary.stream).not.toHaveBeenCalled()
   })
 
   it('throws when the provider list is empty', async () => {
-    await expect(collect(streamWithFallback([], ARGS))).rejects.toThrow('no providers supplied')
+    await expect(collect(streamWithFallback(chain(), ARGS))).rejects.toThrow(
+      'no providers supplied'
+    )
   })
 
   it('returns the finish reason of the provider that completed', async () => {
@@ -139,7 +146,7 @@ describe('streamWithFallback', () => {
       chunks: ['done'],
       finishReason: 'length'
     })
-    const gen = streamWithFallback([primary], ARGS)
+    const gen = streamWithFallback(chain(primary), ARGS)
     let res = await gen.next()
     while (!res.done) res = await gen.next()
     expect(res.value).toBe('length')
@@ -155,9 +162,36 @@ describe('streamWithFallback', () => {
       chunks: ['ok'],
       finishReason: 'stop'
     })
-    const gen = streamWithFallback([primary, secondary], ARGS)
+    const gen = streamWithFallback(chain(primary, secondary), ARGS)
     let res = await gen.next()
     while (!res.done) res = await gen.next()
     expect(res.value).toBe('stop')
+  })
+
+  it('gives every provider its own model', async () => {
+    const primary = makeProvider('anthropic', { kind: 'throw-before', error: new Error('down') })
+    const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['ok'] })
+    await collect(streamWithFallback(chain(primary, secondary), ARGS))
+    expect(primary.stream).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'anthropic-model' })
+    )
+    expect(secondary.stream).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'openai-model' })
+    )
+  })
+
+  it('moves on when a provider answers with nothing', async () => {
+    const empty = makeProvider('vercel-gateway', {
+      kind: 'chunks',
+      chunks: [],
+      finishReason: 'content'
+    })
+    const secondary = makeProvider('openai', { kind: 'chunks', chunks: ['ok'] })
+    const events = await collect(streamWithFallback(chain(empty, secondary), ARGS))
+    expect(events[0]).toMatchObject({ kind: 'fallback', toProviderId: 'openai' })
+    expect(events.at(-1)).toEqual({ kind: 'chunk', text: 'ok', providerId: 'openai' })
+    await expect(collect(streamWithFallback(chain(empty), ARGS))).rejects.toThrow(
+      'The model returned an empty answer (finish reason: content)'
+    )
   })
 })

@@ -16,7 +16,7 @@ import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieve, type RetrievalResult } from '../rag/index.js'
 import type { IWebSearchProvider } from '../providers/types.js'
-import { streamWithFallback } from './llm/fallbackChain.js'
+import { streamWithFallback, type FallbackAttempt } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
 import {
   getActiveLlmProvider,
@@ -25,7 +25,7 @@ import {
   getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
-import { availableModel, fastMaxOutputTokens, gatewayCallOptions, modelFor } from './models.js'
+import { availableModel, fastMaxOutputTokens, modelFor } from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
@@ -39,8 +39,6 @@ const RETRIEVAL_QUERY_MAX_WORDS = 60
 // easily runs past 1.5k tokens, after which the stream truncates mid-line.
 // Providers bill only on what is emitted, so the high ceiling isn't wasteful.
 const VISION_MAX_OUTPUT_TOKENS = 8000
-
-const GATEWAY_NAME = 'Vercel AI Gateway'
 
 const FIXED_PROMPTS = new Set([
   ANSWER_LAST_PROMPT,
@@ -197,15 +195,6 @@ function broadcastChunk(requestId: string, text: string): void {
   }
 }
 
-async function gateway() {
-  const settings = getSettings()
-  if (!settings.vercelApiKey) {
-    throw new Error('Vercel AI Gateway key not configured. Open Settings.')
-  }
-  const { createGateway } = await import('@ai-sdk/gateway')
-  return createGateway({ apiKey: settings.vercelApiKey })
-}
-
 /**
  * Query for RAG + web search. Hotkeys and chips send fixed instruction prompts
  * ("Answer the last question…"), and searching for that text matches nothing
@@ -276,9 +265,6 @@ function jsonErrorDetail(message: string): string | null {
 
 export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   const settings = getSettings()
-  // Don't reject early on a missing Vercel key — the user may have switched
-  // to Anthropic / OpenAI / Gemini / Groq / Ollama in Settings. We re-check
-  // only when we actually need to fall back to the gateway path below.
   const { requestId } = opts
   const abort = new AbortController()
   const entry: InFlight = { abort, stoppedByUser: false }
@@ -376,224 +362,101 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       const overrideModel = opts.modelOverride?.trim() || personaModel || modelId
       // Pick the provider that should actually answer this request. For
       // image-bearing prompts we honor the user's vision-provider override —
-      // they may want fast/cheap text via Vercel but a stronger vision model
-      // from a different vendor (or vice versa). When the override resolves to
-      // 'vercel-gateway' the registry returns null, which routes us into the
-      // gateway path below — same outcome as picking Vercel for text.
-      const altProvider =
-        hasImage && settings.visionProvider ? getActiveVisionProvider() : getActiveLlmProvider()
-      // If the user explicitly picked a non-Vercel vision provider but its
-      // key is missing, surface a clear error rather than silently falling
-      // through to Vercel and confusing the user about why their override
-      // was ignored.
-      if (
-        hasImage &&
-        settings.visionProvider &&
-        settings.visionProvider !== 'vercel-gateway' &&
-        !altProvider
-      ) {
-        broadcast(IPC.ai.error, {
-          requestId,
-          message: `Vision provider "${settings.visionProvider}" is missing its API key. Open Settings → AI Provider.`
-        })
-        return
-      }
-      // Same guard for the main LLM pick: user chose e.g. Gemini in Settings
-      // but never entered the key. Without this check we'd silently route the
-      // request to Vercel Gateway with a Gemini model id, which surfaces as a
-      // confusing 403 from Vercel instead of an actionable "set your key" hint.
+      // they may want fast/cheap text from one vendor but a stronger vision
+      // model from another.
       const useVisionRouting = hasImage && !!settings.visionProvider
       const requestedProvider = useVisionRouting ? settings.visionProvider : settings.llmProvider
-      if (!altProvider && requestedProvider && requestedProvider !== 'vercel-gateway') {
+      const primary = useVisionRouting ? getActiveVisionProvider() : getActiveLlmProvider()
+      // A picked provider without its key gets a clear error rather than an
+      // answer from another vendor that leaves the user wondering why their
+      // pick was ignored.
+      if (!primary) {
         broadcast(IPC.ai.error, {
           requestId,
-          message: `LLM provider "${requestedProvider}" is missing its API key. Open Settings → AI Provider.`
+          message: `${useVisionRouting ? 'Vision' : 'LLM'} provider "${requestedProvider}" is missing its API key. Open Settings → AI Provider.`
         })
         return
       }
-      if (altProvider) {
-        const answerModel = availableModel(altProvider.id, overrideModel, role)
-        if (answerModel !== overrideModel) notifyModelReplaced(overrideModel, answerModel)
-        // Build the providers we'll try in order: the active provider first,
-        // then any user-configured fallback ids. Fallbacks whose keys aren't
-        // present (resolveProvider returns null) are dropped. We also dedupe
-        // so the active provider isn't tried twice if it appears in the
-        // fallback list.
-        const seenIds = new Set<string>([altProvider.id])
-        const providers = [altProvider]
-        for (const id of settings.llmFallbackOrder ?? []) {
-          if (seenIds.has(id)) continue
-          const p = getLlmProviderById(id)
-          if (!p) continue
-          seenIds.add(id)
-          providers.push(p)
-        }
-
-        const timeout = armStreamTimeout(abort)
-        // Hoisted so the catch can finalize the partial answer on a Stop and
-        // name the provider that actually failed.
-        let fullAnswer = ''
-        let chosenProviderId: string = altProvider.id
-        try {
-          const stream = streamWithFallback(providers, {
-            model: answerModel,
-            system: hasImage
-              ? buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale)
-              : buildSystemPrompt(personaText, responseLanguage),
-            prompt: userPrompt,
-            temperature: hasImage ? 0.3 : 0.4,
-            maxOutputTokens: maxOutputTokens,
-            imageDataUrl: opts.imageDataUrl,
-            signal: abort.signal
-          })
-          // Drive the generator by hand so we can read its *return* value (the
-          // normalized finish reason) — `for await` would discard it.
-          let next = await stream.next()
-          while (!next.done) {
-            const ev = next.value
-            // User-initiated Stop: finalize the partial answer cleanly via the
-            // shared done-path below. A timeout abort (stoppedByUser === false)
-            // still bails to the catch so it surfaces as an error.
-            if (abort.signal.aborted) {
-              if (entry.stoppedByUser) break
-              throw new Error('LLM stream timed out')
-            }
-            timeout.reset()
-            if (ev.kind === 'fallback') {
-              chosenProviderId = ev.toProviderId
-              console.warn(
-                `[ai] provider ${ev.fromProviderId} failed before emitting; falling back to ${ev.toProviderId}: ${ev.reason}`
-              )
-            } else {
-              fullAnswer += ev.text
-              broadcastChunk(requestId, ev.text)
-            }
-            next = await stream.next()
-          }
-          // The generator's done-value holds the finish reason; on a user Stop
-          // we broke early, so flag it as a clean 'stop'.
-          const finishReason = entry.stoppedByUser ? 'stop' : next.done ? next.value : undefined
-          timeout.clear()
-          recordExchange(opts.prompt, fullAnswer)
-          void recordAiExchange(opts.prompt, fullAnswer, answerModel).catch(() => {})
-          broadcast(IPC.ai.done, { requestId, finishReason })
-          // Best-effort: log which provider actually answered, useful when
-          // the fallback chain kicks in and the user's primary was unhealthy.
-          if (chosenProviderId !== altProvider.id) {
-            console.info(`[ai] answered via fallback provider: ${chosenProviderId}`)
-          }
-          return
-        } catch (err) {
-          // Provider failure: surface it to the user instead of silently
-          // falling back to Vercel Gateway. Falling through used to happen
-          // here, but it caused two bugs:
-          //   1. Errors got hidden behind a misleading 403 from Vercel.
-          //   2. Vercel routing parsed a non-namespaced model ID
-          //      (e.g. "claude-haiku-4-5" without "anthropic/") and rejected.
-          // If the user picked a non-default provider, we honor that pick.
-          // An explicit Stop can surface as an AbortError from the SDK — treat
-          // it as a clean finalize, not a failure.
-          if (entry.stoppedByUser) {
-            recordExchange(opts.prompt, fullAnswer)
-            void recordAiExchange(opts.prompt, fullAnswer, answerModel).catch(() => {})
-            broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
-            return
-          }
-          const failed = providers.find((p) => p.id === chosenProviderId) ?? altProvider
-          const message = abort.signal.aborted
-            ? STREAM_TIMEOUT_MESSAGE
-            : describeProviderError(err, failed.label)
-          console.error('[ai] alt provider failed', err)
-          broadcast(IPC.ai.error, { requestId, message })
-          return
-        } finally {
-          timeout.clear()
+      const primaryModel = availableModel(primary.id, overrideModel, role)
+      if (primaryModel !== overrideModel) notifyModelReplaced(overrideModel, primaryModel)
+      // The picked provider first, then the user's backups that have a key,
+      // each with its own model for this role: a Claude id means nothing to
+      // OpenAI. Persona and per-ask model picks belong to the picked provider.
+      const attempts: FallbackAttempt[] = [{ provider: primary, model: primaryModel }]
+      for (const id of settings.llmFallbackOrder ?? []) {
+        if (attempts.some((a) => a.provider.id === id)) continue
+        const provider = getLlmProviderById(id)
+        if (provider) {
+          attempts.push({ provider, model: availableModel(id, modelFor(role, id), role) })
         }
       }
 
-      // Reached the legacy Vercel-Gateway path: now we need the key, but only
-      // now. Surface a clear error to the user instead of crashing inside the
-      // SDK initializer.
-      if (!settings.vercelApiKey) {
-        throw new Error(
-          'No LLM provider configured. Set a provider key in Settings (Anthropic, OpenAI, Gemini, Groq, Ollama, or Vercel AI Gateway).'
-        )
-      }
-      const gw = await gateway()
-      const gatewayModel = availableModel('vercel-gateway', overrideModel, role)
-      if (gatewayModel !== overrideModel) notifyModelReplaced(overrideModel, gatewayModel)
-      const { streamText } = await import('ai')
-
-      const streamArgs = hasImage
-        ? {
-            model: gw(gatewayModel),
-            system: buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale),
-            messages: [
-              {
-                role: 'user' as const,
-                content: [
-                  { type: 'text' as const, text: userPrompt },
-                  { type: 'image' as const, image: opts.imageDataUrl as string }
-                ]
-              }
-            ],
-            abortSignal: abort.signal,
-            maxOutputTokens: maxOutputTokens,
-            ...gatewayCallOptions(gatewayModel, 0.3)
-          }
-        : {
-            model: gw(gatewayModel),
-            system: buildSystemPrompt(personaText, responseLanguage),
-            prompt: userPrompt,
-            abortSignal: abort.signal,
-            maxOutputTokens: maxOutputTokens,
-            ...gatewayCallOptions(gatewayModel, 0.4)
-          }
-
-      const result = streamText(streamArgs)
-      const gwTimeout = armStreamTimeout(abort)
-
-      // fullStream rather than textStream: textStream silently drops error
-      // parts, and an abort just closes it, so a bad key or the idle timeout
-      // used to end as an empty answer with a normal `done`.
+      const timeout = armStreamTimeout(abort)
+      // Hoisted so the catch can finalize the partial answer on a Stop and
+      // name the provider that actually failed.
       let fullAnswer = ''
-      let finishReason: string | undefined
+      let chosen = attempts[0]!
       try {
-        for await (const part of result.fullStream) {
-          if (abort.signal.aborted) break
-          gwTimeout.reset()
-          if (part.type === 'text-delta') {
-            if (part.text) {
-              fullAnswer += part.text
-              broadcastChunk(requestId, part.text)
-            }
-          } else if (part.type === 'error') {
-            throw part.error instanceof Error
-              ? part.error
-              : new Error(describeProviderError(part.error, GATEWAY_NAME))
-          } else if (part.type === 'finish') {
-            finishReason = part.finishReason
+        const stream = streamWithFallback(attempts, {
+          system: hasImage
+            ? buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale)
+            : buildSystemPrompt(personaText, responseLanguage),
+          prompt: userPrompt,
+          temperature: hasImage ? 0.3 : 0.4,
+          maxOutputTokens,
+          imageDataUrl: opts.imageDataUrl,
+          signal: abort.signal
+        })
+        // Drive the generator by hand so we can read its *return* value (the
+        // normalized finish reason) — `for await` would discard it.
+        let next = await stream.next()
+        while (!next.done) {
+          const ev = next.value
+          // User-initiated Stop: finalize the partial answer cleanly via the
+          // shared done-path below. A timeout abort (stoppedByUser === false)
+          // still bails to the catch so it surfaces as an error.
+          if (abort.signal.aborted) {
+            if (entry.stoppedByUser) break
+            throw new Error('LLM stream timed out')
           }
+          timeout.reset()
+          if (ev.kind === 'fallback') {
+            chosen = attempts.find((a) => a.provider.id === ev.toProviderId) ?? chosen
+            console.warn(
+              `[ai] provider ${ev.fromProviderId} failed before emitting; falling back to ${ev.toProviderId}: ${ev.reason}`
+            )
+          } else {
+            fullAnswer += ev.text
+            broadcastChunk(requestId, ev.text)
+          }
+          next = await stream.next()
         }
+        // The generator's done-value holds the finish reason; on a user Stop
+        // we broke early, so flag it as a clean 'stop'.
+        const finishReason = entry.stoppedByUser ? 'stop' : next.done ? next.value : undefined
+        recordExchange(opts.prompt, fullAnswer)
+        void recordAiExchange(opts.prompt, fullAnswer, chosen.model).catch(() => {})
+        broadcast(IPC.ai.done, { requestId, finishReason })
+        if (chosen !== attempts[0]) {
+          console.info(`[ai] answered via fallback provider: ${chosen.provider.id}`)
+        }
+      } catch (err) {
+        // An explicit Stop can surface as an AbortError from the SDK — treat
+        // it as a clean finalize, not a failure.
+        if (entry.stoppedByUser) {
+          recordExchange(opts.prompt, fullAnswer)
+          void recordAiExchange(opts.prompt, fullAnswer, chosen.model).catch(() => {})
+          broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
+          return
+        }
+        const message = abort.signal.aborted
+          ? STREAM_TIMEOUT_MESSAGE
+          : describeProviderError(err, chosen.provider.label)
+        console.error('[ai] provider failed', err)
+        broadcast(IPC.ai.error, { requestId, message })
       } finally {
-        gwTimeout.clear()
+        timeout.clear()
       }
-      if (!entry.stoppedByUser) {
-        if (abort.signal.aborted) throw new Error(STREAM_TIMEOUT_MESSAGE)
-        if (!fullAnswer.trim()) {
-          throw new Error(
-            `The model returned an empty answer (finish reason: ${finishReason ?? 'unknown'}). Try again or pick another model.`
-          )
-        }
-      }
-      recordExchange(opts.prompt, fullAnswer)
-      void recordAiExchange(opts.prompt, fullAnswer, gatewayModel).catch(() => {})
-      // finishReason lets the UI flag length-truncations (the model hit
-      // maxOutputTokens and stopped mid-thought).
-      broadcast(IPC.ai.done, {
-        requestId,
-        finishReason: entry.stoppedByUser ? 'stop' : finishReason
-      })
     } catch (err) {
       // An explicit Stop can throw an AbortError from the SDK — finalize
       // cleanly rather than showing an error toast.
@@ -602,7 +465,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       } else {
         const message = abort.signal.aborted
           ? STREAM_TIMEOUT_MESSAGE
-          : describeProviderError(err, GATEWAY_NAME)
+          : describeProviderError(err, 'Zanban')
         broadcast(IPC.ai.error, { requestId, message })
       }
     } finally {

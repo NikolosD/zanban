@@ -4,17 +4,14 @@ import type { ILlmProvider, IWebSearchProvider } from './types.js'
 import { makeAnthropicProvider } from './llm/anthropic.js'
 import { makeOpenAiProvider } from './llm/openai.js'
 import { makeGroqProvider } from './llm/groq.js'
+import { makeGatewayProvider } from './llm/gateway.js'
 import { makeGeminiProvider } from './llm/gemini.js'
 import { makeOllamaProvider } from './llm/ollama.js'
 import { makeTavilyProvider } from './webSearch/tavily.js'
 
 /**
- * Resolve the active LLM provider based on user settings. The legacy
- * Vercel-AI-Gateway path remains the default — the new providers kick in
- * only when the user explicitly switches in Settings.
- *
- * Returns null when the selected provider is missing its API key — callers
- * should fall back to the gateway flow.
+ * Resolve the active LLM provider based on user settings. Returns null when
+ * the selected provider is missing its API key.
  */
 export function getActiveLlmProvider(): ILlmProvider | null {
   return resolveProvider(getSettings().llmProvider ?? 'vercel-gateway')
@@ -59,9 +56,7 @@ function resolveProvider(id: LlmProvider): ILlmProvider | null {
     case 'ollama':
       return makeOllamaProvider(s.ollamaHost || undefined)
     case 'vercel-gateway':
-      // The gateway path lives in aiGatewayClient; returning null here tells
-      // the caller "use the legacy path" — keeping things explicit.
-      return null
+      return s.vercelApiKey ? makeGatewayProvider(s.vercelApiKey) : null
     default:
       return null
   }
