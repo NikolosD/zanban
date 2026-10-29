@@ -291,6 +291,12 @@ export interface AppSettings {
     llmProvider: LlmProvider
     sttProvider: SttProvider
   } | null
+  /**
+   * In privacy mode, let a cloud backup from `llmFallbackOrder` answer when
+   * Ollama fails. Off by default: the question and call context would leave
+   * the computer.
+   */
+  privacyCloudFallback: boolean
   /** Auto-augment AI prompts with Tavily web search results when the query
    *  looks like a factual lookup (≥4 words). Requires `tavilyApiKey`. */
   autoWebSearch: boolean
@@ -637,6 +643,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llmFallbackOrder: [],
   privacyMode: false,
   privacyModeSnapshot: null,
+  privacyCloudFallback: false,
   autoWebSearch: false,
   detailedAnswers: false,
   aiModels: {},

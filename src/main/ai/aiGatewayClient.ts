@@ -18,14 +18,10 @@ import { retrieve, type RetrievalResult } from '../rag/index.js'
 import type { IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback, type FallbackAttempt } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
-import {
-  getActiveLlmProvider,
-  getActiveVisionProvider,
-  getActiveWebSearch,
-  getLlmProviderById
-} from '../providers/registry.js'
+import { getActiveWebSearch, getLlmProviderById } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
 import { availableModel, fastMaxOutputTokens, modelFor } from './models.js'
+import { answerProviderId, backupProviderIds, webSearchAllowed } from './answerRouting.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
@@ -315,8 +311,9 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
 
       // Optional web search via Tavily. Triggered only when the user has
       // both autoWebSearch enabled AND a Tavily key, AND the query looks
-      // factual (≥4 words). Failures swallowed — the prompt still goes out.
-      const webProvider = settings.autoWebSearch ? getActiveWebSearch() : null
+      // factual (≥4 words), and never in privacy mode. Failures swallowed —
+      // the prompt still goes out.
+      const webProvider = webSearchAllowed(settings) ? getActiveWebSearch() : null
       const webSearchTask =
         webProvider && searchQuery.trim().split(/\s+/).length >= 4
           ? raceTimeout(webProvider.search(searchQuery, { topK: 3 }), 800, [] as SearchHit[])
@@ -350,7 +347,12 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
 
       const hasImage = !!opts.imageDataUrl
       const role = hasImage ? 'vision' : 'fast'
-      const modelId = modelFor(role)
+      // Pick the provider that should actually answer this request. For
+      // image-bearing prompts we honor the user's vision-provider override —
+      // they may want fast/cheap text from one vendor but a stronger vision
+      // model from another — except a cloud one in privacy mode.
+      const requestedProvider = answerProviderId(settings, hasImage)
+      const modelId = modelFor(role, requestedProvider)
       const maxOutputTokens = hasImage
         ? VISION_MAX_OUTPUT_TOKENS
         : fastMaxOutputTokens(settings.detailedAnswers)
@@ -360,20 +362,15 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // for one Ask without having to reconfigure their persona.
       const personaModel = activePersona?.defaultModel?.trim()
       const overrideModel = opts.modelOverride?.trim() || personaModel || modelId
-      // Pick the provider that should actually answer this request. For
-      // image-bearing prompts we honor the user's vision-provider override —
-      // they may want fast/cheap text from one vendor but a stronger vision
-      // model from another.
-      const useVisionRouting = hasImage && !!settings.visionProvider
-      const requestedProvider = useVisionRouting ? settings.visionProvider : settings.llmProvider
-      const primary = useVisionRouting ? getActiveVisionProvider() : getActiveLlmProvider()
+      const primary = getLlmProviderById(requestedProvider)
       // A picked provider without its key gets a clear error rather than an
       // answer from another vendor that leaves the user wondering why their
       // pick was ignored.
       if (!primary) {
+        const kind = requestedProvider === settings.llmProvider ? 'LLM' : 'Vision'
         broadcast(IPC.ai.error, {
           requestId,
-          message: `${useVisionRouting ? 'Vision' : 'LLM'} provider "${requestedProvider}" is missing its API key. Open Settings → AI Provider.`
+          message: `${kind} provider "${requestedProvider}" is missing its API key. Open Settings → Keys & providers.`
         })
         return
       }
@@ -383,8 +380,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // each with its own model for this role: a Claude id means nothing to
       // OpenAI. Persona and per-ask model picks belong to the picked provider.
       const attempts: FallbackAttempt[] = [{ provider: primary, model: primaryModel }]
-      for (const id of settings.llmFallbackOrder ?? []) {
-        if (attempts.some((a) => a.provider.id === id)) continue
+      for (const id of backupProviderIds(settings, primary.id)) {
         const provider = getLlmProviderById(id)
         if (provider) {
           attempts.push({ provider, model: availableModel(id, modelFor(role, id), role) })
