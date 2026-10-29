@@ -6,6 +6,7 @@ import { Input } from '@renderer/components/ui/input'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderStatusDot, type ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
 import { cn } from '@renderer/lib/utils'
+import { MisplacedKeyHint } from './KeyRouting'
 
 export interface ProviderCardProps {
   /** Provider id used as react key in caller. */
@@ -153,7 +154,8 @@ export function SecretKeyField({
   ariaLabel,
   placeholder,
   value,
-  onChange
+  onChange,
+  fieldKey
 }: {
   label?: string
   /** Accessible name when there is no visible label. */
@@ -161,6 +163,8 @@ export function SecretKeyField({
   placeholder?: string
   value: string
   onChange(v: string): void
+  /** The settings field this saves to; lets a key typed here be recognized as another's. */
+  fieldKey?: string
 }) {
   const { t } = useTranslation()
   const id = useId()
@@ -203,6 +207,13 @@ export function SecretKeyField({
           {reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
         </Button>
       </div>
+      {fieldKey && (
+        <MisplacedKeyHint
+          fieldKey={fieldKey}
+          typed={secret.shown}
+          onMoved={() => secret.edit('')}
+        />
+      )}
     </div>
   )
 }

@@ -24,6 +24,8 @@ import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
+import { KEY_SETTINGS_FIELD } from '@renderer/lib/keyProvider'
+import { KeyMoverContext, PasteAnyKey, type KeyMover } from './KeyRouting'
 
 interface Props {
   settings: AppSettings
@@ -115,8 +117,13 @@ export function ProvidersTab({ settings, update }: Props) {
     }
   }
 
+  const keyMover: KeyMover = {
+    isSet: (provider) => !!settings[KEY_SETTINGS_FIELD[provider]],
+    store: (provider, key) => update(KEY_SETTINGS_FIELD[provider], key)
+  }
+
   return (
-    <>
+    <KeyMoverContext.Provider value={keyMover}>
       {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
           at the top because it overrides the provider selection below. */}
       <div className="mb-10">
@@ -127,6 +134,13 @@ export function ProvidersTab({ settings, update }: Props) {
           onCloudFallback={(v) => update('privacyCloudFallback', v)}
         />
       </div>
+
+      <Section
+        title={t('settings.providers.paste_any_title')}
+        hint={t('settings.providers.paste_any_hint')}
+      >
+        <PasteAnyKey settings={settings} update={update} />
+      </Section>
 
       <Section
         title={t('settings.providers.ai_section_title')}
@@ -179,7 +193,7 @@ export function ProvidersTab({ settings, update }: Props) {
       >
         <WebSearchCard settings={settings} update={update} />
       </Section>
-    </>
+    </KeyMoverContext.Provider>
   )
 }
 
@@ -235,6 +249,7 @@ function WebSearchCard({ settings, update }: Props) {
         placeholder={t('settings.providers.tavily_placeholder')}
         value={settings.tavilyApiKey ?? ''}
         onChange={(v) => update('tavilyApiKey', v || null)}
+        fieldKey="tavilyApiKey"
       />
       <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-white/[0.04] bg-white/[0.015] px-3 py-2">
         <div className="text-body">
@@ -495,6 +510,7 @@ function LlmCredentials({
           placeholder={field.placeholder}
           value={settings[field.settingsKey] ?? ''}
           onChange={(v) => update(field.settingsKey, v || null)}
+          fieldKey={field.settingsKey}
         />
         <ProviderTestButton probe={probe} savedKey={settings[field.settingsKey] ?? null} />
       </div>
@@ -600,6 +616,7 @@ function SttCredentials({
           label={t(`settings.providers.stt.${provider}.key_label`)}
           value={settings[field.settingsKey] ?? ''}
           onChange={(v) => update(field.settingsKey, v || null)}
+          fieldKey={field.settingsKey}
         />
         <ProviderTestButton probe={probe} savedKey={settings[field.settingsKey] ?? null} />
       </div>
