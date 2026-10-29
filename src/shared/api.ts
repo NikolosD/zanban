@@ -156,13 +156,19 @@ export interface ZanbanApi {
      */
     onChanged(cb: (settings: AppSettings) => void): () => void
     /**
-     * Subscribe to hotkey-registration failures. Fires after a rebind when one
-     * or more accelerators couldn't bind (taken by another app / malformed) so
-     * the UI can flag the offending binding.
+     * Subscribe to hotkey-registration results. Fires after every rebind with
+     * the accelerators that couldn't bind (taken by another app / malformed),
+     * so the UI can flag them; an empty list means every hotkey is bound.
      */
     onHotkeyConflict(cb: (failed: HotkeyConflict[]) => void): () => void
     /** Hotkeys that failed in the latest registration, including the one at startup. */
     hotkeyConflicts(): Promise<HotkeyConflict[]>
+    /**
+     * Move every hotkey that failed to register onto a free alternative and save
+     * them like any other settings change. Resolves with what moved and what
+     * couldn't.
+     */
+    pickFreeHotkeys(): Promise<HotkeyPickResult>
   }
   sessions: {
     list(): Promise<SessionListItem[]>
@@ -249,6 +255,14 @@ export interface ZanbanApi {
 export interface HotkeyConflict {
   action: keyof AppSettings['hotkeys']
   accelerator: string
+}
+
+/** Outcome of `settings.pickFreeHotkeys()`. */
+export interface HotkeyPickResult {
+  /** Actions moved to a free accelerator, with the new one. */
+  assigned: HotkeyConflict[]
+  /** Actions no free alternative was found for, with the accelerator they still have. */
+  unresolved: HotkeyConflict[]
 }
 
 /** Payload for an `update-downloaded` event surfaced to the renderer. */

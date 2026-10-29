@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock electron's globalShortcut so we can drive register() outcomes.
 const registerMock = vi.fn<(accelerator: string, cb: () => void) => boolean>()
@@ -29,11 +29,13 @@ vi.mock('./settings.js', () => ({
 
 import { DEFAULT_SETTINGS } from '../shared/types'
 import {
+  pickFreeShortcuts,
   registerShortcuts,
   reRegisterShortcuts,
   shortcutConflicts,
   unregisterShortcuts
 } from './shortcuts'
+import { alternativeAccelerators } from './hotkeyAlternatives'
 
 function noop(): void {}
 const handlers = {
@@ -104,6 +106,112 @@ describe('registerShortcuts', () => {
     registerMock.mockReturnValue(true)
     const result = reRegisterShortcuts()
     expect(result.failed).toEqual([])
+  })
+})
+
+describe('pickFreeShortcuts', () => {
+  const [first, second, third] = alternativeAccelerators([]) as [string, string, string]
+  const original = { ...hotkeys }
+  const persist = vi.fn<(next: typeof hotkeys) => void>()
+  let busy: Set<string>
+
+  beforeEach(() => {
+    registerMock.mockReset()
+    unregisterMock.mockReset()
+    unregisterShortcuts()
+    persist.mockReset()
+    busy = new Set([hotkeys.screenshot, hotkeys.chat])
+    registerMock.mockImplementation((acc: string) => !busy.has(acc))
+    registerShortcuts(handlers)
+    registerMock.mockClear()
+    unregisterMock.mockClear()
+  })
+
+  afterEach(() => {
+    Object.assign(hotkeys, original)
+  })
+
+  it('moves each busy action to the first free alternative and persists them together', () => {
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([
+      { action: 'screenshot', accelerator: first },
+      { action: 'chat', accelerator: second }
+    ])
+    expect(result.unresolved).toEqual([])
+    expect(persist).toHaveBeenCalledTimes(1)
+    expect(persist).toHaveBeenCalledWith({ ...hotkeys, screenshot: first, chat: second })
+  })
+
+  it('leaves the registration to the settings path by releasing what it probed', () => {
+    pickFreeShortcuts(persist)
+    expect(unregisterMock.mock.calls.map(([acc]) => acc)).toEqual([first, second])
+  })
+
+  it('skips alternatives that another app holds', () => {
+    busy.add(first)
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([
+      { action: 'screenshot', accelerator: second },
+      { action: 'chat', accelerator: third }
+    ])
+  })
+
+  it('skips alternatives another action is already bound to', () => {
+    hotkeys.cropper = first
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([
+      { action: 'screenshot', accelerator: second },
+      { action: 'chat', accelerator: third }
+    ])
+    expect(registerMock).not.toHaveBeenCalledWith(first, expect.anything())
+  })
+
+  it('treats an accelerator that throws as unavailable and carries on', () => {
+    registerMock.mockImplementation((acc: string) => {
+      if (acc === first) throw new Error('bad accelerator')
+      return !busy.has(acc)
+    })
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([
+      { action: 'screenshot', accelerator: second },
+      { action: 'chat', accelerator: third }
+    ])
+  })
+
+  it('reports an action as unresolved when no alternative registers, without persisting', () => {
+    registerMock.mockReturnValue(false)
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([])
+    expect(result.unresolved).toEqual([
+      { action: 'screenshot', accelerator: hotkeys.screenshot },
+      { action: 'chat', accelerator: hotkeys.chat }
+    ])
+    expect(persist).not.toHaveBeenCalled()
+  })
+
+  it('persists the ones it found and reports the rest when only some can move', () => {
+    registerMock.mockImplementation((acc: string) => acc === first)
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toEqual([{ action: 'screenshot', accelerator: first }])
+    expect(result.unresolved).toEqual([{ action: 'chat', accelerator: hotkeys.chat }])
+    expect(persist).toHaveBeenCalledWith({ ...hotkeys, screenshot: first })
+  })
+
+  it('gives each action its own alternative', () => {
+    busy.add(hotkeys.hideShow)
+    reRegisterShortcuts()
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned.map((a) => a.action)).toEqual(['hideShow', 'screenshot', 'chat'])
+    expect(new Set(result.assigned.map((a) => a.accelerator)).size).toBe(3)
+  })
+
+  it('does nothing when no hotkey is busy', () => {
+    registerMock.mockReturnValue(true)
+    reRegisterShortcuts()
+    registerMock.mockClear()
+    expect(pickFreeShortcuts(persist)).toEqual({ assigned: [], unresolved: [] })
+    expect(registerMock).not.toHaveBeenCalled()
+    expect(persist).not.toHaveBeenCalled()
   })
 })
 

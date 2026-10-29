@@ -897,7 +897,7 @@ function HotkeysTab({
   )
 
   // Actions whose accelerator failed to (re)register, flagged on their
-  // KeyRecorder. The dashboard shows the toast for each failure.
+  // KeyRecorder. The dashboard lists them all in one notice.
   const [conflicts, setConflicts] = useState<Set<keyof AppSettings['hotkeys']>>(new Set())
   useEffect(() => {
     const flag = (failed: HotkeyConflict[]) => setConflicts(new Set(failed.map((f) => f.action)))
