@@ -24,7 +24,8 @@ export interface OneShotArgs {
  */
 export async function generateOneShot(args: OneShotArgs): Promise<string> {
   const provider = getActiveLlmProvider()
-  if (!provider) throw new Error('The AI provider has no API key. Open Settings → AI Provider.')
+  if (!provider)
+    throw new Error('The AI provider has no API key. Open Settings → Keys & providers.')
   return provider.generate({
     model: availableModel(provider.id, modelFor(args.role, provider.id), args.role),
     system: args.system,

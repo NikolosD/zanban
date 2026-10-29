@@ -30,7 +30,7 @@ import {
 } from '@shared/prompts'
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
-import { useAskRequest } from '@renderer/features/ai/useAskRequest'
+import { useAskRequest, type AskRequestOptions } from '@renderer/features/ai/useAskRequest'
 import { useScreenshotAttachment } from '@renderer/features/ai/useScreenshotAttachment'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
@@ -82,15 +82,7 @@ export function OverlayApp() {
   const [modelOverride, setModelOverride] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const runPromptRef = useRef<
-    (
-      prompt: string,
-      label?: string,
-      imageDataUrl?: string,
-      waitForTranscript?: boolean,
-      ocr?: string | null
-    ) => Promise<void>
-  >(() => Promise.resolve())
+  const runPromptRef = useRef<(opts: AskRequestOptions) => Promise<void>>(() => Promise.resolve())
   const ignoreMouseRef = useRef<boolean | null>(null)
   const session = useTranscript((s) => s.session)
   const startedAt = session.kind === 'running' ? session.startedAt : null
@@ -102,6 +94,7 @@ export function OverlayApp() {
   // Narrow selectors on purpose: answer text is read only inside AnswerHistory,
   // so streamed tokens don't re-render this whole tree.
   const hasHistory = useAi((s) => s.messages.length > 0)
+  const hasAnswer = useAi((s) => s.messages.some((m) => m.answer.length > 0))
   const streaming = useAi((s) => s.messages.at(-1)?.status === 'streaming')
 
   const persistedAnswerMax = settings?.overlayAnswerMaxHeight ?? DEFAULT_ANSWER_MAX_HEIGHT
@@ -198,16 +191,15 @@ export function OverlayApp() {
   // outlive renders (IPC subscriptions, memoized panes) and the UI language
   // switches after mount, once settings load.
   const handleAnswer = useCallback((): void => {
-    void runPromptRef.current(
-      ANSWER_LAST_PROMPT,
-      i18n.t('overlay.labels.answer_last'),
-      undefined,
-      true
-    )
+    void runPromptRef.current({
+      prompt: ANSWER_LAST_PROMPT,
+      label: i18n.t('overlay.labels.answer_last'),
+      waitForTranscript: true
+    })
   }, [])
 
-  const continueAnswer = useCallback((): void => {
-    void runPromptRef.current('continue', i18n.t('overlay.labels.continue'))
+  const continueAnswer = useCallback((id: string): void => {
+    void runPromptRef.current({ prompt: 'continue', continueFrom: id })
   }, [])
 
   useEffect(() => {
@@ -261,13 +253,12 @@ export function OverlayApp() {
     // fire the answer about the captured image. Empty prompt falls back to
     // SCREENSHOT_DEFAULT_PROMPT and the image triggers vision routing.
     const offSnapshotAnswer = window.zanban.overlay.onSnapshotAnswer((snap) => {
-      void runPromptRef.current(
-        '',
-        i18n.t('overlay.labels.screenshot_answer'),
-        snap.dataUrl,
-        false,
-        snap.ocrText
-      )
+      void runPromptRef.current({
+        prompt: '',
+        label: i18n.t('overlay.labels.screenshot_answer'),
+        image: snap.dataUrl,
+        ocr: snap.ocrText
+      })
     })
 
     const offStealth = window.zanban.overlay.onStealthChanged((next) => {
@@ -324,26 +315,23 @@ export function OverlayApp() {
   // Settle-wait + ask + error handling + model-override all live in the shared
   // useAskRequest hook now, so the overlay and the dashboard AskPanel behave
   // identically (the dashboard used to skip the transcript settle).
-  async function runPrompt(
-    prompt: string,
-    label?: string,
-    imageDataUrl?: string,
-    waitForTranscript?: boolean,
-    ocr?: string | null
-  ): Promise<void> {
-    await runAsk({
-      prompt,
-      label,
-      image: imageDataUrl ?? null,
-      ocr,
-      waitForTranscript,
-      modelOverride
-    })
+  async function runPrompt(opts: AskRequestOptions): Promise<void> {
+    await runAsk({ ...opts, modelOverride })
   }
 
   useEffect(() => {
     runPromptRef.current = runPrompt
   })
+
+  // Esc stops the answer wherever the focus is; the input handles its own Esc.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (useAi.getState().messages.at(-1)?.status === 'streaming') stopAsk()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [stopAsk])
 
   function clearInput(): void {
     setText('')
@@ -356,7 +344,7 @@ export function OverlayApp() {
     const ocrAttached = attachment.ocrText
     if ((!value && !attached) || busy) return
     clearInput()
-    await runPrompt(value, undefined, attached ?? undefined, false, ocrAttached)
+    await runPrompt({ prompt: value, image: attached, ocr: ocrAttached })
   }
 
   async function snap(): Promise<void> {
@@ -481,19 +469,24 @@ export function OverlayApp() {
             {running && (
               <ActionChipsRow
                 busy={busy}
-                hasAnswer={hasHistory}
+                hasAnswer={hasAnswer}
                 answerHotkey={settings?.hotkeys?.answerLast ?? null}
                 onWhichQuestion={() =>
-                  void runPrompt(
-                    WHAT_TO_ANSWER_PROMPT,
-                    t('overlay.chips.which_question'),
-                    undefined,
-                    true
-                  )
+                  void runPrompt({
+                    prompt: WHAT_TO_ANSWER_PROMPT,
+                    label: t('overlay.chips.which_question'),
+                    waitForTranscript: true
+                  })
                 }
-                onShorten={() => void runPrompt(SHORTEN_PROMPT, t('overlay.chips.shorten'))}
-                onCatchUp={() => void runPrompt(RECAP_PROMPT, t('overlay.chips.catch_up'))}
-                onFollowUp={() => void runPrompt(FOLLOW_UP_PROMPT, t('overlay.chips.follow_up'))}
+                onShorten={() =>
+                  void runPrompt({ prompt: SHORTEN_PROMPT, label: t('overlay.chips.shorten') })
+                }
+                onCatchUp={() =>
+                  void runPrompt({ prompt: RECAP_PROMPT, label: t('overlay.chips.catch_up') })
+                }
+                onFollowUp={() =>
+                  void runPrompt({ prompt: FOLLOW_UP_PROMPT, label: t('overlay.chips.follow_up') })
+                }
                 onAnswer={handleAnswer}
                 modelMenu={
                   <ModelOverrideSubmenu
@@ -1187,17 +1180,18 @@ function AnswerHistory({
   onContentChange
 }: {
   maxHeight: number
-  onContinue: () => void
+  onContinue: (id: string) => void
   onContentChange: () => void
 }) {
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // The newest answer is at the top, so a fresh ask scrolls back up to it.
+  // The newest answer is at the top, so a fresh ask scrolls back up to it. A
+  // continued answer keeps its place: the reader is at its end.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
-  }, [latest?.id])
+  }, [messages.length])
 
   useEffect(() => {
     const id = requestAnimationFrame(onContentChange)
@@ -1230,7 +1224,7 @@ const AnswerPane = memo(function AnswerPane({
   onContinue
 }: {
   message: AskMessage
-  onContinue: () => void
+  onContinue: (id: string) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -1255,7 +1249,7 @@ const AnswerPane = memo(function AnswerPane({
           <span className="flex-1">{t('overlay.answer_truncated')}</span>
           <button
             data-interactive
-            onClick={onContinue}
+            onClick={() => onContinue(m.id)}
             title={t('overlay.continue_tooltip')}
             className="inline-flex items-center gap-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 hover:bg-warn/20"
           >
@@ -1306,10 +1300,12 @@ const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: Ask
 })
 
 function AnswerBody({ message: m, lead }: { message: AskMessage; lead?: boolean }) {
-  if (m.status === 'error') return <div className="text-xs text-destructive">{m.error}</div>
+  const error = <div className="text-xs text-destructive">{m.error}</div>
+  if (m.status === 'error' && !m.answer) return error
   return (
     <div className={cn('max-w-[65ch]', lead && '[--md-text:14px]')}>
       <StreamingMarkdown text={m.answer} streaming={m.status === 'streaming'} />
+      {m.status === 'error' && error}
     </div>
   )
 }

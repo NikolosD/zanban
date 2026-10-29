@@ -11,7 +11,12 @@ import {
 import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
 import type { TranscriptSegment } from '../../shared/types.js'
-import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './prompts.js'
+import {
+  buildContinuePrompt,
+  buildSystemPrompt,
+  buildUserPrompt,
+  buildVisionSystemPrompt
+} from './prompts.js'
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieve, type RetrievalResult } from '../rag/index.js'
@@ -59,6 +64,22 @@ interface InFlight {
   stoppedByUser: boolean
 }
 const inFlight = new Map<string, InFlight>()
+
+interface CutAnswer {
+  prompt: string
+  answer: string
+}
+/** Answers that hit the length limit, by requestId, for Continue to send back whole. */
+const cutAnswers = new Map<string, CutAnswer>()
+const MAX_CUT_ANSWERS = 5
+
+function rememberCutAnswer(requestId: string, cut: CutAnswer): void {
+  cutAnswers.set(requestId, cut)
+  for (const id of cutAnswers.keys()) {
+    if (cutAnswers.size <= MAX_CUT_ANSWERS) break
+    cutAnswers.delete(id)
+  }
+}
 
 /**
  * Abort an in-flight ask() by id. The stream loop sees the aborted signal and
@@ -126,6 +147,7 @@ export interface AskOptions {
   imageDataUrl?: string
   ocrText?: string
   modelOverride?: string
+  continueFrom?: string
 }
 
 let windows: BrowserWindow[] = []
@@ -217,7 +239,7 @@ export function describeProviderError(err: unknown, providerName: string): strin
   const raw = rawErrorMessage(err)
   const status = errorStatus(err, raw)
   if (status === 401 || status === 403) {
-    return `${providerName} rejected the API key (${status}). Check it in Settings → AI.`
+    return `${providerName} rejected the API key (${status}). Check it in Settings → Keys & providers.`
   }
   const detail = jsonErrorDetail(raw)
   if (!detail) return raw
@@ -265,6 +287,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   const abort = new AbortController()
   const entry: InFlight = { abort, stoppedByUser: false }
   inFlight.set(requestId, entry)
+  const cut = opts.continueFrom ? cutAnswers.get(opts.continueFrom) : undefined
   ;(async () => {
     try {
       // Active persona (if any) wins over the legacy free-form
@@ -286,7 +309,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // It runs concurrently with web search, each bounded so optional
       // augmentation never holds up the answer (the embedder can take seconds
       // to load on first use).
-      const searchQuery = retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
+      // A continuation already carries its context in the answer so far.
+      const searchQuery = cut ? '' : retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
       const ragStrategy = activePersona?.ragStrategy
       const liveCall = sessionManager.getState()
       const noRetrieval: RetrievalResult = { prompt: '', sources: [] }
@@ -332,10 +356,10 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // Surface what was retrieved so the renderer can show a "Sources" list
       // under the answer. Sent before the answer streams; an empty list clears
       // any stale sources from a previous turn.
-      broadcast(IPC.ai.sources, { requestId, sources: retrieval.sources })
+      if (!cut) broadcast(IPC.ai.sources, { requestId, sources: retrieval.sources })
 
       const userPrompt = buildUserPrompt({
-        userPrompt: opts.prompt,
+        userPrompt: cut ? buildContinuePrompt(cut.prompt, cut.answer) : opts.prompt,
         meetingContext: settings.meetingContext,
         segments: transcriptBuffer.recent(),
         contextSeconds: opts.contextSeconds ?? settings.contextSeconds,
@@ -430,6 +454,12 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         // The generator's done-value holds the finish reason; on a user Stop
         // we broke early, so flag it as a clean 'stop'.
         const finishReason = entry.stoppedByUser ? 'stop' : next.done ? next.value : undefined
+        if (finishReason === 'length') {
+          rememberCutAnswer(requestId, {
+            prompt: cut?.prompt ?? opts.prompt,
+            answer: (cut?.answer ?? '') + fullAnswer
+          })
+        }
         recordExchange(opts.prompt, fullAnswer)
         void recordAiExchange(opts.prompt, fullAnswer, chosen.model).catch(() => {})
         broadcast(IPC.ai.done, { requestId, finishReason })

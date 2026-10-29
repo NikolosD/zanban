@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
@@ -156,5 +156,19 @@ describe('session sync', () => {
 
     expect(await texts('e')).toEqual(['first', 'last words'])
     expect((await sync.readSessionFromDisk('e'))?.endedAt).not.toBeNull()
+  })
+
+  it('ends a session the app quit on without stopping, at its last save', async () => {
+    run('f')
+    final('cut short', 'f')
+    await flushed()
+    const saved = Math.floor(statSync(join(fake.dir, 'sessions', 'f.json')).mtimeMs)
+    const listed = async () => (await sync.listSessionsFromDisk()).find((s) => s.id === 'f')
+    expect((await listed())?.endedAt).toBeNull()
+
+    // The next launch: nothing is running and the record never got an end.
+    fake.state = { kind: 'idle' }
+    expect((await listed())?.endedAt).toBe(saved)
+    expect((await sync.readSessionFromDisk('f'))?.endedAt).toBe(saved)
   })
 })

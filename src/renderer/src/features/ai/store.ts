@@ -2,6 +2,14 @@ import { create } from 'zustand'
 import i18n from 'i18next'
 import type { AiSource } from '@shared/types'
 
+/** What produced an answer, so Regenerate can ask it again. */
+export interface AskedRequest {
+  prompt: string
+  label?: string
+  image: string | null
+  ocr: string | null
+}
+
 interface AiMessage {
   id: string
   prompt: string
@@ -11,12 +19,15 @@ interface AiMessage {
   finishReason?: string
   /** RAG fragments retrieved for this answer (Sources affordance). */
   sources?: AiSource[]
+  request?: AskedRequest
 }
 
 interface AiState {
   messages: AiMessage[]
   pending: Record<string, string>
-  newRequest(prompt: string, requestId: string): void
+  newRequest(prompt: string, requestId: string, request?: AskedRequest): void
+  /** Stream `requestId` onto the end of the answer `fromId` and make it the latest. */
+  resumeRequest(fromId: string, requestId: string): void
   appendChunk(requestId: string, text: string): void
   setSources(requestId: string, sources: AiSource[]): void
   finishRequest(requestId: string, finishReason?: string): void
@@ -27,10 +38,22 @@ interface AiState {
 export const useAi = create<AiState>((set) => ({
   messages: [],
   pending: {},
-  newRequest(prompt, requestId) {
+  newRequest(prompt, requestId, request) {
     set((s) => ({
-      messages: [...s.messages, { id: requestId, prompt, answer: '', status: 'streaming' }]
+      messages: [...s.messages, { id: requestId, prompt, answer: '', status: 'streaming', request }]
     }))
+  },
+  resumeRequest(fromId, requestId) {
+    set((s) => {
+      const from = s.messages.find((m) => m.id === fromId)
+      if (!from) return s
+      return {
+        messages: [
+          ...s.messages.filter((m) => m !== from),
+          { ...from, id: requestId, status: 'streaming', error: undefined, finishReason: undefined }
+        ]
+      }
+    })
   },
   appendChunk(requestId, text) {
     set((s) => ({

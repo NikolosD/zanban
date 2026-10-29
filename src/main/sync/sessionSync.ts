@@ -1,6 +1,6 @@
 import { app, type BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile, unlink, rename } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile, unlink, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { sessionManager } from '../transcription/sessionManager.js'
@@ -345,6 +345,17 @@ function renderMarkdown(rec: SessionRecord): string {
   return lines.join('\n')
 }
 
+/**
+ * A session the app quit on without stopping (a crash, a killed process) never
+ * got an end time. Its last save, the file's mtime, stands in for it.
+ */
+async function endedAtOf(id: string, endedAt: unknown): Promise<number | null> {
+  if (typeof endedAt === 'number') return endedAt
+  const state = sessionManager.getState()
+  if (state.kind === 'running' && state.sessionId === id) return null
+  return Math.floor((await stat(jsonPath(id))).mtimeMs)
+}
+
 export async function listSessionsFromDisk(): Promise<SessionListItem[]> {
   await ensureDir()
   let entries: string[]
@@ -363,7 +374,7 @@ export async function listSessionsFromDisk(): Promise<SessionListItem[]> {
       const raw = await readFile(join(sessionsDir(), name), 'utf8')
       const rec = JSON.parse(raw) as Partial<SessionRecord> | null
       if (rec?.id !== id || typeof rec.startedAt !== 'number') continue
-      const endedAt = typeof rec.endedAt === 'number' ? rec.endedAt : null
+      const endedAt = await endedAtOf(id, rec.endedAt)
       items.push({
         id,
         startedAt: rec.startedAt,
@@ -388,7 +399,7 @@ export async function readSessionFromDisk(id: string): Promise<SessionDetailPayl
     return {
       id: rec.id,
       startedAt: rec.startedAt,
-      endedAt: rec.endedAt,
+      endedAt: await endedAtOf(id, rec.endedAt),
       title: rec.title,
       segments: rec.segments,
       exchanges: rec.exchanges,

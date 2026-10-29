@@ -1,22 +1,51 @@
+import type { BrowserWindow } from 'electron'
 import { describe, it, expect, vi } from 'vitest'
+import { IPC } from '../../shared/ipc-channels.js'
 import { ANSWER_LAST_PROMPT, RECAP_PROMPT } from '../../shared/prompts.js'
 import type { TranscriptSegment } from '../../shared/types.js'
+import type { LlmFinishReason, LlmStreamArgs } from '../providers/types.js'
+
+const llm = vi.hoisted(() => ({
+  prompts: [] as string[],
+  replies: [] as Array<{ text: string; finish: 'stop' | 'length' }>
+}))
 
 // The client wires itself into settings, the session manager, RAG and the
-// persona store at import time — stub them so only the pure helpers run.
-vi.mock('../settings.js', () => ({ getSettings: () => ({}) }))
+// persona store at import time. The provider answers with `llm.replies`.
+vi.mock('../settings.js', () => ({ getSettings: () => ({ meetingContext: '' }) }))
 vi.mock('../transcription/sessionManager.js', () => ({
   sessionManager: { onSegment: () => {}, onState: () => {}, getState: () => ({ kind: 'idle' }) }
 }))
 vi.mock('../rag/index.js', () => ({ retrieve: async () => ({ prompt: '', sources: [] }) }))
 vi.mock('../providers/registry.js', () => ({
   getActiveWebSearch: () => null,
-  getLlmProviderById: () => null
+  getLlmProviderById: (id: string) => ({
+    id,
+    label: 'Fake',
+    async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason, void> {
+      llm.prompts.push(args.prompt)
+      const reply = llm.replies.shift()!
+      yield reply.text
+      return reply.finish
+    },
+    generate: async () => ''
+  })
+}))
+vi.mock('./models.js', () => ({
+  availableModel: (_provider: string, model: string) => model,
+  fastMaxOutputTokens: () => 600,
+  modelFor: () => 'fake-model'
+}))
+vi.mock('./answerRouting.js', () => ({
+  answerProviderId: () => 'anthropic',
+  backupProviderIds: () => [],
+  webSearchAllowed: () => false
 }))
 vi.mock('../personas/store.js', () => ({ getPersona: () => null }))
 vi.mock('../sync/sessionSync.js', () => ({ recordAiExchange: async () => {} }))
 
-const { describeProviderError, retrievalQueryFor } = await import('./aiGatewayClient.js')
+const { ask, describeProviderError, registerAiWindow, retrievalQueryFor } =
+  await import('./aiGatewayClient.js')
 
 function withStatus(message: string, status: number): Error {
   return Object.assign(new Error(message), { status })
@@ -29,7 +58,7 @@ describe('describeProviderError', () => {
       401
     )
     expect(describeProviderError(err, 'Anthropic')).toBe(
-      'Anthropic rejected the API key (401). Check it in Settings → AI.'
+      'Anthropic rejected the API key (401). Check it in Settings → Keys & providers.'
     )
   })
 
@@ -107,5 +136,48 @@ describe('retrievalQueryFor', () => {
 
   it('returns an empty query for a fixed prompt with no transcript', () => {
     expect(retrievalQueryFor(ANSWER_LAST_PROMPT, [])).toBe('')
+  })
+})
+
+describe('Continue', () => {
+  const sent: Array<{ channel: string; requestId: string }> = []
+  registerAiWindow({
+    on: () => {},
+    isDestroyed: () => false,
+    isVisible: () => true,
+    isMinimized: () => false,
+    webContents: {
+      send: (channel: string, payload: { requestId: string }) =>
+        sent.push({ channel, requestId: payload.requestId })
+    }
+  } as unknown as BrowserWindow)
+
+  async function answer(opts: Parameters<typeof ask>[0]): Promise<void> {
+    await ask(opts)
+    await vi.waitFor(() =>
+      expect(sent).toContainEqual({ channel: IPC.ai.done, requestId: opts.requestId })
+    )
+  }
+
+  it('sends the whole cut answer back, through a chain of continues', async () => {
+    const first = 'A'.repeat(900)
+    const second = 'B'.repeat(900)
+    llm.replies.push(
+      { text: first, finish: 'length' },
+      { text: second, finish: 'length' },
+      { text: 'end', finish: 'stop' }
+    )
+    await answer({ requestId: 'r1', prompt: 'Explain sharding' })
+    await answer({ requestId: 'r2', prompt: 'continue', continueFrom: 'r1' })
+    await answer({ requestId: 'r3', prompt: 'continue', continueFrom: 'r2' })
+
+    expect(llm.prompts[1]).toContain(
+      `Explain sharding\n\n<answer_so_far>\n${first}\n</answer_so_far>`
+    )
+    expect(llm.prompts[2]).toContain(
+      `Explain sharding\n\n<answer_so_far>\n${first}${second}\n</answer_so_far>`
+    )
+    // Sources belong to the answer being continued; a continuation leaves them be.
+    expect(sent.filter((m) => m.channel === IPC.ai.sources).map((m) => m.requestId)).toEqual(['r1'])
   })
 })

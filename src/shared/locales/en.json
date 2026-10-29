@@ -60,8 +60,7 @@
     },
     "labels": {
       "answer_last": "Answer last question",
-      "screenshot_answer": "Screenshot answer",
-      "continue": "Continue"
+      "screenshot_answer": "Screenshot answer"
     },
     "chips": {
       "catch_up": "Catch up",
@@ -77,7 +76,7 @@
       "default_with_model": "Default · {{model}}",
       "text_answers": "Text answers",
       "vision": "Screenshots",
-      "tooltip": "Override model for this request · provider: {{provider}}",
+      "tooltip": "Model for answers until you switch back to Default · provider: {{provider}}",
       "menu_label": "Model"
     },
     "input": {
@@ -87,7 +86,7 @@
       "snap_hotkey_tooltip": "Attach a screenshot of the full screen · {{chord}}",
       "screenshot_alt": "Attached screenshot"
     },
-    "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
+    "continue_tooltip": "Write the rest of the answer from where it stopped",
     "resize_answer": "Answer pane height",
     "preview": {
       "heard": "How do you handle reconciliation when streams disagree?",
@@ -161,7 +160,7 @@
     "streaming": "streaming…",
     "answer_truncated": "answer cut off — hit the length limit.",
     "continue": "continue",
-    "continue_tooltip": "Submit a 'continue' prompt to resume the answer",
+    "continue_tooltip": "Write the rest of the answer from where it stopped",
     "stop_tooltip": "Stop generating",
     "regenerate": "regenerate",
     "regenerate_tooltip": "Re-ask the last prompt",
@@ -173,7 +172,7 @@
       "override_label": "Override · {{provider}}",
       "text_answers": "Text answers",
       "vision": "Screenshots",
-      "tooltip": "Override model for this request · provider: {{provider}}"
+      "tooltip": "Model for answers until you switch back to Default · provider: {{provider}}"
     }
   },
   "dashboard": {

@@ -112,6 +112,8 @@ export interface AiAskInput {
    * (provider abstraction, persona default, settings default).
    */
   modelOverride?: string
+  /** Id of an answer cut at the length limit; this ask writes the rest of it. */
+  continueFrom?: string
 }
 
 export interface ScreenSnapshot {

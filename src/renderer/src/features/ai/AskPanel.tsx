@@ -55,13 +55,6 @@ export function AskPanel({
   const { run, stop, busy } = useAskRequest()
   const streaming = latest?.status === 'streaming'
   const settings = useSettingsStore((s) => s.settings)
-  // Remember the last prompt+context so Regenerate / model re-ask can repeat it.
-  const lastReqRef = useRef<{
-    prompt: string
-    label?: string
-    image: string | null
-    ocr: string | null
-  } | null>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -72,7 +65,6 @@ export function AskPanel({
   useEffect(() => {
     if (!initialPrompt || askedKeyRef.current === autoFocusKey) return
     askedKeyRef.current = autoFocusKey
-    lastReqRef.current = { prompt: initialPrompt, image: null, ocr: null }
     void run({ prompt: initialPrompt })
   }, [autoFocusKey, initialPrompt, run])
 
@@ -92,33 +84,25 @@ export function AskPanel({
     if (busy) return
     if (!prompt) setText('')
     attachment.clear()
-    lastReqRef.current = { prompt: p, image: attached, ocr: ocrAttached }
     await run({ prompt: p, image: attached, ocr: ocrAttached, modelOverride })
   }
 
   async function answerLast() {
     if (busy) return
-    const label = t('overlay.labels.answer_last')
-    lastReqRef.current = { prompt: ANSWER_LAST_PROMPT, label, image: null, ocr: null }
     await run({
       prompt: ANSWER_LAST_PROMPT,
-      label,
+      label: t('overlay.labels.answer_last'),
       waitForTranscript: true,
       modelOverride
     })
   }
 
-  // Regenerate / re-ask the last prompt, optionally with a different model.
+  // Regenerate / re-ask the latest question, optionally with a different
+  // model. It is kept on the answer: the dialog unmounts this panel on close.
   async function regenerate(modelId?: string | null) {
-    const last = lastReqRef.current
+    const last = latest?.request
     if (!last || busy) return
-    await run({
-      prompt: last.prompt,
-      label: last.label,
-      image: last.image,
-      ocr: last.ocr,
-      modelOverride: modelId ?? modelOverride
-    })
+    await run({ ...last, modelOverride: modelId ?? modelOverride })
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -141,7 +125,9 @@ export function AskPanel({
                 <AskCard
                   key={m.id}
                   message={m}
-                  onContinue={() => void send('continue')}
+                  onContinue={() =>
+                    void run({ prompt: 'continue', continueFrom: m.id, modelOverride })
+                  }
                   // Regenerate/model re-ask/follow-ups only on the latest card.
                   onRegenerate={isLatest ? () => void regenerate() : undefined}
                   onReaskModel={isLatest ? (model) => void regenerate(model) : undefined}
@@ -346,11 +332,8 @@ export function AskCard({
             </Button>
           )}
         </div>
-        {m.status === 'error' ? (
-          <div className="text-xs text-destructive">{m.error}</div>
-        ) : (
-          <StreamingMarkdown text={m.answer} />
-        )}
+        {(m.status !== 'error' || m.answer.length > 0) && <StreamingMarkdown text={m.answer} />}
+        {m.status === 'error' && <div className="text-xs text-destructive">{m.error}</div>}
         {m.status === 'streaming' && (
           <div className="mt-1 flex items-center gap-1.5 font-mono text-meta text-muted-foreground">
             <span className={cn('size-1.5 rounded-full bg-signal animate-pulse')} />
