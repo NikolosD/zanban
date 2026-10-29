@@ -694,29 +694,17 @@
   },
   "onboarding": {
     "title": "First-run setup",
-    "description": "Pick your languages and an AI provider, add keys, and check your audio.",
+    "description": "Pick a setup, add your keys, and check your audio.",
+    "language_label": "Interface language",
     "steps": {
-      "language": "Language",
       "provider": "Setup",
       "keys": "Keys",
       "audio": "Audio",
-      "done": "Done",
-      "persona": "Role"
-    },
-    "language": {
-      "title": "Welcome to Zanban",
-      "body": "A meeting copilot: it listens to your mic and the other side's audio, turns speech into text and suggests answers. Audio goes to the speech service you pick (on-device recognition keeps it on your computer). Recordings stay with you.",
-      "section_label": "interface language",
-      "english_label": "English",
-      "english_sublabel": "Full support today.",
-      "russian_label": "Русский",
-      "russian_sublabel": "Полная поддержка.",
-      "answers_label": "answer language",
-      "answers_hint": "Auto answers in the language of the question. Change it any time in Settings → General."
+      "done": "Done"
     },
     "provider": {
       "title": "How do you want to set up Zanban?",
-      "body": "Pick a ready setup — services and models are chosen for you. You can change it any time in Settings.",
+      "body": "Pick a ready setup — services and models are chosen for you. Audio goes only to the speech service you pick; on-device recognition keeps it on this computer. You can change it any time in Settings.",
       "manual_label": "who answers",
       "recommended_badge": "recommended",
       "no_key_badge": "no key",
@@ -845,7 +833,7 @@
         },
         "google_setup_help_title": "How to set up Google Speech-to-Text",
         "google_setup_help_body": "1. Open console.cloud.google.com → create or pick a project; copy its ID into the field above.\n2. In the project: APIs & Services → enable “Cloud Speech-to-Text API”.\n3. Auth — pick one:\n   • Easiest: install the gcloud CLI, run gcloud auth application-default login once. Leave the JSON field blank.\n   • Or: IAM → Service Accounts → create one with “Cloud Speech Client” role → keys → create JSON → paste contents into the field above.",
-        "local_whisper_note": "No keys needed. The model downloads on first session and runs entirely on this machine."
+        "local_whisper_note": "No keys needed. It runs entirely on this machine, and the model (~670 MB) downloads in the background."
       }
     },
     "audio": {
@@ -871,6 +859,19 @@
       "system_silent": "Didn't catch any sound. Check your output volume, or play something in another app (a video works) and test again.",
       "system_failed": "System audio capture isn't available on this computer. Zanban will still transcribe your microphone."
     },
+    "test": {
+      "title": "test call",
+      "body": "Checks that the AI answers and your microphone hears you. About 20 seconds, and optional.",
+      "run": "Test call",
+      "rerun": "Test again",
+      "ai_label": "AI answers",
+      "mic_label": "Microphone",
+      "ai_timeout": "No answer in 20 seconds.",
+      "ai_hint_key": "Fix the key on the Keys step (go Back), then test again.",
+      "ai_hint_ollama": "Start Ollama and make sure the model is installed, then test again.",
+      "ai_hint_network": "Check your internet connection, then test again.",
+      "mic_busy": "A session is recording, so the microphone is already in use."
+    },
     "done": {
       "title": "You're set",
       "missing_title": "Almost set",
@@ -882,15 +883,8 @@
         "answerLast": "Answer the last question",
         "toggleSession": "Start / stop session"
       },
-      "hotkeys_more": "They work from any app. See and change every hotkey in Settings → Hotkeys."
-    },
-    "persona": {
-      "title": "What do you do?",
-      "optional_badge": "optional",
-      "body": "Pick a role so answers fit your calls — or skip. You can choose one later in Settings → Context.",
-      "skip": "Skip",
-      "pick_role": "Pick a role",
-      "use_role": "Use “{{name}}”"
+      "hotkeys_more": "They work from any app. See and change every hotkey in Settings → Hotkeys.",
+      "persona_hint": "Pick your role in Settings → Context so answers fit your calls."
     }
   },
   "errors": {

@@ -78,9 +78,10 @@ function playTestBeeps(): () => void {
 
 /**
  * Opens the source, drives the meter bar straight through `barRef` (no
- * re-render per frame), and settles on a verdict. Remount to re-run.
+ * re-render per frame), and settles on a verdict. Remount to re-run. The
+ * device stays open for live feedback unless `closeWhenSettled`.
  */
-function useLevelProbe(source: Source, deviceId: string | null) {
+function useLevelProbe(source: Source, deviceId: string | null, closeWhenSettled: boolean) {
   const barRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<ProbeState>('starting')
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +89,11 @@ function useLevelProbe(source: Source, deviceId: string | null) {
   useEffect(() => {
     let cancelled = false
     let release: (() => void) | null = null
+    const close = (): void => {
+      const done = release
+      release = null
+      done?.()
+    }
     openStream(source, deviceId).then(
       (stream) => {
         if (cancelled) {
@@ -109,11 +115,15 @@ function useLevelProbe(source: Source, deviceId: string | null) {
           if (!heard && loudest >= HEARD_PEAK[source]) {
             heard = true
             setState('heard')
+            // Not inside the meter's own frame: it would reschedule after being stopped.
+            if (closeWhenSettled) queueMicrotask(close)
           }
         })
         const stopBeeps = source === 'system' ? playTestBeeps() : null
         const verdict = setTimeout(() => {
-          if (!heard) setState(loudest < SILENT_PEAK ? 'silent' : 'quiet')
+          if (heard) return
+          setState(loudest < SILENT_PEAK ? 'silent' : 'quiet')
+          if (closeWhenSettled) close()
         }, VERDICT_MS)
         setState('listening')
         release = () => {
@@ -132,9 +142,9 @@ function useLevelProbe(source: Source, deviceId: string | null) {
     )
     return () => {
       cancelled = true
-      release?.()
+      close()
     }
-  }, [source, deviceId])
+  }, [source, deviceId, closeWhenSettled])
 
   return { state, error, barRef }
 }
@@ -273,9 +283,17 @@ function MicPicker({
   )
 }
 
-function Probe({ source, deviceId }: { source: Source; deviceId: string | null }) {
+export function Probe({
+  source,
+  deviceId,
+  closeWhenSettled = false
+}: {
+  source: Source
+  deviceId: string | null
+  closeWhenSettled?: boolean
+}) {
   const { t } = useTranslation()
-  const { state, error, barRef } = useLevelProbe(source, deviceId)
+  const { state, error, barRef } = useLevelProbe(source, deviceId, closeWhenSettled)
   const passed = state === 'heard'
   const failed = state === 'quiet' || state === 'silent' || state === 'failed'
   // The loopback has no noise floor, so "quiet" and "silent" mean the same there.

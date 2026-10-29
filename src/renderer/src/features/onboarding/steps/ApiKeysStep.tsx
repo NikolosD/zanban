@@ -12,6 +12,7 @@ import {
   useSttCheck
 } from '@renderer/features/settings/ProviderCheck'
 import type { StepProps } from '../types'
+import { SETUP_PRESETS } from '../presets'
 import { OllamaSetup } from './OllamaSetup'
 import { StepFooter } from './StepFooter'
 
@@ -66,16 +67,26 @@ function sttFieldsFor(stt: SttOption): KeyField[] {
   }
 }
 
-export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
+export function ApiKeysStep({
+  settings,
+  setup,
+  setSpeechEngine,
+  update,
+  goNext,
+  goBack
+}: StepProps) {
   const { t } = useTranslation()
   const provider = settings.llmProvider
   const llmField = LLM_FIELD[provider]
 
-  // STT picker is local until the user advances. Default to whatever the user
+  // A preset has already decided speech recognition, so only a manual setup gets
+  // the picker. STT is local until the user advances. Default to whatever the user
   // already has configured, falling back to on-device recognition when they're
   // on an engine the wizard doesn't offer (OpenAI).
-  const initialStt: SttOption = STT_OPTIONS.includes(settings.sttProvider as SttOption)
-    ? (settings.sttProvider as SttOption)
+  const presetStt = SETUP_PRESETS.find((p) => p.id === setup)?.sttProvider
+  const startStt = presetStt ?? settings.sttProvider
+  const initialStt: SttOption = STT_OPTIONS.includes(startStt as SttOption)
+    ? (startStt as SttOption)
     : 'local-whisper'
   const [stt, setStt] = useState<SttOption>(initialStt)
   const sttFields = sttFieldsFor(stt)
@@ -163,6 +174,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         const next = v.trim() === '' ? null : v.trim()
         await update(f.settingsKey, next as never)
       }
+      setSpeechEngine(stt)
       goNext()
     } finally {
       setSaving(false)
@@ -196,45 +208,52 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('onboarding.keys.stt_picker_label')}
         </div>
-        <div className="flex flex-col gap-1.5">
-          {STT_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => setStt(opt)}
-              className={cn(
-                'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
-                stt === opt
-                  ? 'border-primary/60 bg-primary/10'
-                  : 'border-border bg-card/40 hover:border-border/80 hover:bg-accent'
-              )}
-            >
-              <div
+        {!presetStt && (
+          <div className="flex flex-col gap-1.5">
+            {STT_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => {
+                  setStt(opt)
+                  setSpeechEngine(opt)
+                }}
                 className={cn(
-                  'mt-1 size-2 shrink-0 rounded-full',
-                  stt === opt ? 'bg-primary' : 'bg-muted-foreground/40'
+                  'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
+                  stt === opt
+                    ? 'border-primary/60 bg-primary/10'
+                    : 'border-border bg-card/40 hover:border-border/80 hover:bg-accent'
                 )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-body">{t(`onboarding.keys.stt_options.${opt}.label`)}</span>
-                  {opt === 'elevenlabs' && (
-                    <span className="rounded border border-success/30 bg-success/10 px-1 font-mono text-meta uppercase tracking-wider text-success">
-                      {t('onboarding.provider.recommended_badge')}
-                    </span>
+              >
+                <div
+                  className={cn(
+                    'mt-1 size-2 shrink-0 rounded-full',
+                    stt === opt ? 'bg-primary' : 'bg-muted-foreground/40'
                   )}
-                  {opt === 'local-whisper' && (
-                    <span className="rounded border border-border px-1 font-mono text-meta uppercase tracking-wider text-muted-foreground">
-                      {t('onboarding.provider.no_key_badge')}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-body">
+                      {t(`onboarding.keys.stt_options.${opt}.label`)}
                     </span>
-                  )}
+                    {opt === 'elevenlabs' && (
+                      <span className="rounded border border-success/30 bg-success/10 px-1 font-mono text-meta uppercase tracking-wider text-success">
+                        {t('onboarding.provider.recommended_badge')}
+                      </span>
+                    )}
+                    {opt === 'local-whisper' && (
+                      <span className="rounded border border-border px-1 font-mono text-meta uppercase tracking-wider text-muted-foreground">
+                        {t('onboarding.provider.no_key_badge')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
+                    {t(`onboarding.keys.stt_options.${opt}.blurb`)}
+                  </div>
                 </div>
-                <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
-                  {t(`onboarding.keys.stt_options.${opt}.blurb`)}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {sttFields.map((f) => (
           <KeyRow

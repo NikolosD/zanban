@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SpeechModelStatus } from '@shared/api'
@@ -8,9 +8,10 @@ import { DownloadProgress, formatSize } from './DownloadProgress'
 
 /**
  * On-device recognition downloads its model at the first session otherwise,
- * so the first call would open with a wait of several minutes.
+ * so the first call would open with a wait of several minutes. `autoStart`
+ * begins the download as soon as the model is found missing.
  */
-export function SpeechModelDownload() {
+export function SpeechModelDownload({ autoStart = false }: { autoStart?: boolean }) {
   const { t, i18n } = useTranslation()
   const [status, setStatus] = useState<SpeechModelStatus | null>(null)
   const [checks, setChecks] = useState(0)
@@ -30,7 +31,7 @@ export function SpeechModelDownload() {
 
   useEffect(() => window.zanban.transcription.onSpeechModelProgress(setFraction), [])
 
-  async function download() {
+  const download = useCallback(async () => {
     setDownloading(true)
     setFraction(null)
     setError(null)
@@ -42,7 +43,15 @@ export function SpeechModelDownload() {
       setDownloading(false)
       setChecks((n) => n + 1)
     }
-  }
+  }, [t])
+
+  // Once only: a failed attempt must wait for the button rather than loop.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (!autoStart || !status || status.installed || autoStarted.current) return
+    autoStarted.current = true
+    void download()
+  }, [autoStart, status, download])
 
   if (!status) return null
 

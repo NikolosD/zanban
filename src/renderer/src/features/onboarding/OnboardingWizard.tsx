@@ -7,14 +7,17 @@ import {
   DialogDescription
 } from '@renderer/components/ui/dialog'
 import { cn } from '@renderer/lib/utils'
-import type { AppSettings, LlmProvider } from '@shared/types'
-import { LanguageStep } from './steps/LanguageStep'
+import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
+import { SpeechModelDownload } from '@renderer/features/settings/SpeechModelDownload'
+import { LanguageSwitch } from './LanguageSwitch'
+import { matchPreset, type SetupChoice } from './presets'
 import { ProviderStep } from './steps/ProviderStep'
 import { ApiKeysStep } from './steps/ApiKeysStep'
 import { AudioCheckStep } from './steps/AudioCheckStep'
-import { PersonaStep } from './steps/PersonaStep'
 import { DoneStep } from './steps/DoneStep'
 import { STEP_ORDER, type StepId, type StepProps } from './types'
+
+const initialSetup = (settings: AppSettings): SetupChoice => matchPreset(settings) ?? 'manual'
 
 export function OnboardingWizard({
   open,
@@ -25,11 +28,16 @@ export function OnboardingWizard({
   settings: AppSettings
   onClose: () => void
 }) {
-  const [step, setStep] = useState<StepId>('language')
+  const [step, setStep] = useState<StepId>('provider')
   // Provider lives in local state until the user advances past the provider
   // step. That way bouncing back to change LLM doesn't immediately rewrite
   // the persisted provider on every click.
   const [draftProvider, setDraftProvider] = useState<LlmProvider>(settings.llmProvider)
+  // The setup card picked on the first step; a preset already decides speech recognition.
+  const [setup, setSetup] = useState<SetupChoice>(() => initialSetup(settings))
+  // Null until the user commits to an engine, so a default that is only pre-selected
+  // never starts a download nobody asked for.
+  const [speechEngine, setSpeechEngine] = useState<SttProvider | null>(null)
 
   // Re-runs from Settings land on step one with the persisted provider. Reset
   // only on the closed→open edge: choosing a provider saves it and main
@@ -38,8 +46,10 @@ export function OnboardingWizard({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setStep('language')
+      setStep('provider')
       setDraftProvider(settings.llmProvider)
+      setSetup(initialSetup(settings))
+      setSpeechEngine(null)
     }
   }
 
@@ -65,11 +75,22 @@ export function OnboardingWizard({
   }
 
   const stepProps: StepProps = useMemo(
-    () => ({ settings, draftProvider, setDraftProvider, update, goNext, goBack, complete }),
+    () => ({
+      settings,
+      draftProvider,
+      setDraftProvider,
+      setup,
+      setSetup,
+      setSpeechEngine,
+      update,
+      goNext,
+      goBack,
+      complete
+    }),
     // The closures above capture `step` via the outer scope — refresh memo on
     // every step change so children get the right goNext/goBack semantics.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings, draftProvider, step]
+    [settings, draftProvider, setup, step]
   )
 
   return (
@@ -84,14 +105,24 @@ export function OnboardingWizard({
     >
       <DialogContent className="flex max-h-[calc(100vh-4rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <WizardTitles />
-        <Stepper current={step} />
+        {/* pr-12 keeps the language switch clear of the dialog's close button. */}
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 py-3 pr-12 pl-6">
+          <Stepper current={step} />
+          <LanguageSwitch
+            value={settings.uiLocale}
+            onChange={(next) => void update('uiLocale', next)}
+          />
+        </header>
+        {speechEngine === 'local-whisper' && (
+          <div className="shrink-0 border-b border-border/60 px-6 py-2">
+            <SpeechModelDownload autoStart />
+          </div>
+        )}
         {/* No bottom padding: each step's StepFooter is sticky to this edge. */}
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-5">
-          {step === 'language' && <LanguageStep {...stepProps} />}
           {step === 'provider' && <ProviderStep {...stepProps} />}
           {step === 'keys' && <ApiKeysStep {...stepProps} />}
           {step === 'audio' && <AudioCheckStep {...stepProps} />}
-          {step === 'persona' && <PersonaStep {...stepProps} />}
           {step === 'done' && <DoneStep {...stepProps} />}
         </div>
       </DialogContent>
@@ -112,10 +143,9 @@ function WizardTitles() {
 function Stepper({ current }: { current: StepId }) {
   const { t } = useTranslation()
   const currentIdx = STEP_ORDER.indexOf(current)
-  // Only the active step shows its label so all six fit; pr-12 keeps the last
-  // step clear of the dialog's close button.
+  // Only the active step shows its label, which keeps the row narrow.
   return (
-    <ol className="flex shrink-0 items-center gap-1.5 border-b border-border/60 py-3 pr-12 pl-6">
+    <ol className="flex items-center gap-1.5">
       {STEP_ORDER.map((id, i) => {
         const done = i < currentIdx
         const active = i === currentIdx
