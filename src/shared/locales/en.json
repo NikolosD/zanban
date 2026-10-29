@@ -984,5 +984,9 @@
   "cropper": {
     "idle_hint": "Drag to select a region · Esc to cancel",
     "selection_hint": "{{width}} × {{height}} — release to capture · Esc to cancel"
+  },
+  "ai_errors": {
+    "ollama_unreachable": "Ollama isn't answering at {{host}}. Start Ollama, or check its address in Settings → Keys & providers.",
+    "ollama_model_missing": "Ollama has no model {{model}}. Download it in Settings → Keys & providers."
   }
 }

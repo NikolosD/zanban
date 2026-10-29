@@ -1000,5 +1000,9 @@
   "cropper": {
     "idle_hint": "Выделите область мышью · Esc — отмена",
     "selection_hint": "{{width}} × {{height}} — отпустите, чтобы снять · Esc — отмена"
+  },
+  "ai_errors": {
+    "ollama_unreachable": "Ollama не отвечает по адресу {{host}}. Запустите Ollama или проверьте адрес в Настройки → Ключи и провайдеры.",
+    "ollama_model_missing": "В Ollama нет модели {{model}}. Скачайте её в Настройки → Ключи и провайдеры."
   }
 }

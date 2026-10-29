@@ -15,7 +15,7 @@ import { buildSystemPrompt, buildUserPrompt, buildVisionSystemPrompt } from './p
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
 import { retrieve, type RetrievalResult } from '../rag/index.js'
-import type { IWebSearchProvider } from '../providers/types.js'
+import { ExplainedError, type IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback, type FallbackAttempt } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
 import { getActiveWebSearch, getLlmProviderById } from '../providers/registry.js'
@@ -449,7 +449,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           ? STREAM_TIMEOUT_MESSAGE
           : describeProviderError(err, chosen.provider.label)
         console.error('[ai] provider failed', err)
-        broadcast(IPC.ai.error, { requestId, message })
+        const reason = err instanceof ExplainedError ? err.reason : undefined
+        broadcast(IPC.ai.error, { requestId, message, reason })
       } finally {
         timeout.clear()
       }

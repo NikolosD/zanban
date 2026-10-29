@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import i18n from 'i18next'
 import type { AiSource } from '@shared/types'
 
 interface AiMessage {
@@ -70,8 +71,10 @@ export function wireAiIpc(): () => void {
   const offDone = window.zanban.ai.onDone(({ requestId, finishReason }) =>
     useAi.getState().finishRequest(requestId, finishReason)
   )
-  const offErr = window.zanban.ai.onError(({ requestId, message }) =>
-    useAi.getState().failRequest(requestId, message)
+  const offErr = window.zanban.ai.onError(({ requestId, message, reason }) =>
+    useAi
+      .getState()
+      .failRequest(requestId, reason ? i18n.t(`ai_errors.${reason.kind}`, reason) : message)
   )
   return () => {
     offChunk()

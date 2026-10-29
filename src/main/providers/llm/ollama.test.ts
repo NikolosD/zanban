@@ -58,4 +58,37 @@ describe('ollama provider stream', () => {
     await expect(consume()).rejects.toThrow('Ollama error: model runner crashed')
     expect(chunks).toEqual(['Hi'])
   })
+
+  it('says so when Ollama is not running, or lacks the model', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      })
+    )
+    await expect(makeOllamaProvider('http://127.0.0.1:11599').generate(args)).rejects.toMatchObject(
+      {
+        reason: { kind: 'ollama_unreachable', host: 'http://127.0.0.1:11599' }
+      }
+    )
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"error":"model not found"}', { status: 404 }))
+    )
+    await expect(makeOllamaProvider().generate(args)).rejects.toMatchObject({
+      reason: { kind: 'ollama_model_missing', model: 'llama3.1:8b' }
+    })
+  })
+
+  it('lets a Stop through as it is', async () => {
+    const stop = new DOMException('This operation was aborted', 'AbortError')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw stop
+      })
+    )
+    await expect(makeOllamaProvider().generate(args)).rejects.toBe(stop)
+  })
 })

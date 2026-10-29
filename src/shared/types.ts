@@ -145,9 +145,16 @@ export interface AiDone {
   finishReason?: string
 }
 
+/** Why an answer failed, when the UI can explain it in the user's language. */
+export type AiErrorReason =
+  | { kind: 'ollama_unreachable'; host: string }
+  | { kind: 'ollama_model_missing'; model: string }
+
 export interface AiError {
   requestId: string
+  /** English text from main, shown when there is no `reason`. */
   message: string
+  reason?: AiErrorReason
 }
 
 /** A single RAG fragment retrieved for an ask, surfaced in the Sources list. */
