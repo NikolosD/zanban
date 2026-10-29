@@ -23,6 +23,7 @@ import type { AudioChannel, CaptureNotice } from '../shared/types.js'
 import { redactSettings } from '../shared/settingsBoundary.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
+import { registerRagWarmup } from './rag/warmup.js'
 import { mlWorker, speechWorker } from './ml/index.js'
 import { raceTimeout } from './ai/raceTimeout.js'
 import { hardenWebContents, isAppUrl } from './security.js'
@@ -181,6 +182,7 @@ app.whenReady().then(async () => {
   registerScreenshotHandlers()
   registerDocumentsHandlers()
   registerRagHandlers()
+  registerRagWarmup()
 
   // Reconcile reference docs with the RAG store after a tick: index active docs
   // whose chunks are missing (first run after documents-into-RAG, or after a
