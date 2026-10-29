@@ -103,10 +103,12 @@ export function SettingsPanel({
 }: { initialTab?: SettingsTabId; onReRunOnboarding?: () => void } = {}) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<TabId>(initialTab ? resolveTab(initialTab) : 'general')
-
-  useEffect(() => {
+  // A new jump-to-tab request from the dashboard switches the open panel too.
+  const [requestedTab, setRequestedTab] = useState(initialTab)
+  if (initialTab !== requestedTab) {
+    setRequestedTab(initialTab)
     if (initialTab) setTab(resolveTab(initialTab))
-  }, [initialTab])
+  }
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [mics, setMics] = useState<MicDevice[]>([])
@@ -485,10 +487,7 @@ function ModelsTab({
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const usesOllama = provider === 'ollama' || settings.visionProvider === 'ollama'
   useEffect(() => {
-    if (!usesOllama) {
-      setOllamaModels([])
-      return
-    }
+    if (!usesOllama) return
     let cancelled = false
     void window.zanban.ollama.health().then((h) => {
       if (!cancelled) setOllamaModels(h.running ? h.models : [])
@@ -1082,9 +1081,11 @@ function TranscriptWindowInput({
   // Persistence + clamping happens on blur/Enter so we don't fight the user's
   // keystrokes. Re-syncs to props if external value changes.
   const [draft, setDraft] = useState<string>(String(value))
-  useEffect(() => {
+  const [syncedValue, setSyncedValue] = useState(value)
+  if (value !== syncedValue) {
+    setSyncedValue(value)
     setDraft(String(value))
-  }, [value])
+  }
   const commit = (): void => {
     const n = Number(draft)
     const clamped = Number.isFinite(n) ? Math.max(10, Math.min(600, n)) : value

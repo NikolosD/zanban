@@ -37,7 +37,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Warning ratchet: lower the number as warnings get fixed, never raise it.
-      - run: pnpm lint --max-warnings 14
+      - run: pnpm lint --max-warnings 0
 
       - run: pnpm typecheck
 

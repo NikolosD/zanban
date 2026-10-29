@@ -30,8 +30,16 @@ export function ReferenceDocsTab() {
   }, [])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let alive = true
+    void window.zanban.documents.list().then((list) => {
+      if (!alive) return
+      setDocs(list)
+      setLoading(false)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const upload = useCallback(
     async (paths: string[]) => {

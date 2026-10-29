@@ -19,7 +19,10 @@ export function useStickToBottom<T extends HTMLElement>(
   const rootRef = useRef<T | null>(null)
   const stickRef = useRef(true)
   const resolverRef = useRef(resolveScrollEl)
-  resolverRef.current = resolveScrollEl
+  // Declared before the effects below so it runs first and they see the latest.
+  useEffect(() => {
+    resolverRef.current = resolveScrollEl
+  })
 
   function getScrollEl(): HTMLElement | null {
     const root = rootRef.current

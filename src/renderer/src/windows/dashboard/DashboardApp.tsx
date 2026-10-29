@@ -109,11 +109,12 @@ export function DashboardApp() {
   // Open the wizard when settings load and `onboardingCompleted` is still
   // false. We don't reset on subsequent loads — the user can dismiss it and
   // we won't re-pop until they manually re-run from Settings.
-  useEffect(() => {
-    if (settings && !settings.onboardingCompleted) {
-      setOnboardingOpen(true)
-    }
-  }, [settings?.onboardingCompleted])
+  const onboardingPending = settings ? !settings.onboardingCompleted : undefined
+  const [seenOnboardingPending, setSeenOnboardingPending] = useState<boolean | undefined>()
+  if (onboardingPending !== seenOnboardingPending) {
+    setSeenOnboardingPending(onboardingPending)
+    if (onboardingPending) setOnboardingOpen(true)
+  }
 
   useEffect(() => {
     void window.zanban.getVersion().then(setVersion)
