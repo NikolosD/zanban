@@ -1,4 +1,9 @@
-import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
+import {
+  ExplainedError,
+  type ILlmProvider,
+  type LlmFinishReason,
+  type LlmStreamArgs
+} from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
 const DEFAULT_HOST = 'http://127.0.0.1:11434'
@@ -37,7 +42,21 @@ export function makeOllamaProvider(host: string = DEFAULT_HOST): ILlmProvider {
           stream: true
         }),
         signal: args.signal
+      }).catch((err: unknown) => {
+        // fetch rejects with a TypeError when nothing listens on the host; a
+        // Stop or timeout aborts with another error and passes through.
+        if (!(err instanceof TypeError)) throw err
+        throw new ExplainedError(`Ollama isn't answering at ${host}.`, {
+          kind: 'ollama_unreachable',
+          host
+        })
       })
+      if (res.status === 404) {
+        throw new ExplainedError(`Ollama has no model ${args.model}.`, {
+          kind: 'ollama_model_missing',
+          model: args.model
+        })
+      }
       if (!res.ok || !res.body) {
         throw new Error(`Ollama error: ${res.status} ${res.statusText}`)
       }

@@ -4,7 +4,7 @@
  * rest of the app can swap them at runtime via the registry.
  */
 
-import type { LlmProvider } from '../../shared/types.js'
+import type { AiErrorReason, LlmProvider } from '../../shared/types.js'
 
 export type WebSearchProviderId = 'tavily'
 
@@ -42,6 +42,16 @@ export interface ILlmProvider {
   generate(args: LlmStreamArgs): Promise<string>
   /** Ids of the models this key can call, from the provider's model list. */
   listModels?(signal: AbortSignal): Promise<string[]>
+}
+
+/** A provider failure with a reason the UI can explain in the user's language. */
+export class ExplainedError extends Error {
+  readonly reason: AiErrorReason
+
+  constructor(message: string, reason: AiErrorReason) {
+    super(message)
+    this.reason = reason
+  }
 }
 
 export interface IWebSearchProvider {
