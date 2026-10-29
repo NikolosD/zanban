@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { IPC } from '../../shared/ipc-channels.js'
 import { ask as aiAsk, stop as aiStop } from '../ai/aiGatewayClient.js'
 import { suggestFollowUps } from '../ai/llm/followUpLlm.js'
+import { catalogLanguageModels, refreshGatewayCatalog } from '../ai/gatewayCatalog.js'
 import { handleIpc } from './guard.js'
 import { aiAskInputSchema, aiFollowUpsInputSchema } from './schemas.js'
 
@@ -15,5 +16,9 @@ export function registerAiHandlers(): void {
   handleIpc(IPC.ai.followUps, (_e, input: unknown) => {
     const { question, answer } = aiFollowUpsInputSchema.parse(input)
     return suggestFollowUps(question, answer)
+  })
+  handleIpc(IPC.ai.gatewayModels, async () => {
+    await refreshGatewayCatalog()
+    return catalogLanguageModels()?.map((m) => m.id) ?? null
   })
 }

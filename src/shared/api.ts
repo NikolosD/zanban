@@ -132,6 +132,9 @@ export interface ZanbanApi {
     /** RAG fragments retrieved for an ask (Sources affordance). Fires once per
      *  ask, before the answer streams; an empty list means nothing retrieved. */
     onSources(cb: (sources: AiSources) => void): () => void
+    onModelReplaced(cb: (change: { from: string; to: string }) => void): () => void
+    /** Model ids in the gateway's live catalog, or null before it has loaded. */
+    gatewayModels(): Promise<string[] | null>
   }
   settings: {
     /** Stored secrets (SECRET_SETTING_KEYS) arrive as redacted markers, never in
@@ -277,6 +280,8 @@ export interface OllamaHealth {
 export interface ProviderTestResult {
   ok: boolean
   message?: string
+  /** Set when the provider rejected the key itself. */
+  reason?: 'invalid_key'
 }
 
 export interface RagHit {

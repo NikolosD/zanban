@@ -25,7 +25,12 @@ import {
   getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
-import { modelFor, fastMaxOutputTokens, gatewayProviderOptions } from './models.js'
+import {
+  availableGatewayModel,
+  fastMaxOutputTokens,
+  gatewayCallOptions,
+  modelFor
+} from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
@@ -167,6 +172,19 @@ function broadcast<P extends { requestId: string }>(channel: string, payload: P)
     if (w.isDestroyed()) continue
     flushHeldChunks(w, payload.requestId)
     w.webContents.send(channel, payload)
+  }
+}
+
+// Once per model per run: the notice is for the user to pick another model,
+// not something to repeat on every answer.
+const replacedNotified = new Set<string>()
+
+function notifyModelReplaced(from: string, to: string): void {
+  console.warn(`[ai] gateway model ${from} is gone from the catalog; answering with ${to}`)
+  if (replacedNotified.has(from)) return
+  replacedNotified.add(from)
+  for (const w of windows) {
+    if (!w.isDestroyed()) w.webContents.send(IPC.ai.modelReplaced, { from, to })
   }
 }
 
@@ -504,11 +522,13 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         )
       }
       const gw = await gateway()
+      const gatewayModel = availableGatewayModel(overrideModel, hasImage ? 'vision' : 'fast')
+      if (gatewayModel !== overrideModel) notifyModelReplaced(overrideModel, gatewayModel)
       const { streamText } = await import('ai')
 
       const streamArgs = hasImage
         ? {
-            model: gw(overrideModel),
+            model: gw(gatewayModel),
             system: buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale),
             messages: [
               {
@@ -521,17 +541,15 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
             ],
             abortSignal: abort.signal,
             maxOutputTokens: maxOutputTokens,
-            temperature: 0.3,
-            providerOptions: gatewayProviderOptions(overrideModel)
+            ...gatewayCallOptions(gatewayModel, 0.3)
           }
         : {
-            model: gw(overrideModel),
+            model: gw(gatewayModel),
             system: buildSystemPrompt(personaText, responseLanguage),
             prompt: userPrompt,
             abortSignal: abort.signal,
             maxOutputTokens: maxOutputTokens,
-            temperature: 0.4,
-            providerOptions: gatewayProviderOptions(overrideModel)
+            ...gatewayCallOptions(gatewayModel, 0.4)
           }
 
       const result = streamText(streamArgs)
@@ -571,7 +589,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         }
       }
       recordExchange(opts.prompt, fullAnswer)
-      void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
+      void recordAiExchange(opts.prompt, fullAnswer, gatewayModel).catch(() => {})
       // finishReason lets the UI flag length-truncations (the model hit
       // maxOutputTokens and stopped mid-thought).
       broadcast(IPC.ai.done, {

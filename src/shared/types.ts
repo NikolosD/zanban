@@ -455,17 +455,17 @@ export const RESPONSE_LANGUAGES: Array<{ value: ResponseLanguage; label: string 
  * and win when set.
  */
 export const PROVIDER_MODEL_DEFAULTS: Record<LlmProvider, AiModelSettings> = {
+  // Claude Haiku 5.5 with thinking off: $0.10 in / $0.50 out like gpt-oss, but a
+  // 2026 model that writes clearer, better-structured answers, Russian included,
+  // and reads screenshots. Interview answers need presentation more than depth.
   'vercel-gateway': {
-    fast: 'openai/gpt-oss-120b',
+    fast: 'anthropic/claude-haiku-5.5',
     // gpt-oss-20b: 0.1s TTFT, 252 tps, $0.07 in / $0.30 out per 1M.
     // Replaces the slower deepseek/deepseek-v4-flash for the question
     // detector — filter runs on every utterance so TTFT matters.
     filter: 'openai/gpt-oss-20b',
-    summary: 'xiaomi/mimo-v2.6-flash',
-    // gemini-2.5-flash-lite: GA, 244 tps, 1M context, $0.10 in / $0.40 out.
-    // We dropped the 3.1-flash-lite-preview default because the preview tier
-    // was noticeably slower in real use — likely smaller deployment fleet.
-    vision: 'google/gemini-2.5-flash-lite'
+    summary: 'anthropic/claude-haiku-5.5',
+    vision: 'anthropic/claude-haiku-5.5'
   },
   anthropic: {
     fast: 'claude-haiku-5-5',
@@ -515,6 +515,8 @@ export const DEFAULT_AI_MODELS: AiModelSettings = PROVIDER_MODEL_DEFAULTS['verce
  */
 export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
+    'anthropic/claude-haiku-5.5',
+    'openai/gpt-6.1-terra',
     'openai/gpt-oss-120b',
     'openai/gpt-oss-20b',
     'openai/gpt-5.4-mini',
@@ -539,6 +541,8 @@ export const PROVIDER_FAST_MODELS: Record<LlmProvider, string[]> = {
 
 export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
   'vercel-gateway': [
+    'anthropic/claude-haiku-5.5',
+    'openai/gpt-6.1-terra',
     'google/gemini-3.5-flash',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
@@ -565,6 +569,8 @@ export const PROVIDER_VISION_MODELS: Record<LlmProvider, string[]> = {
  */
 export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
   fast: [
+    'anthropic/claude-haiku-5.5',
+    'openai/gpt-6.1-terra',
     'openai/gpt-oss-120b',
     'openai/gpt-5.4-mini',
     'anthropic/claude-haiku-4.5',
@@ -586,6 +592,8 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'anthropic/claude-haiku-4.5'
   ],
   summary: [
+    'anthropic/claude-haiku-5.5',
+    'openai/gpt-6.1-terra',
     'xiaomi/mimo-v2.6-flash',
     'xiaomi/mimo-v2.5',
     'openai/gpt-5.4-mini',
@@ -595,6 +603,8 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
     'anthropic/claude-haiku-4.5'
   ],
   vision: [
+    'anthropic/claude-haiku-5.5',
+    'openai/gpt-6.1-terra',
     'google/gemini-3.5-flash',
     'google/gemini-3.1-flash-lite',
     'google/gemini-2.5-flash-lite',
@@ -605,7 +615,7 @@ export const AI_MODEL_SUGGESTIONS: Record<AiRole, string[]> = {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  sttProvider: 'deepgram',
+  sttProvider: 'local-whisper',
   googleProjectId: null,
   googleServiceAccountJson: null,
   deepgramApiKey: null,

@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator
 } from '@renderer/components/ui/dropdown-menu'
 import { PROVIDER_FAST_MODELS, PROVIDER_VISION_MODELS, type LlmProvider } from '@shared/types'
+import { useAvailableModels } from './useAvailableModels'
 import { cn } from '@renderer/lib/utils'
 
 /**
@@ -37,8 +38,9 @@ export function ModelReaskMenu({
   align?: 'start' | 'end'
 }) {
   const { t } = useTranslation()
-  const fastModels = PROVIDER_FAST_MODELS[provider] ?? []
-  const visionModels = PROVIDER_VISION_MODELS[provider] ?? []
+  const available = useAvailableModels()
+  const fastModels = available(provider, PROVIDER_FAST_MODELS[provider] ?? [])
+  const visionModels = available(provider, PROVIDER_VISION_MODELS[provider] ?? [])
 
   const label = value
     ? value.includes('/')

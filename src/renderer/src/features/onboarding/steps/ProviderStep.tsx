@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
-import type { LlmProvider } from '@shared/types'
+import type { AppSettings, LlmProvider } from '@shared/types'
 import type { StepProps } from '../types'
+import { matchPreset, presetPatch, SETUP_PRESETS, type PresetId } from '../presets'
 import { StepFooter } from './StepFooter'
 
 type BadgeKey = 'recommended' | 'no_key'
@@ -31,7 +33,10 @@ const BADGE_STYLES: Record<BadgeKey, string> = {
   no_key: 'border-border text-muted-foreground'
 }
 
+type Choice = PresetId | 'manual'
+
 export function ProviderStep({
+  settings,
   draftProvider,
   setDraftProvider,
   update,
@@ -39,6 +44,22 @@ export function ProviderStep({
   goBack
 }: StepProps) {
   const { t } = useTranslation()
+  const [choice, setChoice] = useState<Choice>(() => matchPreset(settings) ?? 'manual')
+
+  async function next(): Promise<void> {
+    const preset = SETUP_PRESETS.find((p) => p.id === choice)
+    if (preset) {
+      const patch = presetPatch(preset, settings)
+      for (const key of Object.keys(patch) as Array<keyof AppSettings>) {
+        await update(key, patch[key] as never)
+      }
+      setDraftProvider(preset.llmProvider)
+    } else {
+      await update('llmProvider', draftProvider)
+    }
+    goNext()
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -48,27 +69,34 @@ export function ProviderStep({
         </p>
       </div>
       <div className="flex flex-col gap-1.5">
-        {OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            aria-pressed={draftProvider === opt.id}
-            onClick={() => setDraftProvider(opt.id)}
-            className={cn(
-              'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
-              draftProvider === opt.id
-                ? 'border-primary/60 bg-primary/10'
-                : 'border-border bg-card/40 hover:border-border/80 hover:bg-accent'
-            )}
-          >
-            <div
-              aria-hidden
-              className={cn(
-                'mt-1 size-2 shrink-0 rounded-full',
-                draftProvider === opt.id ? 'bg-primary' : 'bg-muted-foreground/40'
+        {[...SETUP_PRESETS.map((p) => p.id), 'manual' as const].map((id) => (
+          <Option key={id} selected={choice === id} onSelect={() => setChoice(id)}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-body">{t(`onboarding.presets.${id}.label`)}</span>
+              {id !== 'manual' && (
+                <span className="rounded border border-border px-1 font-mono text-meta text-muted-foreground">
+                  {t(`onboarding.presets.${id}.price`)}
+                </span>
               )}
-            />
-            <div className="min-w-0 flex-1">
+            </div>
+            <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
+              {t(`onboarding.presets.${id}.blurb`)}
+            </div>
+          </Option>
+        ))}
+      </div>
+
+      {choice === 'manual' && (
+        <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
+          <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
+            {t('onboarding.provider.manual_label')}
+          </div>
+          {OPTIONS.map((opt) => (
+            <Option
+              key={opt.id}
+              selected={draftProvider === opt.id}
+              onSelect={() => setDraftProvider(opt.id)}
+            >
               <div className="flex items-center gap-2">
                 <span className="text-body">
                   {t(`onboarding.provider.options.${opt.id}.label`)}
@@ -87,23 +115,50 @@ export function ProviderStep({
               <div className="mt-0.5 text-small leading-relaxed text-muted-foreground">
                 {t(`onboarding.provider.options.${opt.id}.blurb`)}
               </div>
-            </div>
-          </button>
-        ))}
-      </div>
+            </Option>
+          ))}
+        </div>
+      )}
+
       <StepFooter>
         <Button variant="ghost" onClick={goBack}>
           {t('common.back')}
         </Button>
-        <Button
-          onClick={async () => {
-            await update('llmProvider', draftProvider)
-            goNext()
-          }}
-        >
-          {t('common.next')}
-        </Button>
+        <Button onClick={() => void next()}>{t('common.next')}</Button>
       </StepFooter>
     </div>
+  )
+}
+
+function Option({
+  selected,
+  onSelect,
+  children
+}: {
+  selected: boolean
+  onSelect(): void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
+        selected
+          ? 'border-primary/60 bg-primary/10'
+          : 'border-border bg-card/40 hover:border-border/80 hover:bg-accent'
+      )}
+    >
+      <div
+        aria-hidden
+        className={cn(
+          'mt-1 size-2 shrink-0 rounded-full',
+          selected ? 'bg-primary' : 'bg-muted-foreground/40'
+        )}
+      />
+      <div className="min-w-0 flex-1">{children}</div>
+    </button>
   )
 }

@@ -14,6 +14,7 @@
   "overlay": {
     "streaming": "streaming…",
     "answer_truncated": "answer cut off — hit the length limit.",
+    "model_replaced": "{{from}} is no longer available — {{to}} answered instead. Pick another model in Settings → AI.",
     "continue": "continue",
     "copy_answer": "Copy answer",
     "api_keys_missing_title": "API keys not configured",
@@ -376,9 +377,11 @@
           "description": "Parakeet v3 on this computer: 25 European languages including Russian; Whisper for the rest."
         }
       },
-      "test_connection": "Test",
-      "test_ok": "Connection verified",
-      "test_failed": "Failed: {{error}}",
+      "test_connection": "Check",
+      "test_ok": "Works",
+      "test_failed": "Doesn't work: {{error}}",
+      "test_invalid_key": "The key didn't work — check that you copied all of it.",
+      "checking": "checking…",
       "fallback_auto": "Auto",
       "fallback_auto_hint": "Fill with every provider that has a key, in a sensible order",
       "ollama_recommended_label": "Recommended models",
@@ -685,7 +688,7 @@
     "description": "Pick your languages and an AI provider, add keys, and check your audio.",
     "steps": {
       "language": "Language",
-      "provider": "Provider",
+      "provider": "Setup",
       "keys": "Keys",
       "audio": "Audio",
       "done": "Done",
@@ -703,8 +706,9 @@
       "answers_hint": "Auto answers in the language of the question. Change it any time in Settings → General."
     },
     "provider": {
-      "title": "Who answers?",
-      "body": "Pick the AI service for answers — you can change it later in Settings. Cloud services answer faster; Ollama runs entirely on your computer.",
+      "title": "How do you want to set up Zanban?",
+      "body": "Pick a ready setup — services and models are chosen for you. You can change it any time in Settings.",
+      "manual_label": "who answers",
       "recommended_badge": "recommended",
       "no_key_badge": "no key",
       "options": {
@@ -732,6 +736,27 @@
           "label": "Ollama (local)",
           "blurb": "Everything on your computer, no key. Needs Ollama installed."
         }
+      }
+    },
+    "presets": {
+      "recommended": {
+        "label": "Recommended",
+        "price": "≈ $0.02 / hour",
+        "blurb": "One Vercel AI Gateway key. Answers by Claude Haiku 5.5 — clear and well-structured; speech is recognized on this computer (Parakeet)."
+      },
+      "quality": {
+        "label": "Best quality",
+        "price": "≈ $0.55 / hour",
+        "blurb": "Vercel AI Gateway and ElevenLabs keys. Answers by GPT-6.1 Terra and the most accurate cloud speech recognition."
+      },
+      "private": {
+        "label": "Fully private",
+        "price": "free",
+        "blurb": "No keys: Ollama answers and speech is recognized on this computer. Needs Ollama installed."
+      },
+      "manual": {
+        "label": "Set up manually",
+        "blurb": "Pick the answer service yourself; speech recognition comes next."
       }
     },
     "keys": {

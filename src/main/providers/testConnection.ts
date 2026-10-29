@@ -1,12 +1,26 @@
 import type { LlmProvider } from '../../shared/types.js'
 import { PROVIDER_MODEL_DEFAULTS } from '../../shared/types.js'
 import { getSettings } from '../settings.js'
+import { gatewayCallOptions } from '../ai/models.js'
 import { checkOllama } from '../services/ollamaManager.js'
 import { getLlmProviderById } from './registry.js'
 
 export interface ProviderTestResult {
   ok: boolean
   message?: string
+  reason?: 'invalid_key'
+}
+
+// The gateway SDK colors its error messages for a terminal.
+const ANSI_COLOR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+const KEY_REJECTED =
+  /unauthenticated|unauthori[sz]ed|invalid[ _-]?(?:api[ _-]?)?key|incorrect api key|\b401\b/i
+
+function failure(err: unknown): ProviderTestResult {
+  const message = (err instanceof Error ? err.message : String(err)).replace(ANSI_COLOR, '')
+  return KEY_REJECTED.test(message)
+    ? { ok: false, message, reason: 'invalid_key' }
+    : { ok: false, message }
 }
 
 /**
@@ -49,7 +63,7 @@ export async function testProviderConnection(id: LlmProvider): Promise<ProviderT
     })
     return { ok: true }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    return failure(err)
   }
 }
 
@@ -65,14 +79,15 @@ async function probeGateway(): Promise<ProviderTestResult> {
     const { createGateway } = await import('@ai-sdk/gateway')
     const { generateText } = await import('ai')
     const gw = createGateway({ apiKey: settings.vercelApiKey! })
+    const model = PROVIDER_MODEL_DEFAULTS['vercel-gateway'].fast
     await generateText({
-      model: gw(PROVIDER_MODEL_DEFAULTS['vercel-gateway'].fast),
+      model: gw(model),
       prompt: 'ping',
       maxOutputTokens: 1,
-      temperature: 0
+      ...gatewayCallOptions(model, 0)
     })
     return { ok: true }
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    return failure(err)
   }
 }

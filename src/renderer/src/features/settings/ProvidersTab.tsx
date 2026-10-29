@@ -1,24 +1,16 @@
-import { useEffect, useId, useState } from 'react'
-import {
-  Lock,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Plug,
-  Download,
-  AlertTriangle
-} from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Lock, RefreshCw, CheckCircle2, Loader2, Plug, Download, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
-import { PROVIDER_FAST_MODELS } from '@shared/types'
-import { isValidOllamaHost } from '@shared/settingsBoundary'
+import { DEFAULT_SETTINGS, PROVIDER_FAST_MODELS } from '@shared/types'
+import { isRedactedSecret, isValidOllamaHost } from '@shared/settingsBoundary'
 import { Textarea } from '@renderer/components/ui/textarea'
-import type { OllamaHealth as OllamaHealthType, ProviderTestResult } from '@shared/api'
+import type { OllamaHealth as OllamaHealthType } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
 import { ActiveFirst } from './ActiveFirst'
+import { ProviderCheckResult, useProviderCheck } from './ProviderCheck'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
 import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
@@ -61,10 +53,14 @@ interface SttProviderEntry {
 }
 
 const STT_CARDS: SttProviderEntry[] = [
-  { value: 'deepgram', badge: 'recommended', keyUrl: 'https://console.deepgram.com/' },
+  { value: 'deepgram', badge: null, keyUrl: 'https://console.deepgram.com/' },
   { value: 'google', badge: null, keyUrl: 'https://console.cloud.google.com/apis/credentials' },
   { value: 'openai-whisper', badge: null, keyUrl: 'https://platform.openai.com/api-keys' },
-  { value: 'elevenlabs', badge: null, keyUrl: 'https://elevenlabs.io/app/settings/api-keys' },
+  {
+    value: 'elevenlabs',
+    badge: 'recommended',
+    keyUrl: 'https://elevenlabs.io/app/settings/api-keys'
+  },
   { value: 'local-whisper', badge: 'local' }
 ]
 
@@ -106,8 +102,8 @@ export function ProvidersTab({ settings, update }: Props) {
       // Restore the pre-privacy picks when we have a snapshot; otherwise fall
       // back to the cloud defaults (fresh install / never toggled before).
       const snap = settings.privacyModeSnapshot
-      update('llmProvider', snap?.llmProvider ?? 'vercel-gateway')
-      update('sttProvider', snap?.sttProvider ?? 'deepgram')
+      update('llmProvider', snap?.llmProvider ?? DEFAULT_SETTINGS.llmProvider)
+      update('sttProvider', snap?.sttProvider ?? DEFAULT_SETTINGS.sttProvider)
       update('privacyModeSnapshot', null)
     }
   }
@@ -287,23 +283,25 @@ function PrivacyModeRow({ active, onToggle }: { active: boolean; onToggle(v: boo
  * failed with the provider's own error text — distinct from the
  * config-presence dot, which only knows whether a key string is set.
  */
-function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; disabled?: boolean }) {
+function ProviderTestButton({
+  provider,
+  savedKey
+}: {
+  provider: LlmProvider
+  /** The stored key; main sends it back redacted once it has been saved. */
+  savedKey: string | null
+}) {
   const { t } = useTranslation()
-  const [state, setState] = useState<'idle' | 'testing'>('idle')
-  const [result, setResult] = useState<ProviderTestResult | null>(null)
+  const { testing, result, check } = useProviderCheck(provider)
+  const checkedKey = useRef(savedKey)
 
-  async function run() {
-    setState('testing')
-    setResult(null)
-    try {
-      const res = await window.zanban.providers.testConnection(provider)
-      setResult(res)
-    } catch (err) {
-      setResult({ ok: false, message: errorMessage(err) })
-    } finally {
-      setState('idle')
-    }
-  }
+  // A newly saved key comes back as a fresh redacted marker: check it right
+  // away instead of leaving the first call of a meeting to find it's wrong.
+  useEffect(() => {
+    if (!savedKey || savedKey === checkedKey.current || !isRedactedSecret(savedKey)) return
+    checkedKey.current = savedKey
+    void check()
+  }, [savedKey, check])
 
   return (
     <div className="flex items-center gap-2">
@@ -312,35 +310,13 @@ function ProviderTestButton({ provider, disabled }: { provider: LlmProvider; dis
         variant="outline"
         size="sm"
         className="h-7 gap-1.5 px-2.5 text-small"
-        disabled={disabled || state === 'testing'}
-        onClick={() => void run()}
+        disabled={!savedKey || testing}
+        onClick={() => void check()}
       >
-        {state === 'testing' ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Plug className="size-3" />
-        )}
+        <Plug className="size-3" />
         {t('settings.providers.test_connection')}
       </Button>
-      {result && (
-        <span
-          className={cn(
-            'flex min-w-0 items-center gap-1 text-small',
-            result.ok ? 'text-success' : 'text-warn'
-          )}
-        >
-          {result.ok ? (
-            <CheckCircle2 className="size-3 shrink-0" />
-          ) : (
-            <XCircle className="size-3 shrink-0" />
-          )}
-          <span className="truncate">
-            {result.ok
-              ? (result.message ?? t('settings.providers.test_ok'))
-              : t('settings.providers.test_failed', { error: result.message ?? '' })}
-          </span>
-        </span>
-      )}
+      <ProviderCheckResult testing={testing} result={result} />
     </div>
   )
 }
@@ -492,7 +468,7 @@ function LlmCredentials({
           value={settings[field.settingsKey] ?? ''}
           onChange={(v) => update(field.settingsKey, v || null)}
         />
-        <ProviderTestButton provider={provider} disabled={!settings[field.settingsKey]} />
+        <ProviderTestButton provider={provider} savedKey={settings[field.settingsKey] ?? null} />
       </div>
     )
   }
