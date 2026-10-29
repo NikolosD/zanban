@@ -102,6 +102,17 @@ describe('embedder warm-up', () => {
     expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    { shape: 'has no retrieval settings', persona: {} },
+    { shape: 'was deleted', persona: null }
+  ])('loads the embedder when the active persona $shape', async ({ persona }) => {
+    mocks.activePersonaId = 'builtin:general'
+    mocks.persona = persona
+    mocks.emit(running('a'))
+    await flush()
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+  })
+
   it('treats a failed load as a warning and tries again at the next session', async () => {
     mocks.getLocalEmbedder.mockResolvedValueOnce(null)
     expect(() => mocks.emit(running('a'))).not.toThrow()
