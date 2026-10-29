@@ -8,7 +8,8 @@ vi.mock('./vectorStore.js', () => ({
   search: async () => hits.value
 }))
 
-const { retrieve, retrieveContext, looksLikeHistoryQuestion } = await import('./ragRetriever.js')
+const { retrieve, retrieveContext, looksLikeHistoryQuestion, selectHits } =
+  await import('./ragRetriever.js')
 
 function hit(over: Partial<RetrievedChunk>): RetrievedChunk {
   return {
@@ -21,6 +22,11 @@ function hit(over: Partial<RetrievedChunk>): RetrievedChunk {
     text: over.text ?? 'some text',
     distance: over.distance ?? 0.5
   }
+}
+
+// Distinct words per tag, so two fragments never read as near-duplicates.
+function words(count: number, tag: string): string {
+  return Array.from({ length: count }, (_, i) => `${tag}${i}`).join(' ')
 }
 
 beforeEach(() => {
@@ -43,8 +49,8 @@ describe('retrieve', () => {
   it('labels and tags doc / session / recap sources distinctly', async () => {
     hits.value = [
       hit({ id: 1, sourceKind: 'doc', sourceLabel: 'resume.pdf', text: 'cv', distance: 0.2 }),
-      hit({ id: 2, sourceKind: 'session', sourceId: 'abcdef0123', text: 'call', distance: 0.3 }),
-      hit({ id: 3, sourceKind: 'recap', sourceId: 'fedcba9876', text: 'recap', distance: 0.4 })
+      hit({ id: 2, sourceKind: 'session', sourceId: 'abcdef0123', text: 'call', distance: 0.25 }),
+      hit({ id: 3, sourceKind: 'recap', sourceId: 'fedcba9876', text: 'recap', distance: 0.3 })
     ]
     const r = await retrieve('q')
     const byId = new Map(r.sources.map((s) => [s.id, s]))
@@ -93,10 +99,21 @@ describe('retrieve', () => {
   it('drops hits much farther than the best one', async () => {
     hits.value = [
       hit({ id: 1, text: 'alpha', distance: 0.6 }),
-      hit({ id: 2, text: 'beta', distance: 0.75 }),
-      hit({ id: 3, text: 'gamma', distance: 0.95 })
+      hit({ id: 2, text: 'beta', distance: 0.7 }),
+      hit({ id: 3, text: 'gamma', distance: 0.75 })
     ]
     expect((await retrieve('q')).sources.map((s) => s.id)).toEqual([1, 2])
+  })
+
+  it('injects at most about 400 words of fragments, closest first', async () => {
+    hits.value = [1, 2, 3, 4, 5, 6].map((id) =>
+      hit({ id, text: words(90, `f${id}w`), distance: 0.5 + id / 1000 })
+    )
+    const r = await retrieve('q')
+    expect(r.sources.map((s) => s.id)).toEqual([1, 2, 3, 4])
+    expect(r.prompt).toContain('[4] past meeting')
+    expect(r.prompt).not.toContain('[5]')
+    expect(r.prompt).not.toContain('f5w0')
   })
 
   it('dedupes near-identical fragments, keeping the closest', async () => {
@@ -147,6 +164,103 @@ describe('retrieve', () => {
     expect(empty.sources).toEqual([])
     expect((await retrieve('Что мы обсуждали на прошлой встрече?')).prompt).toContain('No matching')
     expect((await retrieve('How do I reverse a linked list?')).prompt).toBe('')
+  })
+})
+
+describe('selectHits', () => {
+  const ids = (selected: RetrievedChunk[]): number[] => selected.map((h) => h.id)
+
+  describe('relative cutoff', () => {
+    it('keeps a hit within 0.12 of the best one', () => {
+      const selected = selectHits(
+        [
+          hit({ id: 1, text: 'alpha', distance: 0.6 }),
+          hit({ id: 2, text: 'beta', distance: 0.71 })
+        ],
+        6,
+        1.16
+      )
+      expect(ids(selected)).toEqual([1, 2])
+    })
+
+    it('drops a hit more than 0.12 behind the best one, and everything after it', () => {
+      const selected = selectHits(
+        [
+          hit({ id: 1, text: 'alpha', distance: 0.6 }),
+          hit({ id: 2, text: 'beta', distance: 0.74 }),
+          hit({ id: 3, text: 'gamma', distance: 0.75 })
+        ],
+        6,
+        1.16
+      )
+      expect(ids(selected)).toEqual([1])
+    })
+
+    it('measures from the best hit that survives the transcript window filter', () => {
+      const windowStart = Date.UTC(2026, 0, 2, 12)
+      const selected = selectHits(
+        [
+          hit({ id: 1, sourceId: 'live', text: 'recent', ts: windowStart + 1000, distance: 0.4 }),
+          hit({ id: 2, text: 'alpha', distance: 0.9 }),
+          hit({ id: 3, text: 'beta', distance: 1.0 })
+        ],
+        6,
+        1.16,
+        { currentSessionId: 'live', transcriptWindowStart: windowStart }
+      )
+      expect(ids(selected)).toEqual([2, 3])
+    })
+  })
+
+  describe('injected word budget', () => {
+    const budgeted = (sizes: number[]): RetrievedChunk[] =>
+      sizes.map((size, i) =>
+        hit({ id: i + 1, text: words(size, `f${i + 1}w`), distance: 0.5 + i / 1000 })
+      )
+
+    it('allows exactly 400 words', () => {
+      expect(ids(selectHits(budgeted([100, 100, 100, 100]), 6, 1.16))).toEqual([1, 2, 3, 4])
+    })
+
+    it('stops before the hit that would take the total past 400 words', () => {
+      expect(ids(selectHits(budgeted([100, 100, 100, 101]), 6, 1.16))).toEqual([1, 2, 3])
+    })
+
+    it('keeps rank order instead of skipping ahead to a smaller fragment that fits', () => {
+      expect(ids(selectHits(budgeted([150, 150, 150, 20]), 6, 1.16))).toEqual([1, 2])
+    })
+
+    it('keeps the best hit even when it is over the budget on its own', () => {
+      expect(ids(selectHits(budgeted([500, 10]), 6, 1.16))).toEqual([1])
+    })
+
+    it('spends no budget on a near-duplicate it skips', () => {
+      const text = words(150, 'same')
+      const selected = selectHits(
+        [
+          hit({ id: 1, text, distance: 0.5 }),
+          hit({ id: 2, text, distance: 0.501 }),
+          hit({ id: 3, text: words(200, 'other'), distance: 0.502 })
+        ],
+        6,
+        1.16
+      )
+      expect(ids(selected)).toEqual([1, 3])
+    })
+  })
+
+  it('applies the absolute threshold, the fragment limit and the transcript window', () => {
+    const windowStart = Date.UTC(2026, 0, 2, 12)
+    const all = [
+      hit({ id: 1, sourceId: 'live', text: 'recent', ts: windowStart + 1000, distance: 0.4 }),
+      hit({ id: 2, text: 'alpha', distance: 0.5 }),
+      hit({ id: 3, text: 'beta', distance: 0.51 }),
+      hit({ id: 4, text: 'gamma', distance: 0.52 }),
+      hit({ id: 5, text: 'far', distance: 1.2 })
+    ]
+    const opts = { currentSessionId: 'live', transcriptWindowStart: windowStart }
+    expect(ids(selectHits(all, 2, 1.16, opts))).toEqual([2, 3])
+    expect(ids(selectHits(all, 6, 0.505, opts))).toEqual([2])
   })
 })
 
