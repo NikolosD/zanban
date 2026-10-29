@@ -46,8 +46,13 @@ export interface GatewayCallOptions {
 }
 
 // The default models as the catalog lists them, for answers asked before it
-// loads: Haiku 5.5 would reject the temperature and think before answering.
+// loads: Terra and Haiku 5.5 would think before answering, and Haiku would
+// reject the temperature.
 const KNOWN_MODELS: Record<string, CatalogModel> = {
+  'openai/gpt-6.1-terra': {
+    id: 'openai/gpt-6.1-terra',
+    reasoning_options: [{ type: 'effort', values: ['none', 'low'] }]
+  },
   'anthropic/claude-haiku-5.5': {
     id: 'anthropic/claude-haiku-5.5',
     temperature: false,

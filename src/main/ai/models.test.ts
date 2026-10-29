@@ -150,6 +150,10 @@ describe('gatewayCallOptions', () => {
       'fetch',
       vi.fn(() => new Promise(() => {}))
     )
+    expect(gatewayCallOptions('openai/gpt-6.1-terra', 0.4)).toEqual({
+      temperature: 0.4,
+      providerOptions: { openai: { reasoningEffort: 'none' } }
+    })
     expect(gatewayCallOptions('anthropic/claude-haiku-5.5', 0.4)).toEqual({
       temperature: undefined,
       providerOptions: { anthropic: { thinking: { type: 'disabled' } } }
@@ -165,8 +169,10 @@ describe('gatewayCallOptions', () => {
 describe('availableGatewayModel', () => {
   it("swaps a model the catalog dropped for the role's default", () => {
     setGatewayCatalogForTest([{ id: 'anthropic/claude-haiku-5.5' }, { id: 'openai/gpt-6.1-terra' }])
-    expect(availableGatewayModel('openai/gpt-6.1-terra', 'fast')).toBe('openai/gpt-6.1-terra')
-    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('anthropic/claude-haiku-5.5')
+    expect(availableGatewayModel('anthropic/claude-haiku-5.5', 'fast')).toBe(
+      'anthropic/claude-haiku-5.5'
+    )
+    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('openai/gpt-6.1-terra')
   })
 
   it('swaps nothing before the catalog has loaded', () => {

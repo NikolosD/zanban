@@ -751,13 +751,13 @@
     "presets": {
       "recommended": {
         "label": "Рекомендуемый",
-        "price": "≈ $0,02 / час",
-        "blurb": "Один ключ Vercel AI Gateway. Ответы — Claude Haiku 5.5, понятно и по делу; речь распознаётся на этом компьютере (Parakeet)."
+        "price": "≈ $0,15 / час",
+        "blurb": "Один ключ Vercel AI Gateway. Ответы — GPT-6.1 Terra: понятно, по делу, примерно за секунду; речь распознаётся на этом компьютере (Parakeet)."
       },
       "quality": {
         "label": "Максимальное качество",
         "price": "≈ $0,55 / час",
-        "blurb": "Ключи Vercel AI Gateway и ElevenLabs. Ответы — GPT-6.1 Terra и самое точное облачное распознавание речи."
+        "blurb": "Ключи Vercel AI Gateway и ElevenLabs. Те же ответы GPT-6.1 Terra плюс самое точное облачное распознавание речи."
       },
       "private": {
         "label": "Полностью приватно",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, type AppSettings } from '@shared/types'
+import { DEFAULT_SETTINGS, PROVIDER_MODEL_DEFAULTS, type AppSettings } from '@shared/types'
 import { matchPreset, presetPatch, SETUP_PRESETS } from './presets'
 
 const preset = (id: string) => SETUP_PRESETS.find((p) => p.id === id)!
@@ -13,14 +13,22 @@ describe('setup presets', () => {
     expect(matchPreset(DEFAULT_SETTINGS)).toBe('recommended')
   })
 
-  it('applying a preset makes the settings match it, and switching back clears its models', () => {
-    const quality = apply(DEFAULT_SETTINGS, 'quality')
-    expect(matchPreset(quality)).toBe('quality')
-    expect(quality.aiModels['vercel-gateway']?.fast).toBe('openai/gpt-6.1-terra')
+  it('applying a preset makes the settings match it and clears hand-picked gateway models', () => {
+    const custom: AppSettings = {
+      ...DEFAULT_SETTINGS,
+      aiModels: {
+        'vercel-gateway': {
+          ...PROVIDER_MODEL_DEFAULTS['vercel-gateway'],
+          fast: 'openai/gpt-oss-120b'
+        }
+      }
+    }
+    expect(matchPreset(custom)).toBeNull()
 
-    const back = apply(quality, 'recommended')
-    expect(matchPreset(back)).toBe('recommended')
-    expect(back.aiModels['vercel-gateway']).toBeUndefined()
+    const quality = apply(custom, 'quality')
+    expect(matchPreset(quality)).toBe('quality')
+    expect(quality.sttProvider).toBe('elevenlabs')
+    expect(quality.aiModels['vercel-gateway']).toBeUndefined()
   })
 
   it('the private preset turns privacy mode on', () => {

@@ -741,13 +741,13 @@
     "presets": {
       "recommended": {
         "label": "Recommended",
-        "price": "≈ $0.02 / hour",
-        "blurb": "One Vercel AI Gateway key. Answers by Claude Haiku 5.5 — clear and well-structured; speech is recognized on this computer (Parakeet)."
+        "price": "≈ $0.15 / hour",
+        "blurb": "One Vercel AI Gateway key. Answers by GPT-6.1 Terra — clear, to the point, in about a second; speech is recognized on this computer (Parakeet)."
       },
       "quality": {
         "label": "Best quality",
         "price": "≈ $0.55 / hour",
-        "blurb": "Vercel AI Gateway and ElevenLabs keys. Answers by GPT-6.1 Terra and the most accurate cloud speech recognition."
+        "blurb": "Vercel AI Gateway and ElevenLabs keys. The same GPT-6.1 Terra answers plus the most accurate cloud speech recognition."
       },
       "private": {
         "label": "Fully private",
