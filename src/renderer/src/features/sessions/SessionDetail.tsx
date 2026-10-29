@@ -576,7 +576,7 @@ ${q}
     useAi.getState().newRequest(t('session_detail.question_label', { question: q }), id)
     setRequestId(id)
     try {
-      await window.zanban.ai.ask({ requestId: id, prompt })
+      await window.zanban.ai.ask({ requestId: id, prompt, skipRetrieval: true })
     } catch (err) {
       useAi.getState().failRequest(id, errorMessage(err))
     } finally {

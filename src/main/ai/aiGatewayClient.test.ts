@@ -1,7 +1,14 @@
 import type { BrowserWindow } from 'electron'
 import { describe, it, expect, vi } from 'vitest'
 import { IPC } from '../../shared/ipc-channels.js'
-import { ANSWER_LAST_PROMPT, RECAP_PROMPT } from '../../shared/prompts.js'
+import {
+  ANSWER_LAST_PROMPT,
+  FOLLOW_UP_PROMPT,
+  RECAP_PROMPT,
+  SCREENSHOT_DEFAULT_PROMPT,
+  SHORTEN_PROMPT,
+  WHAT_TO_ANSWER_PROMPT
+} from '../../shared/prompts.js'
 import type { TranscriptSegment } from '../../shared/types.js'
 import type { LlmFinishReason, LlmStreamArgs } from '../providers/types.js'
 
@@ -104,38 +111,134 @@ function seg(over: Partial<TranscriptSegment>): TranscriptSegment {
   }
 }
 
+const them = (text: string, over: Partial<TranscriptSegment> = {}): TranscriptSegment =>
+  seg({ ...over, channel: 'system', text })
+const you = (text: string): TranscriptSegment => seg({ channel: 'mic', text })
+
+const NO_SEARCH_PROMPTS: Array<[string, string]> = [
+  ['Shorten', SHORTEN_PROMPT],
+  ['Recap', RECAP_PROMPT],
+  ['Screenshot', SCREENSHOT_DEFAULT_PROMPT],
+  ['Follow-up', FOLLOW_UP_PROMPT]
+]
+const QUESTION_PROMPTS: Array<[string, string]> = [
+  ['Answer last', ANSWER_LAST_PROMPT],
+  ['What to answer', WHAT_TO_ANSWER_PROMPT]
+]
+
+const SPEECH = [
+  {
+    language: 'English',
+    opener: 'Thanks for joining today.',
+    question: 'So, how do you handle database migrations at scale?',
+    followUp: 'We have about ten services and a lot of traffic.',
+    yourQuestion: 'Do you mean schema changes or data backfills?',
+    shortQuestion: 'Right?',
+    remark: 'We shipped the migration last week and everything went fine.'
+  },
+  {
+    language: 'Russian',
+    opener: 'Спасибо, что пришли.',
+    question: 'Как вы подходите к миграциям базы данных в большом проекте?',
+    followUp: 'У нас около десяти сервисов и много трафика.',
+    yourQuestion: 'Вы имеете в виду изменения схемы или перенос данных?',
+    shortQuestion: 'Да?',
+    remark: 'Мы выкатили миграцию на прошлой неделе, и всё прошло хорошо.'
+  }
+]
+
 describe('retrievalQueryFor', () => {
-  it('keeps a free-form user prompt as the query', () => {
-    expect(retrievalQueryFor('what is our Q3 churn?', [seg({ text: 'hello' })])).toBe(
-      'what is our Q3 churn?'
-    )
+  describe('a typed prompt', () => {
+    it('stays the query when it is short', () => {
+      expect(retrievalQueryFor('what is our Q3 churn?', [them('hello')])).toBe(
+        'what is our Q3 churn?'
+      )
+    })
+
+    it('is cut to its last 60 words', () => {
+      const words = Array.from({ length: 200 }, (_, i) => `w${i}`)
+      expect(retrievalQueryFor(words.join(' '), [])).toBe(words.slice(-60).join(' '))
+    })
+
+    it('queries on the question at the end of a prompt that carries a whole transcript', () => {
+      const transcript = Array.from({ length: 300 }, (_, i) => `[Them] line${i}`).join('\n')
+      const prompt = `Answer from the transcript.\n\n<transcript>\n${transcript}\n</transcript>\n\n<question>\nWhat did we decide about pricing?\n</question>`
+      const query = retrievalQueryFor(prompt, [])
+      expect(query.split(/\s+/)).toHaveLength(60)
+      expect(query).toMatch(/line299 <\/transcript> <question> What did we decide about pricing\? /)
+      expect(query).not.toContain('Answer from the transcript')
+      expect(query).not.toContain('line0')
+    })
   })
 
-  it("uses the other speaker's latest final segments for a fixed prompt", () => {
-    const segments = [
-      seg({ channel: 'system', text: 'How do you scale Postgres?' }),
-      seg({ channel: 'mic', text: 'Good question' }),
-      seg({ channel: 'system', text: 'partial', isFinal: false })
-    ]
-    expect(retrievalQueryFor(ANSWER_LAST_PROMPT, segments)).toBe('How do you scale Postgres?')
-  })
+  describe.each(SPEECH)('$language speech', (speech) => {
+    it.each(NO_SEARCH_PROMPTS)('searches nothing for %s', (_name, prompt) => {
+      const segments = [them(speech.opener), them(speech.question), you(speech.remark)]
+      expect(retrievalQueryFor(prompt, segments)).toBe('')
+    })
 
-  it('falls back to the mic channel when the other side said nothing', () => {
-    expect(retrievalQueryFor(RECAP_PROMPT, [seg({ channel: 'mic', text: 'we ship friday' })])).toBe(
-      'we ship friday'
-    )
-  })
+    describe.each(QUESTION_PROMPTS)('%s', (_name, prompt) => {
+      it('queries on the last question the other speaker asked', () => {
+        const segments = [them(speech.opener), them(speech.question), them(speech.followUp)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.question)
+      })
 
-  it('caps the query to the most recent 60 words', () => {
-    const old = seg({ text: Array.from({ length: 50 }, () => 'old').join(' ') })
-    const recent = seg({ text: Array.from({ length: 50 }, () => 'new').join(' ') })
-    const words = retrievalQueryFor(ANSWER_LAST_PROMPT, [old, recent]).split(' ')
-    expect(words).toHaveLength(60)
-    expect(words.filter((w) => w === 'new')).toHaveLength(50)
-  })
+      it('takes the later of two questions', () => {
+        const segments = [them(speech.question), them(speech.opener), them(speech.yourQuestion)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.yourQuestion)
+      })
 
-  it('returns an empty query for a fixed prompt with no transcript', () => {
-    expect(retrievalQueryFor(ANSWER_LAST_PROMPT, [])).toBe('')
+      it("ignores the user's own questions", () => {
+        const segments = [them(speech.question), you(speech.yourQuestion)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.question)
+      })
+
+      it('skips a question too short to search on', () => {
+        const segments = [them(speech.question), them(speech.shortQuestion)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.question)
+      })
+
+      it('joins a question that was split across segments', () => {
+        const words = speech.question.split(' ')
+        const segments = [
+          them(words.slice(0, 3).join(' ')),
+          them(`${words.slice(3).join(' ')} ${speech.followUp}`)
+        ]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.question)
+      })
+
+      it('ignores a question that is still being spoken', () => {
+        const segments = [them(speech.remark), them(speech.question, { isFinal: false })]
+        expect(retrievalQueryFor(prompt, segments)).toBe(speech.remark)
+      })
+
+      it('falls back to their latest words when they asked nothing', () => {
+        const segments = [them(speech.opener), them(speech.remark)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(`${speech.opener} ${speech.remark}`)
+      })
+
+      it('falls back to their latest words when every question is too short', () => {
+        const segments = [them(speech.remark), them(speech.shortQuestion)]
+        expect(retrievalQueryFor(prompt, segments)).toBe(`${speech.remark} ${speech.shortQuestion}`)
+      })
+
+      it('caps that fallback to the most recent 60 words', () => {
+        const old = them(Array.from({ length: 50 }, () => 'old').join(' '))
+        const recent = them(Array.from({ length: 50 }, () => 'new').join(' '))
+        const words = retrievalQueryFor(prompt, [old, recent]).split(' ')
+        expect(words).toHaveLength(60)
+        expect(words.filter((w) => w === 'new')).toHaveLength(50)
+      })
+
+      it('uses the mic channel when the other side said nothing', () => {
+        expect(retrievalQueryFor(prompt, [you(speech.question)])).toBe(speech.question)
+        expect(retrievalQueryFor(prompt, [you(speech.remark)])).toBe(speech.remark)
+      })
+
+      it('returns an empty query when nothing was said', () => {
+        expect(retrievalQueryFor(prompt, [])).toBe('')
+      })
+    })
   })
 })
 
