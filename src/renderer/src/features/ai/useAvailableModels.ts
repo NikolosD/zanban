@@ -1,42 +1,36 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LlmProvider } from '@shared/types'
-
-let catalog: Promise<Set<string> | null> | null = null
-
-function loadCatalog(): Promise<Set<string> | null> {
-  catalog ??= window.zanban.ai
-    .gatewayModels()
-    .then((ids) => {
-      // Not loaded yet (offline, first launch): ask again next time.
-      if (!ids) catalog = null
-      return ids ? new Set(ids) : null
-    })
-    .catch(() => {
-      catalog = null
-      return null
-    })
-  return catalog
-}
+import { servesModel } from '@shared/modelIds'
 
 /**
- * A filter for model pickers: drops curated gateway models the live catalog no
- * longer lists. Other providers' lists, and every list before the catalog
- * loads, pass through unchanged.
+ * A filter for model pickers: drops curated models that the provider's live
+ * model list no longer has. Loads the lists of the given providers; a list
+ * that isn't known (no key, offline, Ollama) leaves its models unchanged.
  */
-export function useAvailableModels(): (provider: LlmProvider, models: string[]) => string[] {
-  const [ids, setIds] = useState<Set<string> | null>(null)
+export function useAvailableModels(
+  ...providers: LlmProvider[]
+): (provider: LlmProvider, models: string[]) => string[] {
+  const [lists, setLists] = useState<Partial<Record<LlmProvider, string[]>>>({})
+  const wanted = [...new Set(providers)].join(',')
   useEffect(() => {
     let alive = true
-    void loadCatalog().then((loaded) => {
-      if (alive) setIds(loaded)
-    })
+    for (const provider of wanted.split(',') as LlmProvider[]) {
+      window.zanban.ai
+        .availableModels(provider)
+        .then((ids) => {
+          if (alive && ids) setLists((prev) => ({ ...prev, [provider]: ids }))
+        })
+        .catch(() => {})
+    }
     return () => {
       alive = false
     }
-  }, [])
+  }, [wanted])
   return useCallback(
-    (provider, models) =>
-      provider === 'vercel-gateway' && ids ? models.filter((m) => ids.has(m)) : models,
-    [ids]
+    (provider, models) => {
+      const ids = lists[provider]
+      return ids ? models.filter((m) => servesModel(ids, m)) : models
+    },
+    [lists]
   )
 }

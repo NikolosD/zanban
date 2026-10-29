@@ -2,9 +2,9 @@ import { z } from 'zod'
 import { IPC } from '../../shared/ipc-channels.js'
 import { ask as aiAsk, stop as aiStop } from '../ai/aiGatewayClient.js'
 import { suggestFollowUps } from '../ai/llm/followUpLlm.js'
-import { catalogLanguageModels, refreshGatewayCatalog } from '../ai/gatewayCatalog.js'
+import { modelIds, refreshModels } from '../ai/providerModels.js'
 import { handleIpc } from './guard.js'
-import { aiAskInputSchema, aiFollowUpsInputSchema } from './schemas.js'
+import { aiAskInputSchema, aiFollowUpsInputSchema, llmProvider } from './schemas.js'
 
 export function registerAiHandlers(): void {
   handleIpc(IPC.ai.ask, (_e, input: unknown) => aiAsk(aiAskInputSchema.parse(input)))
@@ -17,8 +17,9 @@ export function registerAiHandlers(): void {
     const { question, answer } = aiFollowUpsInputSchema.parse(input)
     return suggestFollowUps(question, answer)
   })
-  handleIpc(IPC.ai.gatewayModels, async () => {
-    await refreshGatewayCatalog()
-    return catalogLanguageModels()?.map((m) => m.id) ?? null
+  handleIpc(IPC.ai.availableModels, async (_e, provider: unknown) => {
+    const id = llmProvider.parse(provider)
+    await refreshModels(id)
+    return modelIds(id)
   })
 }

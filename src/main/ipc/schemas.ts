@@ -13,7 +13,7 @@ function oneOf<T extends string>(values: T[]): z.ZodEnum<[T, ...T[]]> {
   return z.enum(values as [T, ...T[]])
 }
 
-const llmProvider = oneOf(Object.keys(PROVIDER_MODEL_DEFAULTS) as LlmProvider[])
+export const llmProvider = oneOf(Object.keys(PROVIDER_MODEL_DEFAULTS) as LlmProvider[])
 const sttProvider = oneOf(STT_PROVIDERS.map((p) => p.value))
 const responseLanguage = oneOf(RESPONSE_LANGUAGES.map((l) => l.value))
 const secret = z.string().nullable()

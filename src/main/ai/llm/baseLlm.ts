@@ -1,6 +1,6 @@
 import type { AiRole } from '../../../shared/types.js'
 import { getSettings } from '../../settings.js'
-import { availableGatewayModel, gatewayCallOptions, modelFor } from '../models.js'
+import { availableModel, gatewayCallOptions, modelFor } from '../models.js'
 import { getActiveLlmProvider } from '../../providers/registry.js'
 
 export interface OneShotArgs {
@@ -39,7 +39,7 @@ export async function generateOneShot(args: OneShotArgs): Promise<string> {
     // selected and broken, we want the error visible (in console + the UI)
     // rather than transparently bleeding requests onto Vercel Gateway.
     return altProvider.generate({
-      model: modelFor(args.role),
+      model: availableModel(altProvider.id, modelFor(args.role), args.role),
       system: args.system,
       prompt: args.prompt,
       temperature: args.temperature ?? 0.2,
@@ -49,7 +49,7 @@ export async function generateOneShot(args: OneShotArgs): Promise<string> {
   }
   const gw = await gateway()
   const { generateText } = await import('ai')
-  const model = availableGatewayModel(modelFor(args.role), args.role)
+  const model = availableModel('vercel-gateway', modelFor(args.role), args.role)
   const result = await generateText({
     model: gw(model),
     system: args.system,

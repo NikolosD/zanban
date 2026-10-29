@@ -72,7 +72,7 @@ export const IPC = {
     sources: 'ai:sources',
     /** Main → renderer: a configured gateway model is gone from the catalog and a default answered. */
     modelReplaced: 'ai:model-replaced',
-    gatewayModels: 'ai:gateway-models'
+    availableModels: 'ai:available-models'
   },
   settings: {
     get: 'settings:get',
