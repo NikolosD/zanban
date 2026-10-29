@@ -6,7 +6,11 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { cn } from '@renderer/lib/utils'
 import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { isRedactedSecret, isValidOllamaHost, redactedSecretMask } from '@shared/settingsBoundary'
-import { ProviderCheckResult, useProviderCheck } from '@renderer/features/settings/ProviderCheck'
+import {
+  ProviderCheckResult,
+  useProviderCheck,
+  useSttCheck
+} from '@renderer/features/settings/ProviderCheck'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
 
@@ -113,6 +117,26 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
     return () => clearTimeout(timer)
   }, [llmDraft, hostInvalid, update, llmField.settingsKey, keyCheck.check])
 
+  // Same for the speech-recognition credentials, once every field is filled.
+  const sttCheck = useSttCheck(stt)
+  const sttDraft = sttFieldsFor(stt)
+    .map((f) => `${f.settingsKey}=${(drafts[f.settingsKey] ?? '').trim()}`)
+    .join('\n')
+  const checkedSttDraft = useRef('')
+  useEffect(() => {
+    const fields = sttFieldsFor(stt)
+    const values = fields.map((f) => (drafts[f.settingsKey] ?? '').trim())
+    if (fields.length === 0 || sttDraft === checkedSttDraft.current) return
+    if (values.some((v) => !v || isRedactedSecret(v))) return
+    const timer = setTimeout(() => {
+      checkedSttDraft.current = sttDraft
+      void Promise.all(fields.map((f, i) => update(f.settingsKey, values[i] as never))).then(
+        sttCheck.check
+      )
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [stt, sttDraft, drafts, update, sttCheck.check])
+
   function setDraft(key: keyof AppSettings, value: string): void {
     setDrafts((d) => ({ ...d, [key as string]: value }))
   }
@@ -217,6 +241,7 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
             onChange={(v) => setDraft(f.settingsKey, v)}
           />
         ))}
+        <ProviderCheckResult testing={sttCheck.testing} result={sttCheck.result} />
 
         {stt === 'google' && (
           <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">

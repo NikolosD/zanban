@@ -1,31 +1,49 @@
 import { useCallback, useState } from 'react'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { LlmProvider } from '@shared/types'
+import type { LlmProvider, SttProvider } from '@shared/types'
 import type { ProviderTestResult } from '@shared/api'
 import { errorMessage } from '@renderer/lib/errors'
 import { cn } from '@renderer/lib/utils'
 
-/** A live probe of an LLM provider's saved credentials (a 1-token call). */
-export function useProviderCheck(provider: LlmProvider): {
+export interface ProviderCheck {
   testing: boolean
   result: ProviderTestResult | null
   check(): Promise<void>
-} {
+}
+
+const probeLlm = (id: LlmProvider) => window.zanban.providers.testConnection(id)
+const probeStt = (id: SttProvider) => window.zanban.providers.testStt(id)
+
+/** A live probe of an LLM provider's saved credentials (a 1-token call). */
+export function useProviderCheck(provider: LlmProvider): ProviderCheck {
+  return useCheck(provider, probeLlm)
+}
+
+/** A free probe of a speech-recognition engine's saved credentials. */
+export function useSttCheck(provider: SttProvider): ProviderCheck {
+  return useCheck(provider, probeStt)
+}
+
+function useCheck<T extends string>(
+  id: T,
+  probe: (id: T) => Promise<ProviderTestResult>
+): ProviderCheck {
   const [testing, setTesting] = useState(false)
-  const [result, setResult] = useState<ProviderTestResult | null>(null)
+  // Kept with the id it belongs to, so switching providers drops a stale verdict.
+  const [checked, setChecked] = useState<{ id: T; result: ProviderTestResult } | null>(null)
   const check = useCallback(async () => {
     setTesting(true)
-    setResult(null)
+    setChecked(null)
     try {
-      setResult(await window.zanban.providers.testConnection(provider))
+      setChecked({ id, result: await probe(id) })
     } catch (err) {
-      setResult({ ok: false, message: errorMessage(err) })
+      setChecked({ id, result: { ok: false, message: errorMessage(err) } })
     } finally {
       setTesting(false)
     }
-  }, [provider])
-  return { testing, result, check }
+  }, [id, probe])
+  return { testing, result: checked?.id === id ? checked.result : null, check }
 }
 
 export function ProviderCheckResult({
