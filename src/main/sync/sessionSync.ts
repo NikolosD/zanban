@@ -2,6 +2,7 @@ import { app, type BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, writeFile, unlink, rename } from 'node:fs/promises'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { sessionManager } from '../transcription/sessionManager.js'
 import { generateSessionTitle } from '../ai/titleGen.js'
 import { deleteRecap, readRecap } from '../services/recap/recapPersistence.js'
@@ -15,6 +16,7 @@ import type {
 } from '../../shared/api.js'
 
 const FLUSH_INTERVAL_MS = 4000
+const RENAME_ATTEMPTS = 15
 
 interface SessionRecord {
   id: string
@@ -275,7 +277,23 @@ export async function recordAiExchange(
 async function writeAtomic(path: string, data: string): Promise<void> {
   const tmp = path + '.tmp'
   await writeFile(tmp, data, 'utf8')
-  await rename(tmp, path)
+  await renameOver(tmp, path)
+}
+
+// Windows won't replace a file while any other handle has it open — the dashboard
+// re-reading the session the moment it stops, Defender, the search indexer. Those
+// handles close within milliseconds, so wait them out (~1 s) instead of losing the save.
+async function renameOver(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await rename(from, to)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      const locked = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY'
+      if (!locked || attempt === RENAME_ATTEMPTS) throw err
+      await sleep(attempt * 10)
+    }
+  }
 }
 
 async function persist(rec: SessionRecord): Promise<void> {
