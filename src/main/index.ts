@@ -13,6 +13,7 @@ import {
 import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
+import { fitOverlayHeight } from './windows/overlayHeight.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
@@ -313,11 +314,7 @@ app.whenReady().then(async () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) return
     const bounds = overlayWindow.getBounds()
     const display = screen.getDisplayMatching(bounds)
-    const workH = display.workArea.height
-    const margin = 24
-    const min = 120
-    const max = Math.max(min, workH - bounds.y - margin)
-    const next = Math.max(min, Math.min(max, Math.ceil(requested)))
+    const next = fitOverlayHeight(requested, bounds.y, display.workArea)
     const [curW = 0, curH = 0] = overlayWindow.getContentSize()
     if (Math.abs(curH - next) < 2) return
     overlayWindow.setContentSize(curW, next, false)

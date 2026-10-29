@@ -393,7 +393,7 @@ function SearchPill({
   const inputRef = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
-  const [highlight, setHighlight] = useState(0)
+  const [highlight, setHighlight] = useState<number | null>(null)
   const query = text.trim()
   const ragQuery = useDebouncedValue(query, 250)
 
@@ -479,9 +479,12 @@ function SearchPill({
     () => [...settingsHits, ...sessionHits, ...ragHits],
     [settingsHits, sessionHits, ragHits]
   )
-  // The trailing "Ask Zanban" row sits at index matches.length. Clamp so a
+  // The trailing "Ask Zanban" row sits at index matches.length. Until a row is
+  // picked, Enter takes the first instant match or asks: transcript hits land
+  // a moment later and would change what Enter does mid-typing. Clamp so a
   // shrinking result list never leaves the highlight on a row that's gone.
-  const active = Math.min(highlight, matches.length)
+  const firstPick = settingsHits.length + sessionHits.length > 0 ? 0 : matches.length
+  const active = Math.min(highlight ?? firstPick, matches.length)
   const optionId = (idx: number): string => `${listboxId}-option-${idx}`
 
   function commit(idx: number): void {
@@ -548,7 +551,7 @@ function SearchPill({
           value={text}
           onChange={(e) => {
             setText(e.target.value)
-            setHighlight(0)
+            setHighlight(null)
             if (!open) setOpen(true)
           }}
           onFocus={() => setOpen(true)}

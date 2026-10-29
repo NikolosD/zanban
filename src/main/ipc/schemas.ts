@@ -96,7 +96,8 @@ export const aiAskInputSchema = z.object({
   contextSeconds: amount.optional(),
   imageDataUrl: z.string().startsWith('data:image/').optional(),
   ocrText: z.string().optional(),
-  modelOverride: z.string().optional()
+  modelOverride: z.string().optional(),
+  continueFrom: z.string().min(1).optional()
 })
 
 export const aiFollowUpsInputSchema = z.object({ question: z.string(), answer: z.string() })

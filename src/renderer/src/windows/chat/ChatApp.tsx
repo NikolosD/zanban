@@ -39,8 +39,8 @@ export function ChatApp() {
     inputRef.current?.focus()
   }
 
-  function continueAnswer() {
-    void run({ prompt: 'continue', label: t('overlay.labels.continue') })
+  function continueAnswer(id: string) {
+    void run({ prompt: 'continue', continueFrom: id })
   }
 
   return (
@@ -90,7 +90,9 @@ export function ChatApp() {
                   <FinishNotice
                     finishReason={m.finishReason}
                     answer={m.answer}
-                    onContinue={i === messages.length - 1 && !busy ? continueAnswer : undefined}
+                    onContinue={
+                      i === messages.length - 1 && !busy ? () => continueAnswer(m.id) : undefined
+                    }
                   />
                 )}
               </li>

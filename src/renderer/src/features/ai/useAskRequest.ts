@@ -39,11 +39,14 @@ export interface AskRequestOptions {
   waitForTranscript?: boolean
   /** Override the model for this request only. */
   modelOverride?: string | null
+  /** Id of an answer cut at the length limit: the reply is written onto its end. */
+  continueFrom?: string
 }
 
 export interface UseAskRequest {
   /** Fire a request. Resolves once the ask has been dispatched (not when the
-   *  stream completes). No-op while another request is in flight. */
+   *  stream completes). No-op while another is being dispatched; an answer
+   *  still streaming is stopped, so only one is ever running. */
   run(opts: AskRequestOptions): Promise<void>
   /** Abort the in-flight request, if any. Main finalizes the partial answer. */
   stop(): void
@@ -75,15 +78,27 @@ export function useAskRequest(): UseAskRequest {
     const requestId = crypto.randomUUID()
     try {
       if (opts.waitForTranscript) await awaitTranscriptSettle()
+      for (const m of useAi.getState().messages) {
+        if (m.status === 'streaming') void window.zanban.ai.stop(m.id)
+      }
       const askPrompt = p || SCREENSHOT_DEFAULT_PROMPT
       requestIdRef.current = requestId
-      useAi.getState().newRequest(label, requestId)
+      if (opts.continueFrom) useAi.getState().resumeRequest(opts.continueFrom, requestId)
+      else {
+        useAi.getState().newRequest(label, requestId, {
+          prompt: p,
+          label: opts.label,
+          image,
+          ocr: opts.ocr ?? null
+        })
+      }
       await window.zanban.ai.ask({
         requestId,
         prompt: askPrompt,
         ...(image ? { imageDataUrl: image } : {}),
         ...(opts.ocr ? { ocrText: opts.ocr } : {}),
-        ...(opts.modelOverride ? { modelOverride: opts.modelOverride } : {})
+        ...(opts.modelOverride ? { modelOverride: opts.modelOverride } : {}),
+        ...(opts.continueFrom ? { continueFrom: opts.continueFrom } : {})
       })
     } catch (err) {
       useAi.getState().failRequest(requestId, errorMessage(err))

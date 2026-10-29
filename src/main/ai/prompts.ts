@@ -156,3 +156,11 @@ export function buildUserPrompt(args: BuildPromptArgs): string {
 
   return `<recent_transcript>\n${transcript}\n</recent_transcript>${contextBlock}${retrievedBlock}${ocrBlock}${exchangeBlock}\n\n<user_request>\n${args.userPrompt}\n</user_request>${langReminder}`
 }
+
+/**
+ * The request behind Continue. The answer so far goes back in full: exchange
+ * memory keeps only its opening, too little to pick up where it stopped.
+ */
+export function buildContinuePrompt(request: string, answerSoFar: string): string {
+  return `${request}\n\n<answer_so_far>\n${answerSoFar}\n</answer_so_far>\n\nYour answer above was cut off at the length limit. Continue it from the exact point where it stops. Output only the continuation: don't repeat anything already written and don't add an introduction.`
+}

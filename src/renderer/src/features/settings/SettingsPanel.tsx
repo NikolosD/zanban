@@ -533,6 +533,13 @@ function ModelsTab({
   const hasAnyOverride = (Object.keys(providerOverrides) as AiRole[]).some((r) =>
     providerOverrides[r]?.trim()
   )
+  // Open the disclosure when an override appears (saved config is never hidden
+  // behind it); after that it is the user's to fold, even right after a reset.
+  const [sawOverride, setSawOverride] = useState(false)
+  if (hasAnyOverride !== sawOverride) {
+    setSawOverride(hasAnyOverride)
+    if (hasAnyOverride) setAdvancedOpen(true)
+  }
 
   // Vision can ride a different provider via the visionProvider override.
   // The vision-row's model picker therefore needs to use the override
@@ -554,9 +561,6 @@ function ModelsTab({
     update('aiModels', next)
   }
 
-  // Reveal the override cards when the user opts in OR already has an override
-  // stored (so saved config is never hidden behind a collapsed disclosure).
-  const showAdvanced = advancedOpen || hasAnyOverride
   const visionProviderId = useId()
   const visionModelLabelId = useId()
 
@@ -565,12 +569,12 @@ function ModelsTab({
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
-          aria-expanded={showAdvanced}
+          aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen((o) => !o)}
           className="flex items-center gap-1.5 font-mono text-small uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronRight
-            className={cn('size-3 transition-transform', showAdvanced && 'rotate-90')}
+            className={cn('size-3 transition-transform', advancedOpen && 'rotate-90')}
           />
           {t('settings.ai.advanced_overrides_label')}
         </button>
@@ -586,7 +590,7 @@ function ModelsTab({
         )}
       </div>
 
-      {showAdvanced && (
+      {advancedOpen && (
         <>
           <p className="text-small leading-relaxed text-muted-foreground">
             <Trans
