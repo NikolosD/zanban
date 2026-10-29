@@ -18,6 +18,7 @@ import type { OllamaHealth as OllamaHealthType, ProviderTestResult } from '@shar
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
+import { ActiveFirst } from './ActiveFirst'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
 import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
@@ -116,17 +117,26 @@ export function ProvidersTab({ settings, update }: Props) {
       {/* Privacy mode — single switch that flips both LLM + STT to local. Sits
           at the top because it overrides the provider selection below. */}
       <div className="mb-10">
-        <PrivacyModeRow active={settings.privacyMode} onToggle={togglePrivacy} />
+        {/* Also on when both providers were made local by hand: that setup is
+            already private, and showing it as off reads as a leak. */}
+        <PrivacyModeRow
+          active={
+            settings.privacyMode ||
+            (settings.llmProvider === 'ollama' && settings.sttProvider === 'local-whisper')
+          }
+          onToggle={togglePrivacy}
+        />
       </div>
 
       <Section
         title={t('settings.providers.ai_section_title')}
         hint={t('settings.providers.ai_section_hint')}
       >
-        <div className="flex flex-col gap-2.5">
-          {LLM_PROVIDERS.map((p) => {
+        <ActiveFirst
+          items={LLM_PROVIDERS}
+          active={settings.llmProvider}
+          render={(p) => {
             const active = settings.llmProvider === p.value
-            const status = llmProviderStatus(p.value, settings, ollama)
             return (
               <ProviderCard
                 key={p.value}
@@ -134,7 +144,7 @@ export function ProvidersTab({ settings, update }: Props) {
                 name={t(`settings.providers.llm.${p.value}.name`)}
                 description={t(`settings.providers.llm.${p.value}.description`)}
                 badge={p.badge}
-                status={status}
+                status={llmProviderStatus(p.value, settings, ollama)}
                 keyUrl={p.keyUrl}
                 keyLabel={p.value === 'ollama' ? t('settings.providers.get_ollama') : undefined}
                 active={active}
@@ -151,8 +161,8 @@ export function ProvidersTab({ settings, update }: Props) {
                 )}
               </ProviderCard>
             )
-          })}
-        </div>
+          }}
+        />
         <LlmFallbackOrderField settings={settings} update={update} />
       </Section>
 
@@ -176,8 +186,10 @@ export function ProvidersTab({ settings, update }: Props) {
 function SttProviderCards({ settings, update }: Props) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-2.5">
-      {STT_CARDS.map((p) => {
+    <ActiveFirst
+      items={STT_CARDS}
+      active={settings.sttProvider}
+      render={(p) => {
         const active = settings.sttProvider === p.value
         return (
           <ProviderCard
@@ -193,8 +205,8 @@ function SttProviderCards({ settings, update }: Props) {
             {active && <SttCredentials provider={p.value} settings={settings} update={update} />}
           </ProviderCard>
         )
-      })}
-    </div>
+      }}
+    />
   )
 }
 
@@ -511,7 +523,10 @@ function LlmCredentials({
           </Button>
         </div>
         {ollama && (
-          <div className={cn('text-small', ok ? 'text-success' : 'text-warn')}>
+          <div
+            className={cn('text-small', ok ? 'text-success' : 'text-warn')}
+            title={ok ? undefined : (ollama.error ?? undefined)}
+          >
             {ok
               ? t(
                   modelCount === 1
@@ -519,9 +534,7 @@ function LlmCredentials({
                     : 'settings.providers.ollama_connected_other',
                   { count: modelCount }
                 )
-              : t('settings.providers.ollama_not_reachable', {
-                  error: ollama.error ?? t('settings.providers.ollama_unknown_error')
-                })}
+              : t('settings.providers.ollama_not_reachable')}
           </div>
         )}
         {ok && ollama.models.length > 0 && (

@@ -230,6 +230,27 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
   )
 }
 
+// Hints name the site to get a key from; make those names clickable.
+const SITE = /((?:[a-z0-9-]+\.)+(?:com|dev|io)(?:\/[\w/-]*)?)/gi
+
+function withSiteLinks(text: string): React.ReactNode[] {
+  return text.split(SITE).map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={`https://${part}`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-foreground underline decoration-white/30 underline-offset-2 hover:decoration-white/70"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  )
+}
+
 function KeyRow({
   field,
   labelKey,
@@ -287,7 +308,7 @@ function KeyRow({
         />
       )}
       <div id={hintId} className="text-small text-muted-foreground">
-        {t(hintKey)}
+        {withSiteLinks(t(hintKey))}
       </div>
     </div>
   )

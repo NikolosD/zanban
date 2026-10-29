@@ -637,13 +637,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   overlayOpacity: 1,
   overlayAnswerMaxHeight: 320,
   recap: {
-    autoGenerate: false,
+    autoGenerate: true,
     tone: 'concise',
     language: 'auto',
     modelOverride: null
   },
   hotkeys: {
-    toggleSession: 'Control+Shift+Alt+R',
+    toggleSession: 'Control+Alt+R',
     toggleOverlay: 'Control+\\',
     askAi: 'Control+Shift+Space',
     answerLast: 'Control+Shift+Return',

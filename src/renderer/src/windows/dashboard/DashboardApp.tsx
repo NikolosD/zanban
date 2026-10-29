@@ -43,6 +43,8 @@ import {
   toastSessionError
 } from '@renderer/features/transcript/sessionStart'
 import { Button } from '@renderer/components/ui/button'
+import { Kbd } from '@renderer/components/ui/kbd'
+import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
 import {
   Dialog,
   DialogContent,
@@ -317,13 +319,16 @@ function Header({
           add spacing; the badge carries its own margin when visible. */}
       <div className="flex shrink-0 items-center">
         <JobsBadge />
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onSettings}
           aria-label={t('settings.title')}
-          className="font-mono text-small uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
         >
+          <SettingsIcon className="size-4" aria-hidden />
           {t('dashboard.settings')}
-        </button>
+        </Button>
       </div>
     </header>
   )
@@ -1127,6 +1132,9 @@ function firstSentence(text: string): string {
   return /^[\s\S]*?[.!?…](?=\s|$)/.exec(trimmed)?.[0] ?? trimmed
 }
 
+// The three shortcuts a first call needs; the same set the onboarding wizard ends with.
+const QUICK_HOTKEYS = ['toggleOverlay', 'answerLast', 'toggleSession'] as const
+
 function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
   // Empty state: typographic, not iconographic. A single faint dot anchors
   // the column and echoes the recording-dot motif used elsewhere — quieter
@@ -1149,6 +1157,29 @@ function EmptyMeetings({ onOpenSettings }: { onOpenSettings: () => void }) {
           components={[<span key="0" className="text-foreground" />]}
         />
       </p>
+      {settings && (
+        <div className="mt-4 flex w-full max-w-md flex-col gap-2">
+          <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
+            {t('onboarding.done.hotkeys_title')}
+          </div>
+          <div className="flex flex-col divide-y divide-border/50 rounded-md border border-border/60">
+            {QUICK_HOTKEYS.map((k) => (
+              <div key={k} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span className="text-body text-foreground/90">
+                  {t(`onboarding.done.hotkeys.${k}`)}
+                </span>
+                <span className="flex items-center gap-1">
+                  {acceleratorTokens(settings.hotkeys[k]).map((part, i) => (
+                    <Kbd key={i} size="md">
+                      {part}
+                    </Kbd>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {apiKeysMissing && (
         <div className="mt-2 flex max-w-md flex-col items-start gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2">
           <div className="font-mono text-meta uppercase tracking-wider text-warn">
