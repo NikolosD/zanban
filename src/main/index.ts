@@ -33,7 +33,12 @@ import { createCropperWindow } from './windows/cropperWindow.js'
 import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
 import { createTray, destroyTray } from './tray.js'
-import { registerShortcuts, reRegisterShortcuts, unregisterShortcuts } from './shortcuts.js'
+import {
+  registerShortcuts,
+  reRegisterShortcuts,
+  shortcutConflicts,
+  unregisterShortcuts
+} from './shortcuts.js'
 import { registerJobsWindow, trackJob } from './services/jobsManager.js'
 import { installLogger } from './services/logger.js'
 import { registerAiHandlers } from './ipc/ai.js'
@@ -386,6 +391,7 @@ app.whenReady().then(async () => {
   // Every settings exit to a renderer goes through redactSettings — decrypted
   // keys stay in main.
   handleIpc(IPC.settings.get, () => redactSettings(getSettings()))
+  handleIpc(IPC.settings.hotkeyConflicts, () => shortcutConflicts())
   handleIpc(IPC.settings.set, (_e, input: unknown) => {
     const patch = settingsPatchSchema.parse(input)
     const next = redactSettings(setSettings(patch))

@@ -657,17 +657,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
     language: 'auto',
     modelOverride: null
   },
+  // Global hotkeys take these keys away from every other app while Zanban runs,
+  // so the defaults skip Save As, Teams call controls and IDE staples. Ctrl+Alt
+  // is AltGr on Polish, German, Czech… layouts, so it only pairs with keys no
+  // common layout types a character with (R, H, J).
   hotkeys: {
     toggleSession: 'Control+Alt+R',
     toggleOverlay: 'Control+\\',
     askAi: 'Control+Shift+Space',
     answerLast: 'Control+Shift+Return',
-    hideShow: 'Control+Shift+H',
-    screenshot: 'Control+Shift+S',
-    screenshotAnswer: 'Control+Shift+A',
-    cropper: 'Control+Shift+Alt+S',
-    chat: 'Control+Shift+G',
-    showDashboard: 'Control+Shift+D'
+    hideShow: 'Control+Alt+H',
+    screenshot: 'Control+Shift+1',
+    screenshotAnswer: 'Control+Shift+2',
+    cropper: 'Control+Shift+3',
+    chat: 'Control+Alt+J',
+    showDashboard: 'Control+Alt+Shift+H'
   },
   audio: {
     micDeviceId: null,

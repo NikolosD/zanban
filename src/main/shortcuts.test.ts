@@ -27,7 +27,13 @@ vi.mock('./settings.js', () => ({
   getSettings: () => ({ hotkeys })
 }))
 
-import { registerShortcuts, reRegisterShortcuts, unregisterShortcuts } from './shortcuts'
+import { DEFAULT_SETTINGS } from '../shared/types'
+import {
+  registerShortcuts,
+  reRegisterShortcuts,
+  shortcutConflicts,
+  unregisterShortcuts
+} from './shortcuts'
 
 function noop(): void {}
 const handlers = {
@@ -82,11 +88,44 @@ describe('registerShortcuts', () => {
     expect(unregisterMock).toHaveBeenCalledTimes(10)
   })
 
+  it('remembers the latest failures for a window that loads later', () => {
+    registerMock.mockImplementation((acc: string) => acc !== hotkeys.hideShow)
+    registerShortcuts(handlers)
+    expect(shortcutConflicts()).toEqual([{ action: 'hideShow', accelerator: hotkeys.hideShow }])
+
+    registerMock.mockReturnValue(true)
+    reRegisterShortcuts()
+    expect(shortcutConflicts()).toEqual([])
+  })
+
   it('reRegisterShortcuts is a no-op before any initial registration', () => {
     // Fresh module state isn't trivially resettable here, but after a successful
     // register the cached handlers exist, so re-register should still work.
     registerMock.mockReturnValue(true)
     const result = reRegisterShortcuts()
     expect(result.failed).toEqual([])
+  })
+})
+
+describe('default hotkeys', () => {
+  const defaults = Object.values(DEFAULT_SETTINGS.hotkeys)
+
+  it('leave alone the shortcuts other apps rely on during a call', () => {
+    // Save As, Teams accept / decline / hang up, VS Code debug and source control.
+    for (const taken of [
+      'Control+Shift+S',
+      'Control+Shift+A',
+      'Control+Shift+D',
+      'Control+Shift+G',
+      'Control+Shift+H'
+    ]) {
+      expect(defaults).not.toContain(taken)
+    }
+  })
+
+  it('pair Ctrl+Alt only with keys that AltGr layouts do not type with', () => {
+    for (const accelerator of defaults.filter((a) => a.startsWith('Control+Alt+'))) {
+      expect(['R', 'H', 'J']).toContain(accelerator.split('+').at(-1))
+    }
   })
 })

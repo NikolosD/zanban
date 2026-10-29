@@ -607,7 +607,8 @@
       "title": "hotkeys",
       "hint": "Work from any app. Click a shortcut to change it — Esc cancels, ⌫ clears.",
       "reset_all": "Reset all to defaults",
-      "conflict_toast": "Hotkey already in use — {{accelerator}} is taken by another app. Pick a different combination.",
+      "conflict_toast": "{{action}}: {{accelerator}} is taken by another app, so this hotkey doesn't work.",
+      "conflict_change": "Change",
       "conflict_badge": "in use elsewhere"
     },
     "hotkey": {

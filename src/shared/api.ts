@@ -153,6 +153,8 @@ export interface ZanbanApi {
      * the UI can flag the offending binding.
      */
     onHotkeyConflict(cb: (failed: HotkeyConflict[]) => void): () => void
+    /** Hotkeys that failed in the latest registration, including the one at startup. */
+    hotkeyConflicts(): Promise<HotkeyConflict[]>
   }
   sessions: {
     list(): Promise<SessionListItem[]>

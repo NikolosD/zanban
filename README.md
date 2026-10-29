@@ -57,16 +57,18 @@ Releases are unsigned until code-signing secrets are added to the repository. `C
 
 ## Hotkeys (default; rebindable in Settings → Hotkeys)
 
-- `Ctrl+Shift+Alt+R` — start / stop a session
+- `Ctrl+Alt+R` — start / stop a session
 - `Ctrl+\` — toggle overlay
 - `Ctrl+Shift+Space` — focus AI input
 - `Ctrl+Shift+Enter` — answer the other speaker's most recent question from the transcript
-- `Ctrl+Shift+H` — toggle stealth (visible / invisible to screen-share)
-- `Ctrl+Shift+S` — full-screen screenshot → Ask
-- `Ctrl+Shift+A` — full-screen screenshot → instant answer
-- `Ctrl+Shift+Alt+S` — drag a region → OCR Ask
-- `Ctrl+Shift+G` — open the standalone chat window
-- `Ctrl+Shift+D` — force-show the dashboard (escape hatch from stealth + hide-widget)
+- `Ctrl+Alt+H` — toggle stealth (visible / invisible to screen-share)
+- `Ctrl+Shift+1` — full-screen screenshot → Ask
+- `Ctrl+Shift+2` — full-screen screenshot → instant answer
+- `Ctrl+Shift+3` — drag a region → OCR Ask
+- `Ctrl+Alt+J` — open the standalone chat window
+- `Ctrl+Alt+Shift+H` — force-show the dashboard (escape hatch from stealth + hide-widget)
+
+The defaults avoid keys other apps rely on (Save As, Teams call controls, IDE panels). If a hotkey is already taken, Zanban says so when it starts and links to Settings → Hotkeys.
 
 ## Privacy
 
