@@ -851,7 +851,7 @@
         },
         "google_service_account": {
           "label": "JSON сервисного аккаунта (необязательно)",
-          "hint": "Вставьте JSON сервис-аккаунта — это даст авторизацию в один шаг. Оставьте пустым, если уже запускали gcloud auth application-default login на этой машине."
+          "hint": "Вставьте JSON сервисного аккаунта — это даст авторизацию в один шаг. Оставьте пустым, если уже запускали gcloud auth application-default login на этой машине."
         },
         "google_setup_help_title": "Как настроить Google Speech-to-Text",
         "google_setup_help_body": "1. Откройте console.cloud.google.com → создайте проект или выберите существующий; скопируйте его ID в поле выше.\n2. В проекте: APIs & Services → включите «Cloud Speech-to-Text API».\n3. Авторизация — выберите один из путей:\n   • Самый простой: установите gcloud CLI, один раз выполните gcloud auth application-default login. Поле JSON оставьте пустым.\n   • Или: IAM → Service Accounts → создайте аккаунт с ролью «Cloud Speech Client» → keys → create JSON → вставьте содержимое в поле выше.",
