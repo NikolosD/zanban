@@ -5,7 +5,7 @@ import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 import { DEFAULT_SETTINGS, PROVIDER_FAST_MODELS } from '@shared/types'
 import { isRedactedSecret, isValidOllamaHost } from '@shared/settingsBoundary'
 import { Textarea } from '@renderer/components/ui/textarea'
-import type { OllamaHealth as OllamaHealthType, OllamaPullProgress } from '@shared/api'
+import type { OllamaHealth as OllamaHealthType } from '@shared/api'
 import { Input } from '@renderer/components/ui/input'
 import { Switch } from '@renderer/components/ui/switch'
 import { Button } from '@renderer/components/ui/button'
@@ -16,12 +16,12 @@ import {
   useSttCheck,
   type ProviderCheck
 } from './ProviderCheck'
+import { OllamaPullStatus, useOllamaPull } from './OllamaPull'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
 import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
-import { errorMessage } from '@renderer/lib/errors'
 
 interface Props {
   settings: AppSettings
@@ -330,19 +330,6 @@ function ProviderTestButton({
 // the user can still pull anything via `ollama pull` in a terminal.
 const OLLAMA_RECOMMENDED = PROVIDER_FAST_MODELS.ollama.slice(0, 4)
 
-// Decimal units, as Ollama's own CLI and model pages count them. A fixed digit
-// after the point keeps the line from jittering as the numbers grow.
-function formatSize(bytes: number, locale: string): string {
-  const gigabytes = bytes >= 1e9
-  const digits = gigabytes ? 1 : 0
-  return new Intl.NumberFormat(locale, {
-    style: 'unit',
-    unit: gigabytes ? 'gigabyte' : 'megabyte',
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits
-  }).format(gigabytes ? bytes / 1e9 : bytes / 1e6)
-}
-
 /**
  * Ollama model manager. Lists installed models from the health probe and lets
  * the user pull recommended ones with a busy state (the `ollama.pull` IPC was
@@ -359,32 +346,12 @@ function OllamaModelManager({
   onRefresh(): void
   privacyMode: boolean
 }) {
-  const { t, i18n } = useTranslation()
-  const [pulling, setPulling] = useState<string | null>(null)
-  const [progress, setProgress] = useState<OllamaPullProgress | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation()
+  const ollamaPull = useOllamaPull(onRefresh)
+  const { pulling, pull } = ollamaPull
   const installed = new Set(ollama?.models ?? [])
   const reachable = ollama?.running ?? false
   const noModels = reachable && (ollama?.models.length ?? 0) === 0
-  const shown = progress?.name === pulling ? progress : null
-  const percent = shown ? Math.floor((shown.completed / shown.total) * 100) : 0
-
-  useEffect(() => window.zanban.ollama.onPullProgress(setProgress), [])
-
-  async function pull(name: string) {
-    setPulling(name)
-    setProgress(null)
-    setError(null)
-    try {
-      const ok = await window.zanban.ollama.pull(name)
-      if (!ok) setError(t('settings.providers.ollama_pull_failed', { name }))
-      onRefresh()
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setPulling(null)
-    }
-  }
 
   if (!reachable) return null
 
@@ -430,34 +397,7 @@ function OllamaModelManager({
           )
         })}
       </div>
-      {pulling && (
-        <div className="flex flex-col gap-1">
-          <div
-            role="progressbar"
-            aria-label={t('settings.providers.ollama_pull_title', { name: pulling })}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-            className="h-1 overflow-hidden rounded-full bg-muted"
-          >
-            <div
-              className="h-full bg-primary transition-[width]"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <span className="text-small text-muted-foreground">
-            {shown
-              ? t('settings.providers.ollama_pull_progress', {
-                  name: pulling,
-                  done: formatSize(shown.completed, i18n.language),
-                  total: formatSize(shown.total, i18n.language),
-                  percent
-                })
-              : t('settings.providers.ollama_pull_starting', { name: pulling })}
-          </span>
-        </div>
-      )}
-      {error && <div className="text-small text-warn">{error}</div>}
+      <OllamaPullStatus {...ollamaPull} />
     </div>
   )
 }

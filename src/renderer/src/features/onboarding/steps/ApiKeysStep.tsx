@@ -12,6 +12,7 @@ import {
   useSttCheck
 } from '@renderer/features/settings/ProviderCheck'
 import type { StepProps } from '../types'
+import { OllamaSetup } from './OllamaSetup'
 import { StepFooter } from './StepFooter'
 
 type SttOption = 'deepgram' | 'elevenlabs' | 'google' | 'local-whisper'
@@ -185,7 +186,11 @@ export function ApiKeysStep({ settings, update, goNext, goBack }: StepProps) {
         invalid={hostInvalid}
         onChange={(v) => setDraft(llmField.settingsKey, v)}
       />
-      <ProviderCheckResult testing={keyCheck.testing} result={keyCheck.result} />
+      {provider === 'ollama' ? (
+        <OllamaSetup host={settings.ollamaHost} />
+      ) : (
+        <ProviderCheckResult testing={keyCheck.testing} result={keyCheck.result} />
+      )}
 
       <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
         <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
