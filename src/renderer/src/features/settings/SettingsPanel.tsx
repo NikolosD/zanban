@@ -28,6 +28,7 @@ import {
   type AppSettings,
   type LlmProvider
 } from '@shared/types'
+import type { HotkeyConflict } from '@shared/api'
 import { enumerateMics, type MicDevice } from '@renderer/lib/audio'
 import { useAvailableModels } from '@renderer/features/ai/useAvailableModels'
 import { errorMessage } from '@renderer/lib/errors'
@@ -895,18 +896,14 @@ function HotkeysTab({
     (k) => settings.hotkeys[k] === DEFAULT_SETTINGS.hotkeys[k]
   )
 
-  // Actions whose accelerator failed to (re)register — surfaced from main when
-  // the user picks a chord another app already owns. We flag the offending
-  // KeyRecorder and toast once so the rebind doesn't silently no-op.
+  // Actions whose accelerator failed to (re)register, flagged on their
+  // KeyRecorder. The dashboard shows the toast for each failure.
   const [conflicts, setConflicts] = useState<Set<keyof AppSettings['hotkeys']>>(new Set())
   useEffect(() => {
-    return window.zanban.settings.onHotkeyConflict((failed) => {
-      setConflicts(new Set(failed.map((f) => f.action)))
-      for (const f of failed) {
-        toast.error(t('settings.hotkeys_section.conflict_toast', { accelerator: f.accelerator }))
-      }
-    })
-  }, [t])
+    const flag = (failed: HotkeyConflict[]) => setConflicts(new Set(failed.map((f) => f.action)))
+    void window.zanban.settings.hotkeyConflicts().then(flag)
+    return window.zanban.settings.onHotkeyConflict(flag)
+  }, [])
 
   return (
     <Section title={t('settings.hotkeys_section.title')} hint={t('settings.hotkeys_section.hint')}>

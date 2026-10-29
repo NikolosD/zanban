@@ -80,7 +80,8 @@ export const IPC = {
     changed: 'settings:changed',
     /** Main → renderer: one or more hotkeys failed to (re)register, e.g. the
      *  accelerator is already taken by another app. */
-    hotkeyConflict: 'settings:hotkey-conflict'
+    hotkeyConflict: 'settings:hotkey-conflict',
+    hotkeyConflicts: 'settings:hotkey-conflicts'
   },
   sessions: {
     list: 'sessions:list',

@@ -23,6 +23,7 @@ export interface ShortcutRegistration {
 type AppHotkeys = ReturnType<typeof getSettings>['hotkeys']
 
 let registered: string[] = []
+let conflicts: ShortcutRegistration['failed'] = []
 // Cached so `reRegisterShortcuts()` can re-run after a rebind without the
 // caller having to thread the handler closures through settings.set.
 let lastHandlers: ShortcutHandlers | null = null
@@ -56,7 +57,13 @@ export function registerShortcuts(handlers: ShortcutHandlers): ShortcutRegistrat
       failed.push({ action, accelerator })
     }
   }
+  conflicts = failed
   return { failed }
+}
+
+/** Hotkeys that failed in the latest registration, for a window that loads after it. */
+export function shortcutConflicts(): ShortcutRegistration['failed'] {
+  return conflicts
 }
 
 /**
