@@ -68,7 +68,7 @@ const api: ZanbanApi = {
     onError: (cb) => on(IPC.ai.error, cb),
     onSources: (cb) => on(IPC.ai.sources, cb),
     onModelReplaced: (cb) => on(IPC.ai.modelReplaced, cb),
-    gatewayModels: () => ipcRenderer.invoke(IPC.ai.gatewayModels)
+    availableModels: (provider) => ipcRenderer.invoke(IPC.ai.availableModels, provider)
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.settings.get),

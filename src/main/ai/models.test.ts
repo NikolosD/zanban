@@ -8,16 +8,21 @@ const mockSettings = vi.hoisted(() => ({ value: {} as AppSettings }))
 vi.mock('../settings.js', () => ({
   getSettings: () => mockSettings.value
 }))
+const listing = vi.hoisted(() => ({ list: async (): Promise<string[]> => [] }))
+vi.mock('../providers/registry.js', () => ({
+  getLlmProviderById: () => ({ listModels: () => listing.list() })
+}))
 
 const {
   modelFor,
   fastMaxOutputTokens,
   gatewayCallOptions,
-  availableGatewayModel,
+  availableModel,
   FAST_MAX_OUTPUT_TOKENS,
   DETAILED_MAX_OUTPUT_TOKENS
 } = await import('./models.js')
 const { setGatewayCatalogForTest } = await import('./gatewayCatalog.js')
+const { refreshModels, resetModelListsForTest } = await import('./providerModels.js')
 
 describe('modelFor', () => {
   beforeEach(() => {
@@ -166,17 +171,56 @@ describe('gatewayCallOptions', () => {
   })
 })
 
-describe('availableGatewayModel', () => {
-  it("swaps a model the catalog dropped for the role's default", () => {
-    setGatewayCatalogForTest([{ id: 'anthropic/claude-haiku-5.5' }, { id: 'openai/gpt-6.1-terra' }])
-    expect(availableGatewayModel('anthropic/claude-haiku-5.5', 'fast')).toBe(
-      'anthropic/claude-haiku-5.5'
-    )
-    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('openai/gpt-6.1-terra')
+describe('availableModel', () => {
+  beforeEach(() => {
+    mockSettings.value = { ...DEFAULT_SETTINGS, anthropicApiKey: 'sk-ant-a' }
+    resetModelListsForTest()
   })
 
-  it('swaps nothing before the catalog has loaded', () => {
-    setGatewayCatalogForTest(null)
-    expect(availableGatewayModel('openai/gpt-4o', 'fast')).toBe('openai/gpt-4o')
+  it("swaps a model the gateway catalog dropped for the role's default", () => {
+    setGatewayCatalogForTest([
+      { id: 'anthropic/claude-haiku-5.5', type: 'language' },
+      { id: 'openai/gpt-6.1-terra', type: 'language' }
+    ])
+    expect(availableModel('vercel-gateway', 'anthropic/claude-haiku-5.5', 'fast')).toBe(
+      'anthropic/claude-haiku-5.5'
+    )
+    expect(availableModel('vercel-gateway', 'openai/gpt-4o', 'fast')).toBe('openai/gpt-6.1-terra')
+  })
+
+  it('checks a direct provider against its list once the list has loaded', async () => {
+    listing.list = async () => ['claude-haiku-5-5', 'claude-haiku-4-5-20251001']
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-3-haiku')
+    await refreshModels('anthropic')
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-haiku-5-5')
+    // A plain id is an alias of its dated snapshot.
+    expect(availableModel('anthropic', 'claude-haiku-4-5', 'fast')).toBe('claude-haiku-4-5')
+  })
+
+  it('falls back to the first curated model still listed when the default is gone too', async () => {
+    listing.list = async () => ['claude-sonnet-4-6']
+    await refreshModels('anthropic')
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-sonnet-4-6')
+  })
+
+  it('ignores a list loaded for a key the user has since replaced', async () => {
+    listing.list = async () => ['claude-haiku-5-5']
+    await refreshModels('anthropic')
+    mockSettings.value = { ...mockSettings.value, anthropicApiKey: 'sk-ant-b' }
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-3-haiku')
+  })
+
+  it('swaps nothing when the list comes back empty or fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    listing.list = async () => []
+    await refreshModels('anthropic')
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-3-haiku')
+
+    resetModelListsForTest()
+    listing.list = async () => {
+      throw new Error('403 missing scope')
+    }
+    await refreshModels('anthropic')
+    expect(availableModel('anthropic', 'claude-3-haiku', 'fast')).toBe('claude-3-haiku')
   })
 })

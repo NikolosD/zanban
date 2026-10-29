@@ -890,7 +890,7 @@ function modelLabel(value: string): string {
 
 function ModelOverrideItems({ value, onChange, provider, defaultModel }: ModelOverrideProps) {
   const { t } = useTranslation()
-  const available = useAvailableModels()
+  const available = useAvailableModels(provider)
   const fastModels = available(provider, PROVIDER_FAST_MODELS[provider] ?? [])
   const visionModels = available(provider, PROVIDER_VISION_MODELS[provider] ?? [])
   return (

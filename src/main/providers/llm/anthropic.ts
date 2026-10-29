@@ -27,6 +27,9 @@ interface AnthropicSdk {
       finalMessage(): Promise<{ content: Array<{ type: string; text?: string }> }>
     }
   }
+  models: {
+    list(params: { limit: number }, opts: { signal: AbortSignal }): AsyncIterable<{ id: string }>
+  }
 }
 
 // One SDK instance per API key so its HTTP keep-alive pool is reused across
@@ -105,6 +108,12 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
         .map((b) => (b.type === 'text' ? (b.text ?? '') : ''))
         .join('')
         .trim()
+    },
+    async listModels(signal) {
+      const c = await client(apiKey)
+      const ids: string[] = []
+      for await (const model of c.models.list({ limit: 1000 }, { signal })) ids.push(model.id)
+      return ids
     }
   }
 }

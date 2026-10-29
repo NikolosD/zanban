@@ -17,7 +17,7 @@ import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, initialUiLocale, setSettings } from './settings.js'
-import { refreshGatewayCatalog } from './ai/gatewayCatalog.js'
+import { refreshModels } from './ai/providerModels.js'
 import type { AudioChannel, CaptureNotice } from '../shared/types.js'
 import { redactSettings } from '../shared/settingsBoundary.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
@@ -116,8 +116,9 @@ app.whenReady().then(async () => {
 
   const uiLocale = initialUiLocale(getSettings(), app.getSystemLocale())
   if (uiLocale !== getSettings().uiLocale) setSettings({ uiLocale })
-  // Warm the catalog so the first answer already gets its per-model options.
-  if (getSettings().llmProvider === 'vercel-gateway') void refreshGatewayCatalog()
+  // Warm the model list so the first answer is already checked against it (and,
+  // on the gateway, gets its per-model options).
+  void refreshModels(getSettings().llmProvider)
 
   // About-panel content (macOS shows it via the app menu; Linux ditto via
   // GTK). Windows uses electron-builder's installer metadata instead.

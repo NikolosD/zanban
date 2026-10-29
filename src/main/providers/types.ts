@@ -40,6 +40,8 @@ export interface ILlmProvider {
   stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void>
   /** One-shot non-stream completion. */
   generate(args: LlmStreamArgs): Promise<string>
+  /** Ids of the models this key can call, from the provider's model list. */
+  listModels?(signal: AbortSignal): Promise<string[]>
 }
 
 export interface IWebSearchProvider {

@@ -229,7 +229,7 @@ function PersonaEditor({
   const language: ResponseLanguage | '' = persona.responseLanguage ?? ''
   // Models for the active provider — keeps the picker honest so a saved
   // defaultModel is always a valid id for whoever will actually run it.
-  const available = useAvailableModels()
+  const available = useAvailableModels(activeProvider)
   const modelOptions = available(activeProvider, PROVIDER_FAST_MODELS[activeProvider] ?? [])
 
   // Flush pending name/prompt edits if the editor unmounts (e.g. user clicks

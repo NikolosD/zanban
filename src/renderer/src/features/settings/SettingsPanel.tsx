@@ -503,7 +503,7 @@ function ModelsTab({
 
   // Merge installed Ollama models ahead of the curated list (deduped) so a
   // model the user has actually pulled shows up first.
-  const available = useAvailableModels()
+  const available = useAvailableModels(provider, settings.visionProvider ?? provider)
   const fastOptionsFor = (p: LlmProvider): string[] =>
     p === 'ollama'
       ? Array.from(new Set([...ollamaModels, ...(PROVIDER_FAST_MODELS[p] ?? [])]))

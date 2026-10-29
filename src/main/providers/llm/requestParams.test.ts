@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const sent = vi.hoisted(() => ({ body: undefined as Record<string, unknown> | undefined }))
 
+async function* listed<T>(...items: T[]): AsyncGenerator<T> {
+  yield* items
+}
+
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
+    models = { list: () => listed({ id: 'claude-haiku-5-5' }) }
     messages = {
       create: async (body: Record<string, unknown>) => {
         sent.body = body
@@ -20,17 +25,20 @@ const chatCompletions = {
 }
 vi.mock('openai', () => ({
   default: class {
+    models = { list: () => listed({ id: 'gpt-6.1-terra' }) }
     chat = { completions: chatCompletions }
   }
 }))
 vi.mock('groq-sdk', () => ({
   default: class {
+    models = { list: async () => ({ data: [{ id: 'openai/gpt-oss-120b' }] }) }
     chat = { completions: chatCompletions }
   }
 }))
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class {
     models = {
+      list: async () => listed({ name: 'models/gemini-3.5-flash-lite' }, {}),
       generateContent: async (body: Record<string, unknown>) => {
         sent.body = body
         return { text: 'ok' }
@@ -80,5 +88,15 @@ describe('LLM request params', () => {
   it('Gemini leaves temperature at the model default', async () => {
     await makeGeminiProvider('k').generate({ ...args, model: 'gemini-3.5-flash-lite' })
     expect(sent.body?.config).not.toHaveProperty('temperature')
+  })
+})
+
+describe('LLM model lists', () => {
+  it('lists the ids each provider takes in a request', async () => {
+    const signal = new AbortController().signal
+    expect(await makeAnthropicProvider('k').listModels?.(signal)).toEqual(['claude-haiku-5-5'])
+    expect(await makeOpenAiProvider('k').listModels?.(signal)).toEqual(['gpt-6.1-terra'])
+    expect(await makeGroqProvider('k').listModels?.(signal)).toEqual(['openai/gpt-oss-120b'])
+    expect(await makeGeminiProvider('k').listModels?.(signal)).toEqual(['gemini-3.5-flash-lite'])
   })
 })

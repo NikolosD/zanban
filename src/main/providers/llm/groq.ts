@@ -2,6 +2,9 @@ import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
 interface GroqLike {
+  models: {
+    list(opts: { signal: AbortSignal }): Promise<{ data: Array<{ id: string }> }>
+  }
   chat: {
     completions: {
       create(
@@ -114,6 +117,10 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
         { signal: args.signal }
       )) as { choices: Array<{ message: { content?: string } }> }
       return (res.choices[0]?.message?.content ?? '').trim()
+    },
+    async listModels(signal) {
+      const c = await client(apiKey)
+      return (await c.models.list({ signal })).data.map((m) => m.id)
     }
   }
 }

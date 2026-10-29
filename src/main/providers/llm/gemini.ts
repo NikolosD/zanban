@@ -21,6 +21,9 @@ interface GeminiLike {
       contents: unknown
       config?: GeminiConfig
     }): Promise<{ text?: string }>
+    list(args: {
+      config: { pageSize: number; abortSignal: AbortSignal }
+    }): Promise<AsyncIterable<{ name?: string }>>
   }
 }
 
@@ -147,6 +150,16 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
         })
       )
       return (res.text ?? '').trim()
+    },
+    async listModels(signal) {
+      const c = await client(apiKey)
+      const ids: string[] = []
+      const pager = await c.models.list({ config: { pageSize: 1000, abortSignal: signal } })
+      for await (const model of pager) {
+        // Listed as "models/gemini-3.5-flash"; requests take the bare id.
+        if (model.name) ids.push(model.name.replace(/^models\//, ''))
+      }
+      return ids
     }
   }
 }

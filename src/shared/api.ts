@@ -134,8 +134,9 @@ export interface ZanbanApi {
      *  ask, before the answer streams; an empty list means nothing retrieved. */
     onSources(cb: (sources: AiSources) => void): () => void
     onModelReplaced(cb: (change: { from: string; to: string }) => void): () => void
-    /** Model ids in the gateway's live catalog, or null before it has loaded. */
-    gatewayModels(): Promise<string[] | null>
+    /** Model ids the provider serves (its live list for the saved key), or null
+     *  while unknown: not loaded yet, no key, or a provider without a list. */
+    availableModels(provider: LlmProvider): Promise<string[] | null>
   }
   settings: {
     /** Stored secrets (SECRET_SETTING_KEYS) arrive as redacted markers, never in

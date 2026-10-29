@@ -1,6 +1,14 @@
 import { getSettings } from '../settings.js'
-import { PROVIDER_MODEL_DEFAULTS, type AiRole, type LlmProvider } from '../../shared/types.js'
+import {
+  PROVIDER_FAST_MODELS,
+  PROVIDER_MODEL_DEFAULTS,
+  PROVIDER_VISION_MODELS,
+  type AiRole,
+  type LlmProvider
+} from '../../shared/types.js'
+import { servesModel } from '../../shared/modelIds.js'
 import { catalogModel, refreshGatewayCatalog, type CatalogModel } from './gatewayCatalog.js'
+import { modelIds, refreshModels } from './providerModels.js'
 
 /**
  * Resolve the model ID for a given role.
@@ -25,14 +33,19 @@ export function modelFor(role: AiRole): string {
 }
 
 /**
- * The gateway model to call for a role: the configured one, unless the catalog
- * has dropped it — then the role's default, so a retired model doesn't fail
- * the answer. Unknown while the catalog hasn't loaded, so nothing is swapped.
+ * The model to call for a role: the configured one, unless the provider's model
+ * list no longer has it — then the role's default, or else the first curated
+ * pick still listed, so a retired model doesn't fail the answer. Nothing is
+ * swapped while the list is unknown.
  */
-export function availableGatewayModel(model: string, role: AiRole): string {
-  const fallback = PROVIDER_MODEL_DEFAULTS['vercel-gateway'][role]
-  if (model === fallback || catalogModel(model) || !catalogModel(fallback)) return model
-  return fallback
+export function availableModel(provider: LlmProvider, model: string, role: AiRole): string {
+  void refreshModels(provider)
+  const ids = modelIds(provider)
+  if (!ids || servesModel(ids, model)) return model
+  const curated =
+    role === 'vision' ? PROVIDER_VISION_MODELS[provider] : PROVIDER_FAST_MODELS[provider]
+  const candidates = [PROVIDER_MODEL_DEFAULTS[provider][role], ...curated]
+  return candidates.find((m) => servesModel(ids, m)) ?? model
 }
 
 type GatewayReasoning =

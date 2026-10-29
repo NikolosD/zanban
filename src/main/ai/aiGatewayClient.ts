@@ -25,12 +25,7 @@ import {
   getLlmProviderById
 } from '../providers/registry.js'
 import { recordAiExchange } from '../sync/sessionSync.js'
-import {
-  availableGatewayModel,
-  fastMaxOutputTokens,
-  gatewayCallOptions,
-  modelFor
-} from './models.js'
+import { availableModel, fastMaxOutputTokens, gatewayCallOptions, modelFor } from './models.js'
 
 const TRANSCRIPT_BUFFER_LIMIT = 1000
 
@@ -180,7 +175,7 @@ function broadcast<P extends { requestId: string }>(channel: string, payload: P)
 const replacedNotified = new Set<string>()
 
 function notifyModelReplaced(from: string, to: string): void {
-  console.warn(`[ai] gateway model ${from} is gone from the catalog; answering with ${to}`)
+  console.warn(`[ai] model ${from} is gone from the provider's list; answering with ${to}`)
   if (replacedNotified.has(from)) return
   replacedNotified.add(from)
   for (const w of windows) {
@@ -368,7 +363,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       })
 
       const hasImage = !!opts.imageDataUrl
-      const modelId = hasImage ? modelFor('vision') : modelFor('fast')
+      const role = hasImage ? 'vision' : 'fast'
+      const modelId = modelFor(role)
       const maxOutputTokens = hasImage
         ? VISION_MAX_OUTPUT_TOKENS
         : fastMaxOutputTokens(settings.detailedAnswers)
@@ -416,6 +412,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         return
       }
       if (altProvider) {
+        const answerModel = availableModel(altProvider.id, overrideModel, role)
+        if (answerModel !== overrideModel) notifyModelReplaced(overrideModel, answerModel)
         // Build the providers we'll try in order: the active provider first,
         // then any user-configured fallback ids. Fallbacks whose keys aren't
         // present (resolveProvider returns null) are dropped. We also dedupe
@@ -438,7 +436,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         let chosenProviderId: string = altProvider.id
         try {
           const stream = streamWithFallback(providers, {
-            model: overrideModel,
+            model: answerModel,
             system: hasImage
               ? buildVisionSystemPrompt(personaText, responseLanguage, settings.uiLocale)
               : buildSystemPrompt(personaText, responseLanguage),
@@ -477,7 +475,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           const finishReason = entry.stoppedByUser ? 'stop' : next.done ? next.value : undefined
           timeout.clear()
           recordExchange(opts.prompt, fullAnswer)
-          void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
+          void recordAiExchange(opts.prompt, fullAnswer, answerModel).catch(() => {})
           broadcast(IPC.ai.done, { requestId, finishReason })
           // Best-effort: log which provider actually answered, useful when
           // the fallback chain kicks in and the user's primary was unhealthy.
@@ -497,7 +495,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
           // it as a clean finalize, not a failure.
           if (entry.stoppedByUser) {
             recordExchange(opts.prompt, fullAnswer)
-            void recordAiExchange(opts.prompt, fullAnswer, overrideModel).catch(() => {})
+            void recordAiExchange(opts.prompt, fullAnswer, answerModel).catch(() => {})
             broadcast(IPC.ai.done, { requestId, finishReason: 'stop' })
             return
           }
@@ -522,7 +520,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         )
       }
       const gw = await gateway()
-      const gatewayModel = availableGatewayModel(overrideModel, hasImage ? 'vision' : 'fast')
+      const gatewayModel = availableModel('vercel-gateway', overrideModel, role)
       if (gatewayModel !== overrideModel) notifyModelReplaced(overrideModel, gatewayModel)
       const { streamText } = await import('ai')
 
