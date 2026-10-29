@@ -58,28 +58,28 @@ import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 
 // Settings IDs the rest of the app passes around. The legacy `providers`,
-// `models`, `persona`, and `documents` ids are kept as aliases (mapped to their
-// merged tabs in resolveTab) so older jump-to-tab links still work.
+// `models`, `persona`, `documents` and `recap` ids are kept as aliases (mapped
+// to their merged tabs in resolveTab) so older jump-to-tab links still work.
 export type SettingsTabId =
   | 'general'
   | 'keys'
   | 'ai'
   | 'audio'
   | 'identity'
-  | 'recap'
   | 'hotkeys'
   | 'about'
   // legacy aliases — accepted as input, mapped to merged tabs internally:
+  | 'recap'
   | 'providers'
   | 'models'
   | 'persona'
   | 'documents'
 
-type TabId = 'general' | 'keys' | 'ai' | 'audio' | 'identity' | 'recap' | 'hotkeys' | 'about'
+type TabId = 'general' | 'keys' | 'ai' | 'audio' | 'identity' | 'hotkeys' | 'about'
 
 function resolveTab(id: SettingsTabId): TabId {
   if (id === 'providers') return 'keys'
-  if (id === 'models') return 'ai'
+  if (id === 'models' || id === 'recap') return 'ai'
   if (id === 'persona' || id === 'documents') return 'identity'
   return id
 }
@@ -90,7 +90,6 @@ const TABS: Array<{ id: TabId; icon: React.ComponentType<{ className?: string }>
   { id: 'ai', icon: Cpu },
   { id: 'audio', icon: Headphones },
   { id: 'identity', icon: BookUser },
-  { id: 'recap', icon: FileText },
   { id: 'hotkeys', icon: Keyboard },
   { id: 'about', icon: Info }
 ]
@@ -259,6 +258,11 @@ export function SettingsPanel({
             >
               <ModelsTab settings={settings} update={update} />
             </Section>
+            <RecapSettingsTab
+              settings={settings}
+              update={update}
+              onOpenGeneral={() => setTab('general')}
+            />
           </Tabs.Content>
           <Tabs.Content value="audio">
             <AudioTab
@@ -280,13 +284,6 @@ export function SettingsPanel({
               <div className="h-px flex-1 bg-white/[0.06]" />
             </div>
             <ReferenceDocsTab />
-          </Tabs.Content>
-          <Tabs.Content value="recap">
-            <RecapSettingsTab
-              settings={settings}
-              update={update}
-              onOpenGeneral={() => setTab('general')}
-            />
           </Tabs.Content>
           <Tabs.Content value="hotkeys">
             <HotkeysTab

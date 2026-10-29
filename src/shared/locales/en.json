@@ -254,7 +254,6 @@
       "ai": "AI",
       "audio": "Audio",
       "identity": "Context",
-      "recap": "Recap",
       "hotkeys": "Hotkeys",
       "about": "About"
     },
@@ -659,10 +658,9 @@
     "search_keywords": {
       "general": "general, overlay, privacy, stealth, detectable, taskbar, app switcher, alt+tab, dock, opacity, appearance, language, interface language, answer language, speech language, transcription language, recap language, multilingual, data, sessions folder, setup wizard, onboarding",
       "keys": "keys, providers, api key, token, secret, llm, gateway, vercel, openai, gpt, claude, anthropic, gemini, groq, ollama, privacy mode, fallback, stt, speech to text, transcription, deepgram, whisper, parakeet, elevenlabs, google, tavily, web search",
-      "ai": "ai, models, model overrides, detailed answers, context window, transcript window, follow-up, summary, session title, vision, screenshots",
+      "ai": "ai, models, model overrides, detailed answers, context window, transcript window, follow-up, summary, session title, vision, screenshots, recap, post-meeting, summary, auto generate, tone, concise, friendly, formal, language, model override, action items",
       "audio": "audio, mic, microphone, system audio, loopback, device, vad, silence",
       "identity": "context, role, roles, persona, preset, answer language override, system prompt, instructions, documents, reference, pdf, docx, txt, resume, spec, brief, rag",
-      "recap": "recap, post-meeting, summary, auto generate, tone, concise, friendly, formal, language, model override, action items",
       "hotkeys": "hotkeys, keybinds, keyboard, shortcut, shortcuts, accelerator, rebind",
       "about": "about, version, changelog, updates, logs, bug, diagnostics"
     },
