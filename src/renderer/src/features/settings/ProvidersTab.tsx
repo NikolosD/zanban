@@ -532,12 +532,7 @@ function LlmCredentials({
             title={ok ? undefined : (ollama.error ?? undefined)}
           >
             {ok
-              ? t(
-                  modelCount === 1
-                    ? 'settings.providers.ollama_connected_one'
-                    : 'settings.providers.ollama_connected_other',
-                  { count: modelCount }
-                )
+              ? t('settings.providers.ollama_connected', { count: modelCount })
               : t('settings.providers.ollama_not_reachable')}
           </div>
         )}
