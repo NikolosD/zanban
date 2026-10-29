@@ -9,10 +9,25 @@ const fake = vi.hoisted(() => ({
   dir: '',
   state: { kind: 'idle' } as SessionState,
   segmentListeners: [] as Array<(seg: TranscriptSegment, sessionId: string) => void>,
-  endListeners: [] as Array<(sessionId: string) => void>
+  endListeners: [] as Array<(sessionId: string) => void>,
+  openElsewhere: new Set<string>()
 }))
 
 vi.mock('electron', () => ({ app: { getPath: () => fake.dir } }))
+// Windows refuses to rename over a file that any other handle has open.
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...fs,
+    rename: async (from: string, to: string) => {
+      if (fake.openElsewhere.has(to)) {
+        const err = new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`)
+        throw Object.assign(err, { code: 'EPERM' })
+      }
+      return fs.rename(from, to)
+    }
+  }
+})
 vi.mock('../transcription/sessionManager.js', () => ({
   sessionManager: {
     getState: () => fake.state,
@@ -126,5 +141,20 @@ describe('session sync', () => {
     expect(files.filter((f) => f.endsWith('.tmp'))).toEqual([])
     expect(files).toContain('d.json')
     expect(files).toContain('d.md')
+  })
+
+  it('still saves the end of a session while its file is briefly open elsewhere', async () => {
+    run('e')
+    final('first', 'e')
+    await flushed()
+    final('last words', 'e')
+    // The dashboard re-reads the session the moment it stops.
+    const json = join(fake.dir, 'sessions', 'e.json')
+    fake.openElsewhere.add(json)
+    setTimeout(() => fake.openElsewhere.delete(json), 50)
+    await stop('e')
+
+    expect(await texts('e')).toEqual(['first', 'last words'])
+    expect((await sync.readSessionFromDisk('e'))?.endedAt).not.toBeNull()
   })
 })
