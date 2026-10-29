@@ -811,6 +811,15 @@
           "hint": "Leave blank to use http://127.0.0.1:11434 (the default)."
         }
       },
+      "ollama_setup": {
+        "checking": "Checking Ollama…",
+        "not_running": "Ollama isn't running at this address. Install it, start it, then check again.",
+        "get_ollama": "Get Ollama",
+        "recheck": "Check again",
+        "ready": "Ollama is running and {{name}} is installed.",
+        "needs_model": "Answers need the {{name}} model. It is a few gigabytes and downloads once.",
+        "keep_going": "You can go on: the download continues in the background."
+      },
       "stt_fields": {
         "deepgram_key": {
           "label": "Deepgram API key",
