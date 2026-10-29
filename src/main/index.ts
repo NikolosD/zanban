@@ -50,6 +50,7 @@ import { registerPersonasHandlers } from './ipc/personas.js'
 import { registerRagHandlers } from './ipc/rag.js'
 import { registerScreenshotHandlers } from './ipc/screenshot.js'
 import { registerSessionsHandlers } from './ipc/sessions.js'
+import { registerTranscriptionHandlers } from './ipc/transcription.js'
 import { registerRecapHandlers, getRecapService } from './ipc/recap.js'
 import { handleIpc, onIpc } from './ipc/guard.js'
 import { settingsPatchSchema } from './ipc/schemas.js'
@@ -195,6 +196,7 @@ app.whenReady().then(async () => {
   registerProvidersHandlers()
   registerPersonasHandlers()
   registerSessionsHandlers()
+  registerTranscriptionHandlers()
   registerRecapHandlers()
 
   // Auto-generate recap when the user stops a session (opt-in via settings).

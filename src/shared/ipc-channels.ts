@@ -59,7 +59,10 @@ export const IPC = {
   },
   transcription: {
     segment: 'transcription:segment',
-    status: 'transcription:status'
+    status: 'transcription:status',
+    speechModel: 'transcription:speech-model',
+    downloadSpeechModel: 'transcription:download-speech-model',
+    speechModelProgress: 'transcription:speech-model-progress'
   },
   ai: {
     ask: 'ai:ask',

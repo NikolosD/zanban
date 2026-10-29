@@ -302,7 +302,7 @@
       "google_project_id_placeholder": "my-gcp-project-12345",
       "google_service_account_label": "Service account JSON",
       "google_service_account_optional": "(необязательно — оставьте пустым, если уже вошли через gcloud)",
-      "local_whisper_note": "Ключ не нужен, звук не покидает компьютер. Модель (~670 МБ) скачается при первой сессии.",
+      "local_whisper_note": "Ключ не нужен, звук не покидает компьютер. Модель скачивается один раз: при первой сессии или заранее здесь.",
       "ollama_host_placeholder": "http://127.0.0.1:11434 (по умолчанию)",
       "ollama_refresh_aria": "Обновить",
       "ollama_connected_one": "подключено · {{count}} модель",
@@ -692,6 +692,12 @@
       "recording": "нажмите клавиши… (Esc — отмена · ⌫ — очистить)",
       "reset_to": "Сбросить на {{accelerator}}",
       "clear": "Очистить сочетание"
+    },
+    "speech_model": {
+      "name": "модель распознавания речи",
+      "download": "Скачать модель сейчас · {{size}}",
+      "installed": "Модель распознавания скачана, звонок начнётся без ожидания.",
+      "failed": "Не удалось скачать модель: {{error}}"
     }
   },
   "onboarding": {

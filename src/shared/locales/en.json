@@ -296,7 +296,7 @@
       "google_project_id_placeholder": "my-gcp-project-12345",
       "google_service_account_label": "Service account JSON",
       "google_service_account_optional": "(optional — leave empty if you've signed in with gcloud)",
-      "local_whisper_note": "No key needed, audio never leaves the computer. The model (~670 MB) downloads on the first session.",
+      "local_whisper_note": "No key needed, and audio never leaves this computer. The model downloads once: at the first session, or ahead of time here.",
       "ollama_host_placeholder": "http://127.0.0.1:11434 (default)",
       "ollama_refresh_aria": "Refresh",
       "ollama_connected_one": "connected · {{count}} model",
@@ -682,6 +682,12 @@
       "recording": "press keys… (Esc cancel · ⌫ clear)",
       "reset_to": "Reset to {{accelerator}}",
       "clear": "Clear binding"
+    },
+    "speech_model": {
+      "name": "speech model",
+      "download": "Download the model now · {{size}}",
+      "installed": "The speech model is downloaded, so calls start without waiting.",
+      "failed": "Couldn't download the model: {{error}}"
     }
   },
   "onboarding": {
