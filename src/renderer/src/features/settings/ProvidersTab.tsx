@@ -18,6 +18,7 @@ import {
 } from './ProviderCheck'
 import { OllamaPullStatus, useOllamaPull } from './OllamaPull'
 import { ProviderCard, SecretKeyField, useSecretDraft } from './ProviderCard'
+import { SpeechModelDownload } from './SpeechModelDownload'
 import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
@@ -615,9 +616,12 @@ function SttCredentials({
   }
   if (provider === 'local-whisper') {
     return (
-      <p className="text-small text-muted-foreground">
-        {t('settings.providers.local_whisper_note')}
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-small text-muted-foreground">
+          {t('settings.providers.local_whisper_note')}
+        </p>
+        <SpeechModelDownload />
+      </div>
     )
   }
   return null

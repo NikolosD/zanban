@@ -118,6 +118,12 @@ export interface ZanbanApi {
   transcription: {
     onSegment(cb: (segment: TranscriptSegment) => void): () => void
     onStatus(cb: (status: TranscriptionStatus) => void): () => void
+    /** Whether the on-device speech model is downloaded. */
+    speechModel(): Promise<SpeechModelStatus>
+    /** Download the on-device speech model now rather than at the first session. */
+    downloadSpeechModel(): Promise<void>
+    /** Share of a running speech-model download done so far, 0–1. */
+    onSpeechModelProgress(cb: (fraction: number) => void): () => void
   }
   ai: {
     ask(input: AiAskInput): Promise<{ requestId: string }>
@@ -283,6 +289,12 @@ export interface OllamaHealth {
   host: string
   models: string[]
   error?: string
+}
+
+export interface SpeechModelStatus {
+  installed: boolean
+  /** Bytes still to download; 0 once installed. */
+  missingBytes: number
 }
 
 export interface OllamaPullProgress {

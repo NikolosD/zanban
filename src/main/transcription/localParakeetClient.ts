@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { AudioChannel, TranscriptSegment, TranscriptionStatus } from '../../shared/types.js'
 import { speechWorker } from '../ml/index.js'
 import type { MlTask } from '../ml/protocol.js'
-import { trackJob } from '../services/jobsManager.js'
+import { loadSpeechModel } from './speechModel.js'
 
 export interface LocalParakeetOptions {
   channel: AudioChannel
@@ -13,8 +13,6 @@ export interface LocalParakeetOptions {
 const SAMPLE_RATE = 16_000
 // Audio kept while the model loads (the first run downloads it); older audio is dropped.
 const MAX_BACKLOG_SAMPLES = SAMPLE_RATE * 30
-// The first run downloads ~670 MB.
-const LOAD_TIMEOUT_MS = 30 * 60_000
 // A phrase decodes in well under a second; the slack covers a reload after a worker restart.
 const FEED_TIMEOUT_MS = 60_000
 
@@ -37,12 +35,9 @@ export class LocalParakeetSttChannel {
 
   constructor(private readonly opts: LocalParakeetOptions) {
     this.opts.onStatus({ kind: 'connecting', channel: opts.channel })
-    this.loaded = trackJob('parakeet-load', 'Parakeet · loading speech model', 'pull', () =>
-      speechWorker.request({ kind: 'load', model: 'parakeet' }, LOAD_TIMEOUT_MS, (progress) => {
-        if (!this.closed)
-          this.opts.onStatus({ kind: 'connecting', channel: opts.channel, progress })
-      })
-    ).then(
+    this.loaded = loadSpeechModel((progress) => {
+      if (!this.closed) this.opts.onStatus({ kind: 'connecting', channel: opts.channel, progress })
+    }).then(
       () => {
         this.ready = true
         if (!this.closed) {

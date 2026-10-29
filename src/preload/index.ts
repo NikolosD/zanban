@@ -57,7 +57,10 @@ const api: ZanbanApi = {
   },
   transcription: {
     onSegment: (cb) => on(IPC.transcription.segment, cb),
-    onStatus: (cb) => on(IPC.transcription.status, cb)
+    onStatus: (cb) => on(IPC.transcription.status, cb),
+    speechModel: () => ipcRenderer.invoke(IPC.transcription.speechModel),
+    downloadSpeechModel: () => ipcRenderer.invoke(IPC.transcription.downloadSpeechModel),
+    onSpeechModelProgress: (cb) => on(IPC.transcription.speechModelProgress, cb)
   },
   ai: {
     ask: (input) => ipcRenderer.invoke(IPC.ai.ask, input),
