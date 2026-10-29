@@ -234,9 +234,10 @@ function ActionList({
   return (
     <ul className="flex flex-col gap-1.5">
       {items.map((a, i) => (
-        // Stable per-item checked state is keyed by text hash (see actionItemState),
-        // so the React key can stay positional without desyncing the checkbox.
-        <ActionItem key={i} sessionId={sessionId} item={a} />
+        // Checked state is stored by text (see actionItemState); keying on it
+        // remounts a row whose text changed after a regenerate, so it reads its
+        // own state again.
+        <ActionItem key={`${sessionId}:${i}:${a.text}`} sessionId={sessionId} item={a} />
       ))}
     </ul>
   )
@@ -251,10 +252,6 @@ function ActionItem({
 }) {
   const { t } = useTranslation()
   const [checked, setChecked] = useState<boolean>(() => isActionItemChecked(sessionId, item))
-  // Re-sync when the item's text changes under the same row (regenerate).
-  useEffect(() => {
-    setChecked(isActionItemChecked(sessionId, item))
-  }, [sessionId, item.text])
   function toggle() {
     const next = !checked
     setChecked(next)

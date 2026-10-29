@@ -56,15 +56,18 @@ export function AnswerPaneResizer({ value, hardCap, onChange, onCommit }: Props)
     [hardCap, onChange]
   )
 
+  // Listeners of the drag in progress; aborting removes them all at once.
+  const dragListeners = useRef<AbortController | null>(null)
+
   const endDrag = useCallback(() => {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', endDrag)
+    dragListeners.current?.abort()
+    dragListeners.current = null
     if (startY.current === null) return
     const committed = latestValue.current
     const started = startValue.current
     startY.current = null
     if (committed !== started) onCommit(committed)
-  }, [onMove, onCommit])
+  }, [onCommit])
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (startY.current !== null) return // already dragging — ignore re-entrant mousedown
@@ -72,8 +75,10 @@ export function AnswerPaneResizer({ value, hardCap, onChange, onCommit }: Props)
     startY.current = e.clientY
     startValue.current = value
     latestValue.current = value
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', endDrag)
+    dragListeners.current = new AbortController()
+    const { signal } = dragListeners.current
+    document.addEventListener('mousemove', onMove, { signal })
+    document.addEventListener('mouseup', endDrag, { signal })
   }
 
   const onDoubleClick = () => {
@@ -98,13 +103,7 @@ export function AnswerPaneResizer({ value, hardCap, onChange, onCommit }: Props)
   }
 
   // Safety: detach on unmount in case the user navigated away mid-drag.
-  useEffect(
-    () => () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', endDrag)
-    },
-    [onMove, endDrag]
-  )
+  useEffect(() => () => dragListeners.current?.abort(), [])
 
   return (
     <div

@@ -147,11 +147,12 @@ function EditableTitle({
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Re-seed the draft whenever the underlying title changes (e.g. after a
-  // regenerate or switching sessions) and we're not mid-edit.
-  useEffect(() => {
-    if (!editing) setDraft(title ?? '')
-  }, [title, editing])
+  // The draft starts from the current title each time editing starts, so a
+  // regenerated title or another session is never edited from a stale copy.
+  function startEditing() {
+    setDraft(title ?? '')
+    setEditing(true)
+  }
 
   useEffect(() => {
     if (editing) inputRef.current?.select()
@@ -218,14 +219,14 @@ function EditableTitle({
           'text-display font-semibold tracking-tight cursor-text',
           !title && 'text-muted-foreground'
         )}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={startEditing}
         title={t('session_detail.rename_label')}
       >
         {title || fallback}
       </h1>
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={startEditing}
         aria-label={t('session_detail.rename_label')}
         title={t('session_detail.rename_label')}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-foreground"

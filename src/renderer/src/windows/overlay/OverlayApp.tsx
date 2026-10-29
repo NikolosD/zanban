@@ -124,9 +124,11 @@ export function OverlayApp() {
   // Adopt the persisted value when settings load / change, clamped to the
   // current hardCap. We don't write the clamp back to settings — returning to a
   // bigger monitor should restore the user's original preference.
-  useEffect(() => {
+  const [adopted, setAdopted] = useState<{ persisted: number; cap: number } | null>(null)
+  if (adopted?.persisted !== persistedAnswerMax || adopted.cap !== hardCap) {
+    setAdopted({ persisted: persistedAnswerMax, cap: hardCap })
     setUserMaxHeight(clampAnswerHeight(persistedAnswerMax, hardCap))
-  }, [persistedAnswerMax, hardCap])
+  }
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const commitAnswerMaxHeight = useCallback((next: number) => {

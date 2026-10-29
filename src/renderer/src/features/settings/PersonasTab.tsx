@@ -38,8 +38,16 @@ export function PersonasTab({ settings, update }: Props) {
   }, [])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let alive = true
+    void window.zanban.personas.list().then((list) => {
+      if (!alive) return
+      setPersonas(list)
+      setLoading(false)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const setActive = (id: string | null) => update('activePersonaId', id)
 
@@ -241,7 +249,9 @@ function PersonaEditor({
     onChange: typeof onChange
     persona: typeof persona
   }>({ name, prompt, onChange, persona })
-  pendingRef.current = { name, prompt, onChange, persona }
+  useEffect(() => {
+    pendingRef.current = { name, prompt, onChange, persona }
+  })
   useEffect(() => {
     return () => {
       const p = pendingRef.current
