@@ -8,7 +8,6 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('../settings.js', () => ({ getSettings: () => ({ vercelApiKey: 'vck_x', ...h.settings }) }))
-vi.mock('../ai/models.js', () => ({ gatewayCallOptions: () => ({}) }))
 vi.mock('../services/ollamaManager.js', () => ({ checkOllama: async () => ({ running: false }) }))
 vi.mock('./registry.js', () => ({
   getLlmProviderById: () => ({

@@ -1,6 +1,5 @@
 import type { AiRole } from '../../../shared/types.js'
-import { getSettings } from '../../settings.js'
-import { availableModel, gatewayCallOptions, modelFor } from '../models.js'
+import { availableModel, modelFor } from '../models.js'
 import { getActiveLlmProvider } from '../../providers/registry.js'
 
 export interface OneShotArgs {
@@ -14,49 +13,24 @@ export interface OneShotArgs {
   signal?: AbortSignal
 }
 
-async function gateway() {
-  const settings = getSettings()
-  if (!settings.vercelApiKey) {
-    throw new Error('Vercel AI Gateway key not configured. Open Settings.')
-  }
-  const { createGateway } = await import('@ai-sdk/gateway')
-  return createGateway({ apiKey: settings.vercelApiKey })
-}
-
 /**
  * Run a non-streaming completion. Used by the small helper LLMs (follow-up
  * suggestions, recap generation) that don't need to stream — token counts are
  * tiny so latency is bounded by TTFT + a couple of dozen tokens.
  *
- * Routes through whichever LLM provider the user picked in Settings. If the
- * alt provider fails, falls back to Vercel Gateway so the helper doesn't
- * silently die when e.g. Ollama isn't running.
+ * Routes through whichever LLM provider the user picked in Settings, with no
+ * fallback: if Gemini is selected and broken, the error stays visible instead
+ * of requests quietly moving to another vendor.
  */
 export async function generateOneShot(args: OneShotArgs): Promise<string> {
-  const altProvider = getActiveLlmProvider()
-  if (altProvider) {
-    // Honor the user's provider pick — no silent fallback. If Gemini is
-    // selected and broken, we want the error visible (in console + the UI)
-    // rather than transparently bleeding requests onto Vercel Gateway.
-    return altProvider.generate({
-      model: availableModel(altProvider.id, modelFor(args.role), args.role),
-      system: args.system,
-      prompt: args.prompt,
-      temperature: args.temperature ?? 0.2,
-      maxOutputTokens: args.maxOutputTokens ?? 200,
-      signal: args.signal
-    })
-  }
-  const gw = await gateway()
-  const { generateText } = await import('ai')
-  const model = availableModel('vercel-gateway', modelFor(args.role), args.role)
-  const result = await generateText({
-    model: gw(model),
+  const provider = getActiveLlmProvider()
+  if (!provider) throw new Error('The AI provider has no API key. Open Settings → AI Provider.')
+  return provider.generate({
+    model: availableModel(provider.id, modelFor(args.role, provider.id), args.role),
     system: args.system,
     prompt: args.prompt,
+    temperature: args.temperature ?? 0.2,
     maxOutputTokens: args.maxOutputTokens ?? 200,
-    ...gatewayCallOptions(model, args.temperature ?? 0.2),
-    abortSignal: args.signal
+    signal: args.signal
   })
-  return result.text.trim()
 }
