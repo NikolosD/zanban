@@ -79,6 +79,8 @@ export function shortcutConflicts(): ShortcutRegistration['failed'] {
   return conflicts
 }
 
+// register() refuses a chord this app already owns, in any spelling, which is
+// what keeps the unregister below from dropping one of its live hotkeys.
 function registersFree(accelerator: string, fn: () => void): boolean {
   try {
     if (!globalShortcut.register(accelerator, fn)) return false

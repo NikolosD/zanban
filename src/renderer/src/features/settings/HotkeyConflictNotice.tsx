@@ -46,7 +46,7 @@ export function HotkeyConflictNotice({
             {t('settings.hotkeys_section.conflict_title', { count: conflicts.length })}
           </p>
           <p className="mt-0.5 text-small text-muted-foreground">
-            {t('settings.hotkeys_section.conflict_hint')}
+            {t('settings.hotkeys_section.conflict_hint', { count: conflicts.length })}
           </p>
         </div>
       </div>

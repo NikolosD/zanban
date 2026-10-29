@@ -154,6 +154,18 @@ describe('pickFreeShortcuts', () => {
       { action: 'screenshot', accelerator: second },
       { action: 'chat', accelerator: third }
     ])
+    expect(unregisterMock).not.toHaveBeenCalledWith(first)
+  })
+
+  it('leaves no conflicts once the new map is saved', () => {
+    persist.mockImplementation((next) => {
+      Object.assign(hotkeys, next)
+      reRegisterShortcuts()
+    })
+    const result = pickFreeShortcuts(persist)
+    expect(hotkeys).toMatchObject({ screenshot: first, chat: second })
+    expect(shortcutConflicts()).toEqual(result.unresolved)
+    expect(shortcutConflicts()).toEqual([])
   })
 
   it('skips alternatives another action is already bound to', () => {

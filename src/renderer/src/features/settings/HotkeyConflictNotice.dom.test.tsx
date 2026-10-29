@@ -51,9 +51,10 @@ describe('HotkeyConflictNotice', () => {
     expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 
-  it('words the title for a single hotkey', () => {
+  it('words the title and the hint for a single hotkey', () => {
     renderNotice([hideShow])
     expect(screen.getByRole('group', { name: '1 hotkey is taken by another app' })).toBeTruthy()
+    expect(screen.getByText("It won't work until you pick another shortcut.")).toBeTruthy()
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
   })
 
