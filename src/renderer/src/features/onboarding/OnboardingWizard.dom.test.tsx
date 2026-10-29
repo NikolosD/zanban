@@ -7,6 +7,7 @@ import { initReactI18next } from 'react-i18next'
 import en from '@shared/locales/en.json'
 import { DEFAULT_SETTINGS, type AppSettings } from '@shared/types'
 import { OnboardingWizard } from './OnboardingWizard'
+import { presetPatch, SETUP_PRESETS } from './presets'
 
 vi.mock('@renderer/audio/level', () => ({ meterStream: () => () => {} }))
 
@@ -28,12 +29,18 @@ const speechModel = vi.fn(async () => ({ installed: false, missingBytes: 672_000
 const testConnection = vi.fn(async () => ({ ok: true }))
 const onClose = vi.fn()
 
-function Wizard({ initial = DEFAULT_SETTINGS }: { initial?: AppSettings }) {
+function Wizard({
+  open = true,
+  initial = DEFAULT_SETTINGS
+}: {
+  open?: boolean
+  initial?: AppSettings
+}) {
   const [settings, setSettings] = useState(initial)
   useEffect(() => {
     applyPatch = (patch) => setSettings((s) => ({ ...s, ...patch }))
   }, [])
-  return <OnboardingWizard open settings={settings} onClose={onClose} />
+  return <OnboardingWizard open={open} settings={settings} onClose={onClose} />
 }
 
 beforeEach(() => {
@@ -77,6 +84,10 @@ afterEach(() => {
 })
 
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 const steps = () => screen.getAllByRole('listitem').map((li) => li.textContent)
 
 describe('OnboardingWizard', () => {
@@ -150,20 +161,87 @@ describe('OnboardingWizard', () => {
     await vi.waitFor(() => expect(downloadSpeechModel).toHaveBeenCalledTimes(1))
   })
 
-  it('shows the speech choice for a manual setup and downloads only once on-device is picked', async () => {
+  it('shows the speech choice for a manual setup and downloads nothing while it is open', async () => {
     render(<Wizard />)
     fireEvent.click(screen.getByRole('button', { name: /Set up manually/ }))
     click('Next')
     await screen.findByText('Add your keys')
     expect(screen.getByRole('button', { name: /Deepgram/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /On-device/ })).toBeTruthy()
-    expect(downloadSpeechModel).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: /On-device/ }))
-    await vi.waitFor(() => expect(downloadSpeechModel).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: /Deepgram/ }))
+    fireEvent.click(screen.getByRole('button', { name: /On-device/ }))
+    await settle()
+    expect(downloadSpeechModel).not.toHaveBeenCalled()
     expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+
+  it('starts the download at Next when a manual setup keeps on-device as it is', async () => {
+    render(<Wizard />)
+    fireEvent.click(screen.getByRole('button', { name: /Set up manually/ }))
+    click('Next')
+    await screen.findByText('Add your keys')
+    await settle()
+    expect(downloadSpeechModel).not.toHaveBeenCalled()
+
+    click('Next')
+    await screen.findByText('Check your audio')
+    await vi.waitFor(() => expect(downloadSpeechModel).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('progressbar')).toBeTruthy()
+  })
+
+  it('downloads nothing when a manual setup moves on with cloud speech', async () => {
+    render(<Wizard />)
+    fireEvent.click(screen.getByRole('button', { name: /Set up manually/ }))
+    click('Next')
+    await screen.findByText('Add your keys')
+
+    fireEvent.click(screen.getByRole('button', { name: /On-device/ }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: /Deepgram/ }))
+    click('Next')
+    await screen.findByText('Check your audio')
+    await settle()
+    expect(settingsSet).toHaveBeenCalledWith({ sttProvider: 'deepgram' })
+    expect(downloadSpeechModel).not.toHaveBeenCalled()
+    expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+
+  it('saves everything the private setup stands for when moving on', async () => {
+    render(<Wizard />)
+    fireEvent.click(screen.getByRole('button', { name: /Fully private/ }))
+    click('Next')
+    await screen.findByText('Add your keys')
+
+    const patch = presetPatch(SETUP_PRESETS.find((p) => p.id === 'private')!, DEFAULT_SETTINGS)
+    expect(patch.llmProvider).toBe('ollama')
+    for (const [key, value] of Object.entries(patch)) {
+      expect(settingsSet).toHaveBeenCalledWith({ [key]: value })
+    }
+    expect(screen.getByText('Ollama host')).toBeTruthy()
+  })
+
+  it('starts over, with no leftover download, when it is opened again', async () => {
+    const { rerender } = render(<Wizard />)
+    click('Next')
+    await screen.findByText('Add your keys')
+    await vi.waitFor(() => expect(downloadSpeechModel).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('progressbar')).toBeTruthy()
+
+    click('Back')
+    fireEvent.click(screen.getByRole('button', { name: /Fully private/ }))
+    rerender(<Wizard open={false} />)
+    rerender(<Wizard open />)
+    await settle()
+
+    expect(screen.getByText('How do you want to set up Zanban?')).toBeTruthy()
+    const pressed = (name: RegExp) =>
+      screen.getByRole('button', { name }).getAttribute('aria-pressed')
+    expect(pressed(/Recommended/)).toBe('true')
+    expect(pressed(/Fully private/)).toBe('false')
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(speechModel).toHaveBeenCalledTimes(1)
+    expect(downloadSpeechModel).toHaveBeenCalledTimes(1)
   })
 
   it('switches the interface language from the header', () => {

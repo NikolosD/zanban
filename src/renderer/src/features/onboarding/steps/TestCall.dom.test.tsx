@@ -143,6 +143,66 @@ describe('TestCall', () => {
     )
   })
 
+  it('gives a re-run its own 20 seconds before calling it stuck', async () => {
+    vi.useFakeTimers()
+    testConnection.mockResolvedValueOnce({ ok: true }).mockReturnValue(new Promise(() => {}))
+    render(<TestCall settings={withKey} />)
+    runTest()
+    await act(async () => vi.advanceTimersByTimeAsync(10_000))
+    expect(screen.getByText('Works')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Test again' }))
+    await act(async () => vi.advanceTimersByTimeAsync(10_500))
+    expect(screen.queryByText(/No answer in 20 seconds/)).toBeNull()
+    expect(screen.getByText('checking…')).toBeTruthy()
+
+    await act(async () => vi.advanceTimersByTimeAsync(9_000))
+    expect(screen.queryByText(/No answer in 20 seconds/)).toBeNull()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(screen.getByText("Doesn't work: No answer in 20 seconds.")).toBeTruthy()
+  })
+
+  it('ignores a late failure from a call it already gave up on', async () => {
+    vi.useFakeTimers()
+    let failFirst: (err: Error) => void = () => {}
+    testConnection
+      .mockReturnValueOnce(new Promise((_, reject) => (failFirst = reject)))
+      .mockResolvedValueOnce({ ok: true })
+    render(<TestCall settings={withKey} />)
+    runTest()
+    await act(async () => vi.advanceTimersByTimeAsync(20_500))
+    expect(screen.getByText("Doesn't work: No answer in 20 seconds.")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Test again' }))
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    expect(screen.getByText('Works')).toBeTruthy()
+
+    await act(async () => failFirst(new Error('socket hang up')))
+    expect(screen.getByText('Works')).toBeTruthy()
+    expect(screen.queryByText(/socket hang up/)).toBeNull()
+  })
+
+  it('keeps waiting for the newer call when the older one lands first', async () => {
+    vi.useFakeTimers()
+    let failFirst: (err: Error) => void = () => {}
+    let answerSecond: (result: ProviderTestResult) => void = () => {}
+    testConnection
+      .mockReturnValueOnce(new Promise((_, reject) => (failFirst = reject)))
+      .mockReturnValueOnce(new Promise((resolve) => (answerSecond = resolve)))
+    render(<TestCall settings={withKey} />)
+    runTest()
+    await act(async () => vi.advanceTimersByTimeAsync(20_500))
+    fireEvent.click(screen.getByRole('button', { name: 'Test again' }))
+
+    await act(async () => failFirst(new Error('socket hang up')))
+    expect(screen.getByText('checking…')).toBeTruthy()
+    expect(screen.queryByText(/socket hang up/)).toBeNull()
+
+    await act(async () => answerSecond({ ok: true }))
+    expect(screen.getByText('Works')).toBeTruthy()
+  })
+
   it('names a silent microphone', async () => {
     vi.useFakeTimers()
     render(<TestCall settings={withKey} />)

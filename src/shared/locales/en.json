@@ -502,7 +502,7 @@
       "sessions_hint": "Transcripts and recaps are plain text files in this folder.",
       "open_sessions_folder": "Open folder",
       "setup_label": "Setup wizard",
-      "setup_hint": "Walk through keys, the audio check, and your role again.",
+      "setup_hint": "Walk through the setup choice, keys, audio check, and test call again.",
       "rerun_onboarding": "Run again"
     },
     "language": {

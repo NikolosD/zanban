@@ -213,10 +213,7 @@ export function ApiKeysStep({
             {STT_OPTIONS.map((opt) => (
               <button
                 key={opt}
-                onClick={() => {
-                  setStt(opt)
-                  setSpeechEngine(opt)
-                }}
+                onClick={() => setStt(opt)}
                 className={cn(
                   'flex items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors',
                   stt === opt
