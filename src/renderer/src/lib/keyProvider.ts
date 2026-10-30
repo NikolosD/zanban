@@ -22,12 +22,13 @@ export const KEY_SETTINGS_FIELD: Record<KeyProvider, KeySettingsField> = {
   tavily: 'tavilyApiKey'
 }
 
-// Only shapes no other provider shares. A bare `sk-` key is deliberately absent:
-// OpenAI, DeepSeek, Moonshot and others all issue them.
+// Only shapes no other provider shares. A bare `sk-` key is left out because OpenAI,
+// DeepSeek, Moonshot and others all issue them; admin keys and Anthropic's OAuth tokens
+// are left out because they can't make the requests this app does.
 const KEY_SHAPES: ReadonlyArray<readonly [KeyProvider, RegExp]> = [
-  ['anthropic', /^sk-ant-/],
-  // Older OpenAI keys have no prefix of their own but embed "T3BlbkFJ", base64 of "OpenAI".
-  ['openai', /^sk-(?:proj|svcacct|admin)-|^sk-[\w-]*T3BlbkFJ/],
+  ['anthropic', /^sk-ant-api/],
+  // Older OpenAI keys have no prefix of their own but carry "T3BlbkFJ", base64 of "OpenAI".
+  ['openai', /^sk-(?:proj|svcacct)-|^sk-[A-Za-z0-9]{20}T3BlbkFJ/],
   ['groq', /^gsk_/],
   ['vercel-gateway', /^vck_/],
   ['google-gemini', /^AIza/],
@@ -38,9 +39,10 @@ const KEY_SHAPES: ReadonlyArray<readonly [KeyProvider, RegExp]> = [
 // Below this a value is a prefix being typed, not a pasted key.
 const MIN_KEY_LENGTH = 20
 
-const SPACE_AND_QUOTES = /^[\s"'`“”‘’]+|[\s"'`“”‘’]+$/g
+// A copied config line brings its comma or semicolon along, after the closing quote.
+const SPACE_AND_QUOTES = /^[\s"'`“”‘’]+|[\s"'`“”‘’,;]+$/g
 
-/** What a user meant to paste: surrounding whitespace and quote marks removed. */
+/** What a user meant to paste: no surrounding whitespace, quotes or trailing `,` `;`. */
 export function cleanPastedKey(raw: string): string {
   return raw.replace(SPACE_AND_QUOTES, '')
 }

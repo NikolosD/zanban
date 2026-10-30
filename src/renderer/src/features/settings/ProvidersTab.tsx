@@ -24,8 +24,7 @@ import { Section } from './layout'
 import { LlmFallbackOrderField } from './LlmFallbackOrderField'
 import { llmProviderStatus } from './providerStatus'
 import { cn } from '@renderer/lib/utils'
-import { KEY_SETTINGS_FIELD } from '@renderer/lib/keyProvider'
-import { KeyMoverContext, PasteAnyKey, type KeyMover } from './KeyRouting'
+import { KeyMoverContext, PasteAnyKey, useKeyMover } from './KeyRouting'
 
 interface Props {
   settings: AppSettings
@@ -117,10 +116,7 @@ export function ProvidersTab({ settings, update }: Props) {
     }
   }
 
-  const keyMover: KeyMover = {
-    isSet: (provider) => !!settings[KEY_SETTINGS_FIELD[provider]],
-    store: (provider, key) => update(KEY_SETTINGS_FIELD[provider], key)
-  }
+  const keyMover = useKeyMover(settings, update)
 
   return (
     <KeyMoverContext.Provider value={keyMover}>
@@ -139,7 +135,7 @@ export function ProvidersTab({ settings, update }: Props) {
         title={t('settings.providers.paste_any_title')}
         hint={t('settings.providers.paste_any_hint')}
       >
-        <PasteAnyKey settings={settings} update={update} />
+        <PasteAnyKey settings={settings} update={update} mover={keyMover} />
       </Section>
 
       <Section

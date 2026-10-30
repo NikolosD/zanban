@@ -6,13 +6,11 @@ const filler = (n: number) => 'x'.repeat(n)
 describe('detectKeyProvider', () => {
   it.each([
     ['anthropic', `sk-ant-api03-${filler(40)}`],
-    ['anthropic', `sk-ant-admin01-${filler(40)}`],
     ['groq', `gsk_${filler(48)}`],
     ['vercel-gateway', `vck_${filler(40)}`],
     ['google-gemini', `AIza${filler(35)}`],
     ['openai', `sk-proj-${filler(60)}`],
     ['openai', `sk-svcacct-${filler(60)}`],
-    ['openai', `sk-admin-${filler(60)}`],
     ['openai', `sk-${filler(20)}T3BlbkFJ${filler(20)}`],
     ['elevenlabs', `sk_${'a1'.repeat(24)}`],
     ['tavily', `tvly-${filler(32)}`],
@@ -31,8 +29,28 @@ describe('detectKeyProvider', () => {
     expect(detectKeyProvider(` "${key}" \r\n`)).toBe('groq')
   })
 
+  it('looks past a comma or semicolon left behind by a copied config line', () => {
+    const key = `gsk_${filler(48)}`
+    expect(detectKeyProvider(`"${key}",`)).toBe('groq')
+    expect(detectKeyProvider(`'${key}';`)).toBe('groq')
+    expect(detectKeyProvider(`${key};`)).toBe('groq')
+    expect(detectKeyProvider(`"${key}" ,\n`)).toBe('groq')
+  })
+
   it('does not mistake an Anthropic key for an OpenAI one', () => {
     expect(detectKeyProvider(`sk-ant-api03-${filler(40)}`)).not.toBe('openai')
+  })
+
+  it('leaves admin and OAuth keys alone, since they cannot run a request', () => {
+    expect(detectKeyProvider(`sk-ant-oat01-${filler(60)}`)).toBeNull()
+    expect(detectKeyProvider(`sk-ant-admin01-${filler(60)}`)).toBeNull()
+    expect(detectKeyProvider(`sk-admin-${filler(60)}`)).toBeNull()
+    expect(detectKeyProvider(`sk-admin-${filler(58)}T3BlbkFJ${filler(58)}`)).toBeNull()
+  })
+
+  it('wants the OpenAI marker where older keys carry it, not just anywhere', () => {
+    expect(detectKeyProvider(`sk-${filler(10)}T3BlbkFJ${filler(30)}`)).toBeNull()
+    expect(detectKeyProvider(`sk-${filler(48)}T3BlbkFJ`)).toBeNull()
   })
 
   it('does not guess for a bare sk- key, which several providers share', () => {
@@ -89,9 +107,21 @@ describe('cleanPastedKey', () => {
     expect(cleanPastedKey('" abc123 "')).toBe('abc123')
   })
 
+  it('strips a trailing comma or semicolon together with the quote before it', () => {
+    expect(cleanPastedKey('"abc123",')).toBe('abc123')
+    expect(cleanPastedKey("'abc123';")).toBe('abc123')
+    expect(cleanPastedKey('abc123,')).toBe('abc123')
+    expect(cleanPastedKey('abc123;')).toBe('abc123')
+    expect(cleanPastedKey('"abc123" , \n')).toBe('abc123')
+  })
+
   it('leaves the key itself untouched', () => {
     expect(cleanPastedKey('sk-ant-api03-Ab_c-D')).toBe('sk-ant-api03-Ab_c-D')
     expect(cleanPastedKey('')).toBe('')
+  })
+
+  it('does not strip a leading comma or semicolon, which no config line adds', () => {
+    expect(cleanPastedKey(',abc123')).toBe(',abc123')
   })
 })
 

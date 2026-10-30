@@ -1,12 +1,13 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { isRedactedSecret, redactedSecretMask } from '@shared/settingsBoundary'
+import type { AppSettings } from '@shared/types'
+import { isRedactedSecret, redactSecret, redactedSecretMask } from '@shared/settingsBoundary'
 import { Input } from '@renderer/components/ui/input'
 import { Button } from '@renderer/components/ui/button'
 import { ProviderStatusDot, type ProviderDotStatus } from '@renderer/components/ProviderStatusDot'
 import { cn } from '@renderer/lib/utils'
-import { MisplacedKeyHint } from './KeyRouting'
+import { MisplacedKeyHint, useFieldRevision } from './KeyRouting'
 
 export interface ProviderCardProps {
   /** Provider id used as react key in caller. */
@@ -123,13 +124,28 @@ export function ProviderCard({
  * Input state for a stored secret. Main only ever sends a redacted marker,
  * shown as an empty field with a "configured · ••••1234" placeholder; typing
  * replaces the key. The typed value stays local so the marker main broadcasts
- * after an auto-save doesn't wipe a half-typed key.
+ * after an auto-save doesn't wipe a half-typed key. A changed `revision` means
+ * a key was saved here from elsewhere, which leaves what was typed stale.
  */
-export function useSecretDraft(value: string, onChange: (v: string) => void, placeholder: string) {
+export function useSecretDraft(
+  value: string,
+  onChange: (v: string) => void,
+  placeholder: string,
+  revision = 0
+) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<string | null>(null)
+  const [seenRevision, setSeenRevision] = useState(revision)
+  if (seenRevision !== revision) {
+    setSeenRevision(revision)
+    setDraft(null)
+  }
   const configured = isRedactedSecret(value)
   const shown = draft ?? (configured ? '' : value)
+  function edit(next: string): void {
+    setDraft(next)
+    onChange(next)
+  }
   return {
     shown,
     placeholder:
@@ -139,9 +155,12 @@ export function useSecretDraft(value: string, onChange: (v: string) => void, pla
             mask: redactedSecretMask(value)
           })
         : placeholder,
-    edit(next: string): void {
-      setDraft(next)
-      onChange(next)
+    edit,
+    // Another field bound to the same setting may have saved a newer key since this
+    // one was typed; emptying the setting then would delete that key.
+    clear(): void {
+      if (value === shown || value === redactSecret(shown)) edit('')
+      else setDraft(null)
     }
   }
 }
@@ -164,15 +183,18 @@ export function SecretKeyField({
   value: string
   onChange(v: string): void
   /** The settings field this saves to; lets a key typed here be recognized as another's. */
-  fieldKey?: string
+  fieldKey?: keyof AppSettings
 }) {
   const { t } = useTranslation()
   const id = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [reveal, setReveal] = useState(false)
+  const revision = useFieldRevision(fieldKey)
   const secret = useSecretDraft(
     value,
     onChange,
-    placeholder ?? t('settings.providers.key_placeholder')
+    placeholder ?? t('settings.providers.key_placeholder'),
+    revision
   )
   return (
     <div className="flex flex-col gap-1">
@@ -186,6 +208,7 @@ export function SecretKeyField({
       )}
       <div className="flex items-center gap-1">
         <Input
+          ref={inputRef}
           id={id}
           value={secret.shown}
           type={reveal ? 'text' : 'password'}
@@ -211,7 +234,10 @@ export function SecretKeyField({
         <MisplacedKeyHint
           fieldKey={fieldKey}
           typed={secret.shown}
-          onMoved={() => secret.edit('')}
+          onMoved={() => {
+            secret.clear()
+            inputRef.current?.focus()
+          }}
         />
       )}
     </div>
