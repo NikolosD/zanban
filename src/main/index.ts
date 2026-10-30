@@ -15,7 +15,11 @@ import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
 import { fitOverlayHeight } from './windows/overlayHeight.js'
-import { startOverlayDrag, stopOverlayDrag } from './windows/overlayDrag.js'
+import {
+  startOverlayDrag,
+  stopOverlayDrag,
+  updateOverlayDragHeight
+} from './windows/overlayDrag.js'
 import { fitOverlayWidth } from './windows/overlayBounds.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
@@ -320,6 +324,7 @@ app.whenReady().then(async () => {
     const [curW = 0, curH = 0] = overlayWindow.getContentSize()
     if (Math.abs(curH - next) < 2) return
     overlayWindow.setContentSize(curW, next, false)
+    updateOverlayDragHeight(next)
   })
   handleIpc(IPC.overlay.setWidth, (_e, requested: number) => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !Number.isFinite(requested)) return

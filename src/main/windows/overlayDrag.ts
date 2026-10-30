@@ -6,6 +6,12 @@ export const DRAG_TICK_MS = 16
 export const DRAG_MAX_MS = 30_000
 
 let stopCurrent: (() => void) | null = null
+let setCurrentHeight: ((height: number) => void) | null = null
+
+/** Content grew or shrank mid-drag; the loop must stop re-applying the old height. */
+export function updateOverlayDragHeight(height: number): void {
+  setCurrentHeight?.(height)
+}
 
 export function stopOverlayDrag(): void {
   stopCurrent?.()
@@ -23,14 +29,16 @@ function refitHeight(win: BrowserWindow): void {
  * Follows the cursor with the window until stopped. The renderer's mouseup is
  * not reliable once the window moves under the cursor or loses focus, so main
  * also stops on blur, hide, destroy and after a hard cap. The size captured at
- * the start is re-applied every tick because setPosition alone can change the
+ * the start is re-applied every tick (the height follows content via
+ * updateOverlayDragHeight) because setPosition alone can change the
  * size when the window crosses monitors of different scale factors.
  */
 export function startOverlayDrag(win: BrowserWindow, onStop: (position: Point) => void): void {
   stopOverlayDrag()
   const cursor = screen.getCursorScreenPoint()
   const [winX = 0, winY = 0] = win.getPosition()
-  const [width = 0, height = 0] = win.getSize()
+  const [width = 0, startHeight = 0] = win.getSize()
+  let height = startHeight
   const grabX = cursor.x - winX
   const grabY = cursor.y - winY
   let last = { x: winX, y: winY }
@@ -53,6 +61,7 @@ export function startOverlayDrag(win: BrowserWindow, onStop: (position: Point) =
   function stop(): void {
     if (stopCurrent !== stop) return
     stopCurrent = null
+    setCurrentHeight = null
     clearInterval(timer)
     clearTimeout(cap)
     if (win.isDestroyed()) return
@@ -66,6 +75,9 @@ export function startOverlayDrag(win: BrowserWindow, onStop: (position: Point) =
   }
 
   stopCurrent = stop
+  setCurrentHeight = (next) => {
+    height = next
+  }
   win.on('blur', stop)
   win.on('hide', stop)
   win.on('closed', stop)

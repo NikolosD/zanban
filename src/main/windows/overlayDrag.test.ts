@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { DRAG_MAX_MS, DRAG_TICK_MS, startOverlayDrag, stopOverlayDrag } =
+const { DRAG_MAX_MS, DRAG_TICK_MS, startOverlayDrag, stopOverlayDrag, updateOverlayDragHeight } =
   await import('./overlayDrag')
 const { EventEmitter } = await import('node:events')
 
@@ -209,5 +209,26 @@ describe('overlay drag loop', () => {
     stopOverlayDrag()
 
     expect(win.setContentSize).not.toHaveBeenCalled()
+  })
+
+  it('follows content that grows mid-drag instead of restoring the old height', () => {
+    const { win } = setup()
+    electron.cursor = { x: 800, y: 130 }
+    vi.advanceTimersByTime(DRAG_TICK_MS)
+    updateOverlayDragHeight(640)
+    electron.cursor = { x: 900, y: 140 }
+    vi.advanceTimersByTime(DRAG_TICK_MS)
+
+    expect(win.setBounds).toHaveBeenLastCalledWith({ x: 800, y: 122, width: 720, height: 640 })
+  })
+
+  it('ignores a height update when no drag is active', () => {
+    const { win } = setup()
+    stopOverlayDrag()
+    updateOverlayDragHeight(640)
+    electron.cursor = { x: 900, y: 140 }
+    vi.advanceTimersByTime(DRAG_TICK_MS)
+
+    expect(win.setBounds).not.toHaveBeenCalled()
   })
 })
