@@ -26,7 +26,10 @@ function tightenProdCsp(): {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // electron-store drags in conf, ajv and semver — a couple hundred files that
+    // are resolved and read one by one before the app is ready. Bundled, that is
+    // a single read (~50 ms off launch).
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
