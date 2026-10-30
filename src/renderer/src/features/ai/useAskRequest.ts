@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useAi } from './store'
-import { SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
+import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
+import { lastSystemFinal } from '@shared/questions'
 import { useTranscript } from '@renderer/features/transcript/store'
 import { errorMessage } from '@renderer/lib/errors'
 
@@ -41,6 +42,9 @@ export interface AskRequestOptions {
   modelOverride?: string | null
   /** Id of an answer cut at the length limit: the reply is written onto its end. */
   continueFrom?: string
+  /** What the other side said that this ask responds to, for the answer card's Q line.
+   *  An ANSWER_LAST_PROMPT ask without one uses their latest final utterance. */
+  question?: string
 }
 
 export interface UseAskRequest {
@@ -85,12 +89,13 @@ export function useAskRequest(): UseAskRequest {
       requestIdRef.current = requestId
       if (opts.continueFrom) useAi.getState().resumeRequest(opts.continueFrom, requestId)
       else {
-        useAi.getState().newRequest(label, requestId, {
-          prompt: p,
-          label: opts.label,
-          image,
-          ocr: opts.ocr ?? null
-        })
+        const question =
+          opts.question ??
+          (p === ANSWER_LAST_PROMPT
+            ? lastSystemFinal(useTranscript.getState().finals)?.text.trim()
+            : undefined)
+        const asked = { prompt: p, label: opts.label, image, ocr: opts.ocr ?? null }
+        useAi.getState().newRequest(label, requestId, asked, question)
       }
       await window.zanban.ai.ask({
         requestId,

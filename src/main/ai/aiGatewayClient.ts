@@ -8,6 +8,7 @@ import {
   SHORTEN_PROMPT,
   WHAT_TO_ANSWER_PROMPT
 } from '../../shared/prompts.js'
+import { lastQuestion } from '../../shared/questions.js'
 import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
 import type { LlmProvider, TranscriptSegment } from '../../shared/types.js'
@@ -35,7 +36,6 @@ const STREAM_TIMEOUT_MESSAGE = 'LLM stream timed out (no response for 30s)'
 
 const RETRIEVAL_TIMEOUT_MS = 1500
 const RETRIEVAL_QUERY_MAX_WORDS = 60
-const MIN_QUESTION_WORDS = 4
 
 // Vision answers can be code-heavy: a kata solution + explanation + edge cases
 // easily runs past 1.5k tokens, after which the stream truncates mid-line.
@@ -229,21 +229,6 @@ function broadcastChunk(requestId: string, text: string): void {
 function lastWords(text: string, max: number): string {
   const words = text.trim().split(/\s+/)
   return words.length > max ? words.slice(-max).join(' ') : text
-}
-
-function wordCount(text: string): number {
-  return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length
-}
-
-function lastQuestion(text: string): string | null {
-  const sentences = text.split(/(?<=[.!?…])\s+/)
-  for (let i = sentences.length - 1; i >= 0; i--) {
-    const sentence = sentences[i]!
-    if (/\?[!?.…"'»”)]*$/.test(sentence) && wordCount(sentence) >= MIN_QUESTION_WORDS) {
-      return sentence
-    }
-  }
-  return null
 }
 
 /**

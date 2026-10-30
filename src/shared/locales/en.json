@@ -41,6 +41,9 @@
     "confirm_stop_tooltip": "Click again to stop the session",
     "send": "Send",
     "more": "more",
+    "on": "on",
+    "off": "off",
+    "question": "Q: {{question}}",
     "rolling": {
       "listening": "listening…",
       "connecting": "starting speech recognition…",
@@ -65,6 +68,7 @@
     "chips": {
       "catch_up": "Catch up",
       "answer": "Answer",
+      "auto_answer": "Auto-answer",
       "which_question": "Which question?",
       "shorten": "Shorten last answer",
       "follow_up": "Suggest follow-up",
@@ -540,6 +544,8 @@
       "context_window_hint": "Seconds of recent conversation sent with each question (10–600).",
       "detailed_answers_label": "Detailed answers",
       "detailed_answers_hint": "Raise the output limit so answers truncate less often. Slightly slower. Off by default for short, snappy replies.",
+      "auto_answer_label": "Auto-answer",
+      "auto_answer_hint": "During a call, answer on its own once the other side finishes a question. Every question it catches is a paid request to your provider. Off by default.",
       "streaming_label": "Answers",
       "streaming_hint": "Every answer you ask for, by hotkey or typed. Pick the fastest model you trust — you wait for it mid-call.",
       "follow_up_model_label": "Follow-up suggestions model",

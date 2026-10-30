@@ -31,6 +31,7 @@ import {
 import { wireTranscriptIpc, useTranscript } from '@renderer/features/transcript/store'
 import { wireAiIpc, useAi } from '@renderer/features/ai/store'
 import { useAskRequest, type AskRequestOptions } from '@renderer/features/ai/useAskRequest'
+import { useAutoAnswer } from '@renderer/features/ai/useAutoAnswer'
 import { useScreenshotAttachment } from '@renderer/features/ai/useScreenshotAttachment'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
@@ -201,6 +202,17 @@ export function OverlayApp() {
   const continueAnswer = useCallback((id: string): void => {
     void runPromptRef.current({ prompt: 'continue', continueFrom: id })
   }, [])
+
+  const autoAnswer = settings?.autoAnswer ?? false
+  const answerDetectedQuestion = useCallback((question: string): void => {
+    void runPromptRef.current({
+      prompt: ANSWER_LAST_PROMPT,
+      label: i18n.t('overlay.labels.answer_last'),
+      waitForTranscript: true,
+      question
+    })
+  }, [])
+  useAutoAnswer({ enabled: autoAnswer, busy, ask: answerDetectedQuestion })
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -488,6 +500,10 @@ export function OverlayApp() {
                   void runPrompt({ prompt: FOLLOW_UP_PROMPT, label: t('overlay.chips.follow_up') })
                 }
                 onAnswer={handleAnswer}
+                autoAnswer={autoAnswer}
+                onToggleAutoAnswer={() =>
+                  void window.zanban.settings.set({ autoAnswer: !autoAnswer })
+                }
                 modelMenu={
                   <ModelOverrideSubmenu
                     value={modelOverride}
@@ -746,6 +762,8 @@ function ActionChipsRow({
   onCatchUp,
   onFollowUp,
   onAnswer,
+  autoAnswer,
+  onToggleAutoAnswer,
   modelMenu
 }: {
   busy: boolean
@@ -757,6 +775,8 @@ function ActionChipsRow({
   onCatchUp: () => void
   onFollowUp: () => void
   onAnswer: () => void
+  autoAnswer: boolean
+  onToggleAutoAnswer: () => void
   /** Per-request model override, offered from the `more` menu. */
   modelMenu: React.ReactNode
 }) {
@@ -804,6 +824,22 @@ function ActionChipsRow({
             <span className="text-[12px]">{t('overlay.chips.follow_up')}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              onToggleAutoAnswer()
+            }}
+          >
+            <span className="flex-1 text-[12px]">{t('overlay.chips.auto_answer')}</span>
+            <span
+              className={cn(
+                'font-mono text-small lowercase',
+                autoAnswer ? 'text-success' : 'text-muted-foreground'
+              )}
+            >
+              {autoAnswer ? t('overlay.on') : t('overlay.off')}
+            </span>
+          </DropdownMenuItem>
           {modelMenu}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -1168,6 +1204,7 @@ interface AskMessage {
   status: 'streaming' | 'done' | 'error'
   error?: string
   finishReason?: string
+  question?: string
 }
 
 /**
@@ -1219,7 +1256,7 @@ function AnswerHistory({
   )
 }
 
-const AnswerPane = memo(function AnswerPane({
+export const AnswerPane = memo(function AnswerPane({
   message: m,
   onContinue
 }: {
@@ -1231,10 +1268,10 @@ const AnswerPane = memo(function AnswerPane({
     <div className="space-y-1.5">
       <div className="flex items-start gap-2">
         <div
-          title={m.prompt}
+          title={m.question ?? m.prompt}
           className="line-clamp-2 min-w-0 flex-1 text-small text-muted-foreground"
         >
-          {m.prompt}
+          {m.question ? t('overlay.question', { question: m.question }) : m.prompt}
         </div>
         {m.status === 'streaming' && (
           <span className="shrink-0 font-mono text-small lowercase text-muted-foreground">
@@ -1285,7 +1322,9 @@ const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: Ask
             className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')}
             aria-hidden
           />
-          <span className="max-w-[40%] shrink-0 truncate text-foreground/80">{m.prompt}</span>
+          <span className="max-w-[40%] shrink-0 truncate text-foreground/80">
+            {m.question ?? m.prompt}
+          </span>
           <span className="min-w-0 flex-1 truncate">{preview}</span>
         </button>
         {open && <CopyAnswerButton message={m} />}

@@ -56,6 +56,7 @@ const settingsShape = {
   privacyCloudFallback: z.boolean(),
   autoWebSearch: z.boolean(),
   detailedAnswers: z.boolean(),
+  autoAnswer: z.boolean(),
   aiModels: z.record(
     llmProvider,
     z.object({ fast: modelSlot, filter: modelSlot, summary: modelSlot, vision: modelSlot })
