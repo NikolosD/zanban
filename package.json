@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "format": "prettier --write . --log-level warn",
     "format:check": "prettier --check .",
+    "bench:answers": "node scripts/bench/answer-shape.mjs",
     "analyze": "ANALYZE=1 electron-vite build",
     "icons": "node scripts/generate-icons.cjs",
     "start": "electron-vite preview",
