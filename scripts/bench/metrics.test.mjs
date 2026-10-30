@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   classifyRect,
   contrastRatio,
+  declaredContrast,
   edgeEnergy,
   luminance,
   percentile,
@@ -110,5 +111,13 @@ describe('classifyRect', () => {
 
   it('tolerates sub-pixel overshoot', () => {
     expect(classifyRect({ x: 10, y: 88.4, w: 20, h: 12 }, clip)).toBe('visible')
+  })
+})
+
+describe('declaredContrast', () => {
+  it('composites the text alpha over the surround', () => {
+    expect(declaredContrast([255, 255, 255, 1], [0, 0, 0])).toBeCloseTo(21, 3)
+    expect(declaredContrast([255, 255, 255, 0], [0, 0, 0])).toBe(1)
+    expect(declaredContrast([255, 255, 255, 0.5], [0, 0, 0])).toBeLessThan(21)
   })
 })

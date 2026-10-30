@@ -45,7 +45,7 @@ function clampRect(bitmap, rect) {
  * ring of pixels around it. The core is the mean of the `topFrac` pixels that
  * differ most from that surround, so anti-aliasing does not dilute the result.
  */
-export function rectContrast(bitmap, rect, { ring = 3, topFrac = 0.1 } = {}) {
+export function rectContrastDetail(bitmap, rect, { ring = 3, topFrac = 0.1 } = {}) {
   const inner = clampRect(bitmap, rect)
   const outer = clampRect(bitmap, {
     x: rect.x - ring,
@@ -58,20 +58,44 @@ export function rectContrast(bitmap, rect, { ring = 3, topFrac = 0.1 } = {}) {
   for (let y = outer.y0; y < outer.y1; y++) {
     for (let x = outer.x0; x < outer.x1; x++) {
       const inside = x >= inner.x0 && x < inner.x1 && y >= inner.y0 && y < inner.y1
-      if (!inside) around.push(lumaAt(bitmap, x, y))
+      if (!inside) around.push({ l: lumaAt(bitmap, x, y), x, y })
     }
   }
   if (around.length === 0) return null
-  const bg = percentile(around, 0.5)
+  around.sort((a, b) => a.l - b.l)
+  const bgPixel = around[Math.floor((around.length - 1) / 2)]
+  const bg = bgPixel.l
   const core = []
   for (let y = inner.y0; y < inner.y1; y++) {
-    for (let x = inner.x0; x < inner.x1; x++) core.push(lumaAt(bitmap, x, y))
+    for (let x = inner.x0; x < inner.x1; x++) core.push({ l: lumaAt(bitmap, x, y), x, y })
   }
-  core.sort((a, b) => Math.abs(b - bg) - Math.abs(a - bg))
+  core.sort((a, b) => Math.abs(b.l - bg) - Math.abs(a.l - bg))
   const take = Math.max(1, Math.round(core.length * topFrac))
-  let fg = 0
-  for (let i = 0; i < take; i++) fg += core[i]
-  return contrastRatio(fg / take, bg)
+  const top = core.slice(0, take)
+  const fg = top.reduce((n, p) => n + p.l, 0) / take
+  const avg = [0, 1, 2].map((c) =>
+    Math.round(top.reduce((n, p) => n + bitmap.data[(p.y * bitmap.width + p.x) * 4 + c], 0) / take)
+  )
+  const bgIdx = (bgPixel.y * bitmap.width + bgPixel.x) * 4
+  return {
+    ratio: contrastRatio(fg, bg),
+    fg: avg,
+    bg: [bitmap.data[bgIdx], bitmap.data[bgIdx + 1], bitmap.data[bgIdx + 2]]
+  }
+}
+
+/**
+ * Contrast of the CSS text colour (alpha composited over the measured surround)
+ * against that surround; immune to anti-aliasing but blind to overlays and fades.
+ */
+export function declaredContrast(rgba, bg) {
+  const [r, g, b, a] = rgba
+  const mix = (c, i) => a * c + (1 - a) * bg[i]
+  return contrastRatio(luminance(mix(r, 0), mix(g, 1), mix(b, 2)), luminance(bg[0], bg[1], bg[2]))
+}
+
+export function rectContrast(bitmap, rect, opts) {
+  return rectContrastDetail(bitmap, rect, opts)?.ratio ?? null
 }
 
 /**
@@ -141,7 +165,46 @@ export function scoreCase(probe, shots) {
   const visible = words.filter((w) => w.state === 'visible')
   const visibleChars = visible.reduce((n, w) => n + w.t.length, 0)
 
-  const ratios = visible.map((w) => rectContrast(shots.withBg, w.rect)).filter((r) => r !== null)
+  const details = visible
+    .map((w) => ({ w, d: rectContrastDetail(shots.withBg, w.rect) }))
+    .filter((x) => x.d !== null)
+    .map(({ w, d }) => ({ w, d, declared: declaredContrast(w.rgba, d.bg) }))
+  // One-glyph tokens (<, -, =) have strokes thinner than a pixel, so their
+  // antialiased core never reaches the text colour; leave them out of the pixel score.
+  const ratios = details.filter((x) => x.w.t.length >= 2).map((x) => x.d.ratio)
+  const declaredRatios = details.map((x) => x.declared)
+  const fadeTop = probe.scroller.rect[1] + probe.scroller.rect[3] - (probe.scroller.fadePx ?? 0)
+  const clearRatios = details
+    .filter((x) => x.w.t.length >= 2 && x.w.rect.y + x.w.rect.h <= fadeTop)
+    .map((x) => x.d.ratio)
+  const selectors = {}
+  for (const { w, declared } of details) {
+    const key = w.sel.slice(0, 48)
+    const cur = selectors[key] ?? { n: 0, minDeclared: Infinity, css: w.color }
+    cur.n++
+    if (declared < cur.minDeclared) {
+      cur.minDeclared = declared
+      cur.css = w.color
+    }
+    selectors[key] = cur
+  }
+  const lowest = [...details]
+    .filter((x) => x.w.t.length >= 2)
+    .sort((a, b) => a.d.ratio - b.d.ratio)
+    .slice(0, 6)
+    .map(({ w, d, declared }) => ({
+      t: w.t,
+      ratio: d.ratio,
+      declared,
+      sel: w.sel,
+      css: w.color,
+      fg: d.fg,
+      bg: d.bg
+    }))
+  const lowestDeclared = [...details]
+    .sort((a, b) => a.declared - b.declared)
+    .slice(0, 6)
+    .map(({ w, declared, d }) => ({ t: w.t, declared, sel: w.sel, css: w.color, bg: d.bg }))
 
   const region = intersectRect(toRect(probe.scroller.rect), {
     x: 0,
@@ -179,6 +242,10 @@ export function scoreCase(probe, shots) {
   return {
     contrastMedian: percentile(ratios, 0.5),
     contrastP10: percentile(ratios, 0.1),
+    contrastP10Clear: percentile(clearRatios, 0.1),
+    declaredMedian: percentile(declaredRatios, 0.5),
+    declaredP10: percentile(declaredRatios, 0.1),
+    declaredMin: declaredRatios.length ? Math.min(...declaredRatios) : null,
     bleed,
     edge: { eBg, eFlat, eRef },
     aboveFold: totalChars === 0 ? 0 : visibleChars / totalChars,
@@ -192,6 +259,9 @@ export function scoreCase(probe, shots) {
     codePx,
     bodyPx,
     codeToBody: codePx !== null && bodyPx ? codePx / bodyPx : null,
+    lowest,
+    selectors,
+    lowestDeclared,
     wordsMeasured: ratios.length,
     totalChars
   }

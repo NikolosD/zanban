@@ -1,8 +1,9 @@
-// Anchors are short plain-text snippets that sit inside one DOM text node
+// Two sets: `plain-*` answers open with prose or code (the old shape), `say-*`
+// answers open with a short bold lead line (the verdict slot). Anchors are short plain-text snippets that sit inside one DOM text node
 // (no inline formatting across them); the probe uses them to find the answer.
 export const SCENARIOS = [
   {
-    id: 'jsx-adjacent',
+    id: 'plain-jsx-adjacent',
     uiLocale: 'ru',
     question: 'У меня ошибка Adjacent JSX elements must be wrapped. Как это исправить?',
     firstAnchor: 'Что было не так',
@@ -43,7 +44,7 @@ export const SCENARIOS = [
     ].join('\n')
   },
   {
-    id: 'behavioral-short',
+    id: 'plain-behavioral-short',
     uiLocale: 'en',
     question: 'Tell me about a time you disagreed with a teammate.',
     firstAnchor: 'On my last project',
@@ -55,7 +56,7 @@ export const SCENARIOS = [
     ].join('\n')
   },
   {
-    id: 'algorithm-code',
+    id: 'plain-algorithm-code',
     uiLocale: 'en',
     question: 'Find the length of the longest substring without repeating characters.',
     firstAnchor: 'Use a sliding window',
@@ -89,7 +90,7 @@ export const SCENARIOS = [
     ].join('\n')
   },
   {
-    id: 'russian-behavioral',
+    id: 'plain-russian-behavioral',
     uiLocale: 'ru',
     question: 'Расскажите о самом сложном проекте, в котором вы участвовали.',
     firstAnchor: 'Самым сложным проектом',
@@ -102,6 +103,81 @@ export const SCENARIOS = [
       '- **Результат:** переключились за выходные, ошибок в платежах не было.',
       '',
       'Если коротко, главный вывод: сложные изменения проходят безопасно, когда их можно откатить на любом шаге.'
+    ].join('\n')
+  },
+  {
+    id: 'say-jsx-adjacent',
+    uiLocale: 'ru',
+    question: 'У меня ошибка Adjacent JSX elements must be wrapped. Как это исправить?',
+    firstAnchor: 'Компонент возвращает',
+    lastAnchor: 'Фрагмент не добавляет',
+    markdown: [
+      '**Оберни соседние div во фрагмент `<>...</>`.**',
+      '',
+      '```diff',
+      '  return (',
+      '-   <h1>{user.name}</h1>',
+      '-   <p>{user.bio}</p>',
+      '+   <>',
+      '+     <h1>{user.name}</h1>',
+      '+     <p>{user.bio}</p>',
+      '+   </>',
+      '  )',
+      '```',
+      '',
+      'Компонент возвращает только один корневой элемент, а у вас их два рядом.',
+      '',
+      'Фрагмент не добавляет лишний узел в DOM, в отличие от обычного `<div>`.'
+    ].join('\n')
+  },
+  {
+    id: 'say-algorithm-code',
+    uiLocale: 'en',
+    question: 'Find the length of the longest substring without repeating characters.',
+    firstAnchor: 'Keep a map',
+    lastAnchor: 'Each index',
+    markdown: [
+      '**Sliding window plus a last-seen map, linear time.**',
+      '',
+      'Keep a map from each character to the index where it was last seen.',
+      '',
+      '```ts',
+      'function lengthOfLongestSubstring(s: string): number {',
+      '  const lastSeen = new Map<string, number>()',
+      '  let start = 0',
+      '  let best = 0',
+      '',
+      '  for (let end = 0; end < s.length; end++) {',
+      '    const ch = s[end]',
+      '    const prev = lastSeen.get(ch)',
+      '',
+      '    if (prev !== undefined && prev >= start) {',
+      '      start = prev + 1',
+      '    }',
+      '',
+      '    lastSeen.set(ch, end)',
+      '    best = Math.max(best, end - start + 1)',
+      '  }',
+      '',
+      '  return best',
+      '}',
+      '```',
+      '',
+      'Each index is visited once, so time is O(n) and space is bounded by the alphabet.'
+    ].join('\n')
+  },
+  {
+    id: 'say-behavioral-short',
+    uiLocale: 'en',
+    question: 'Tell me about a time you disagreed with a teammate.',
+    firstAnchor: 'A teammate wanted',
+    lastAnchor: 'The takeaway',
+    markdown: [
+      '**I proposed a staged migration, we tried it for one sprint, and it shipped on time.**',
+      '',
+      'A teammate wanted to ship a rewrite before the deadline, and I thought a staged migration was safer. I laid out both options with risks and rough costs.',
+      '',
+      'The takeaway: disagree with data, not volume, and the team will still trust each other afterwards.'
     ].join('\n')
   }
 ]

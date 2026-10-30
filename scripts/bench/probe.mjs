@@ -1,6 +1,8 @@
 // Runs inside the overlay page (serialized with toString), so it must stay
 // self-contained. Returns CSS-pixel geometry only; scoring happens in Node.
 export function probe({ firstAnchor, lastAnchor, viewportH }) {
+  // Bench-only hook: main's lead slot is [data-testid="answer-lead"]; a branch may use [data-say].
+  const SAY = '[data-say], [data-testid="answer-lead"]'
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
   const textNodes = []
   while (walker.nextNode()) textNodes.push(walker.currentNode)
@@ -49,6 +51,16 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
     return false
   }
 
+  const swatch = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+  const rgbaOf = (css) => {
+    swatch.clearRect(0, 0, 1, 1)
+    swatch.fillStyle = '#000'
+    swatch.fillStyle = css
+    swatch.fillRect(0, 0, 1, 1)
+    const d = swatch.getImageData(0, 0, 1, 1).data
+    return [d[0], d[1], d[2], d[3] / 255]
+  }
+
   const kindOf = (el) => {
     if (el.closest('pre')) return 'code'
     if (el.closest('code')) return 'inline-code'
@@ -58,7 +70,7 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
 
   const nodes = []
   const inRoot = textNodes.filter((n) => root.contains(n))
-  const say = document.querySelector('[data-say]')
+  const say = document.querySelector(SAY)
   const extra = say && !root.contains(say) ? textNodes.filter((n) => say.contains(n)) : []
   for (const n of [...extra, ...inRoot]) nodes.push(n)
 
@@ -77,7 +89,16 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
       range.setEnd(n, m.index + m[0].length)
       const r = range.getClientRects()[0]
       if (!r || r.width === 0 || r.height === 0) continue
-      words.push({ t: m[0], r: [r.left, r.top, r.width, r.height], clip, fs, kind })
+      words.push({
+        t: m[0],
+        r: [r.left, r.top, r.width, r.height],
+        clip,
+        fs,
+        kind,
+        sel: `${el.tagName.toLowerCase()}.${String(el.className).slice(0, 60)}`,
+        color: getComputedStyle(el).color,
+        rgba: rgbaOf(getComputedStyle(el).color)
+      })
     }
   }
 
@@ -88,10 +109,16 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
     }
     return root
   })()
+  const fadePx = (el) => {
+    const mask = getComputedStyle(el).maskImage
+    if (!mask || mask === 'none') return 0
+    const m = /calc\(100% - (\d+)px\)/.exec(mask)
+    return m ? Number(m[1]) : 24
+  }
   const scrollerRect = scrollerEl.getBoundingClientRect()
 
   const verdictEl =
-    document.querySelector('[data-say]') ??
+    document.querySelector(SAY) ??
     [...root.querySelectorAll('p')].find((p) => !p.closest('pre, blockquote')) ??
     root.firstElementChild ??
     root
@@ -102,7 +129,7 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
     w: vr.width,
     clip: clipOf(verdictEl),
     fs: parseFloat(getComputedStyle(verdictEl).fontSize),
-    source: verdictEl.hasAttribute('data-say') ? 'say' : 'first-paragraph',
+    source: verdictEl.matches(SAY) ? 'say' : 'first-paragraph',
     text: (verdictEl.textContent ?? '').slice(0, 80)
   }
 
@@ -114,6 +141,7 @@ export function probe({ firstAnchor, lastAnchor, viewportH }) {
     viewport,
     scroller: {
       rect: [scrollerRect.left, scrollerRect.top, scrollerRect.width, scrollerRect.height],
+      fadePx: fadePx(scrollerEl),
       scrollHeight: scrollerEl.scrollHeight,
       clientHeight: scrollerEl.clientHeight
     },

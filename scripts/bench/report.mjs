@@ -6,6 +6,20 @@ const BACKGROUND_COUNT = BACKGROUNDS.length
 export const METRICS = [
   { key: 'contrastMedian', label: 'text contrast, median (x:1)', better: 'higher', digits: 2 },
   { key: 'contrastP10', label: 'text contrast, p10 (x:1)', better: 'higher', digits: 2 },
+  {
+    key: 'contrastP10Clear',
+    label: 'text contrast, p10 outside the bottom fade (x:1)',
+    better: 'higher',
+    digits: 2
+  },
+  {
+    key: 'declaredMedian',
+    label: 'declared text contrast, median (x:1)',
+    better: 'higher',
+    digits: 2
+  },
+  { key: 'declaredP10', label: 'declared text contrast, p10 (x:1)', better: 'higher', digits: 2 },
+  { key: 'declaredMin', label: 'declared text contrast, min (x:1)', better: 'higher', digits: 2 },
   { key: 'bleed', label: 'background bleed (0-1)', better: 'lower', digits: 3 },
   { key: 'aboveFold', label: 'above the fold (share of chars)', better: 'higher', digits: 3 },
   { key: 'verdictY', label: 'verdict y (px from top)', better: 'lower', digits: 0 },
