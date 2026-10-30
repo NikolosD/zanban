@@ -31,7 +31,8 @@ vi.mock('../rag/index.js', () => ({
     await new Promise((resolve) => setTimeout(resolve, h.retrievalMs))
     h.events.push('retrieved')
     return { prompt: h.retrievalBlock, sources: [] }
-  }
+  },
+  retrievalTimedOut: () => ({ prompt: '', sources: [] })
 }))
 vi.mock('../providers/registry.js', () => ({
   getActiveWebSearch: () => null,

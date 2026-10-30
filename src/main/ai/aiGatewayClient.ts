@@ -19,7 +19,7 @@ import {
 } from './prompts.js'
 import { raceTimeout } from './raceTimeout.js'
 import { getExchanges, recordExchange } from './exchangeMemory.js'
-import { retrieve, type RetrievalResult } from '../rag/index.js'
+import { retrieve, retrievalTimedOut, type RetrievalResult } from '../rag/index.js'
 import { ExplainedError, type IWebSearchProvider } from '../providers/types.js'
 import { streamWithFallback, type FallbackAttempt } from './llm/fallbackChain.js'
 import { getPersona } from '../personas/store.js'
@@ -35,20 +35,20 @@ const STREAM_TIMEOUT_MESSAGE = 'LLM stream timed out (no response for 30s)'
 
 const RETRIEVAL_TIMEOUT_MS = 1500
 const RETRIEVAL_QUERY_MAX_WORDS = 60
+const MIN_QUESTION_WORDS = 4
 
 // Vision answers can be code-heavy: a kata solution + explanation + edge cases
 // easily runs past 1.5k tokens, after which the stream truncates mid-line.
 // Providers bill only on what is emitted, so the high ceiling isn't wasteful.
 const VISION_MAX_OUTPUT_TOKENS = 8000
 
-const FIXED_PROMPTS = new Set([
-  ANSWER_LAST_PROMPT,
+const NO_SEARCH_PROMPTS = new Set([
   SCREENSHOT_DEFAULT_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
-  WHAT_TO_ANSWER_PROMPT,
   SHORTEN_PROMPT
 ])
+const QUESTION_PROMPTS = new Set([ANSWER_LAST_PROMPT, WHAT_TO_ANSWER_PROMPT])
 
 type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
 
@@ -160,6 +160,7 @@ export interface AskOptions {
   ocrText?: string
   modelOverride?: string
   continueFrom?: string
+  skipRetrieval?: boolean
 }
 
 let windows: BrowserWindow[] = []
@@ -225,22 +226,43 @@ function broadcastChunk(requestId: string, text: string): void {
   }
 }
 
+function lastWords(text: string, max: number): string {
+  const words = text.trim().split(/\s+/)
+  return words.length > max ? words.slice(-max).join(' ') : text
+}
+
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length
+}
+
+function lastQuestion(text: string): string | null {
+  const sentences = text.split(/(?<=[.!?…])\s+/)
+  for (let i = sentences.length - 1; i >= 0; i--) {
+    const sentence = sentences[i]!
+    if (/\?[!?.…"'»”)]*$/.test(sentence) && wordCount(sentence) >= MIN_QUESTION_WORDS) {
+      return sentence
+    }
+  }
+  return null
+}
+
 /**
- * Query for RAG + web search. Hotkeys and chips send fixed instruction prompts
- * ("Answer the last question…"), and searching for that text matches nothing
- * useful — so for those, search for what was just said, preferring the other
- * speaker's channel.
+ * Query for RAG + web search. Hotkeys and chips send fixed instruction prompts,
+ * and searching for that text matches nothing useful. Shorten, Recap, Follow-up
+ * and a bare screenshot work on what is already on screen, and the transcript
+ * tail they used to search for is small talk as often as a topic, so they search
+ * nothing. Answer last and What to answer search for the question the other
+ * speaker asked, or for their latest words when they asked none. A typed prompt
+ * is its own query, cut to its tail so a pasted transcript can't become one.
  */
 export function retrievalQueryFor(prompt: string, segments: TranscriptSegment[]): string {
-  if (!FIXED_PROMPTS.has(prompt.trim())) return prompt
+  const fixed = prompt.trim()
+  if (NO_SEARCH_PROMPTS.has(fixed)) return ''
+  if (!QUESTION_PROMPTS.has(fixed)) return lastWords(prompt, RETRIEVAL_QUERY_MAX_WORDS)
   const finals = segments.filter((s) => s.isFinal && s.text.trim())
   const theirs = finals.filter((s) => s.channel === 'system')
-  const pool = theirs.length > 0 ? theirs : finals
-  const words: string[] = []
-  for (let i = pool.length - 1; i >= 0 && words.length < RETRIEVAL_QUERY_MAX_WORDS; i--) {
-    words.unshift(...pool[i]!.text.trim().split(/\s+/))
-  }
-  return words.slice(-RETRIEVAL_QUERY_MAX_WORDS).join(' ')
+  const spoken = (theirs.length > 0 ? theirs : finals).map((s) => s.text.trim()).join(' ')
+  return lastQuestion(spoken) ?? lastWords(spoken, RETRIEVAL_QUERY_MAX_WORDS)
 }
 
 /**
@@ -331,7 +353,8 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
       // augmentation never holds up the answer (the embedder can take seconds
       // to load on first use).
       // A continuation already carries its context in the answer so far.
-      const searchQuery = cut ? '' : retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
+      const searchQuery =
+        cut || opts.skipRetrieval ? '' : retrievalQueryFor(opts.prompt, transcriptBuffer.recent())
       const ragStrategy = activePersona?.ragStrategy
       const liveCall = sessionManager.getState()
       const noRetrieval: RetrievalResult = { prompt: '', sources: [] }
@@ -351,7 +374,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
                 return noRetrieval
               }),
               RETRIEVAL_TIMEOUT_MS,
-              noRetrieval
+              retrievalTimedOut(searchQuery)
             )
 
       // Optional web search via Tavily. Triggered only when the user has

@@ -114,6 +114,12 @@ export interface AiAskInput {
   modelOverride?: string
   /** Id of an answer cut at the length limit; this ask writes the rest of it. */
   continueFrom?: string
+  /**
+   * Search neither past sessions, documents nor the web. For a prompt that
+   * already carries what the answer needs (a saved transcript), whose text would
+   * otherwise become the search query.
+   */
+  skipRetrieval?: boolean
 }
 
 export interface ScreenSnapshot {
