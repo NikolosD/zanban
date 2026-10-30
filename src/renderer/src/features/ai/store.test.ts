@@ -45,7 +45,7 @@ describe('AI errors', () => {
       reason: { kind: 'ollama_unreachable', host: 'http://127.0.0.1:11434' }
     })
     expect(useAi.getState().messages[0]?.error).toBe(
-      'Ollama не отвечает по адресу http://127.0.0.1:11434. Запустите Ollama или проверьте адрес в Настройки → Ключи и провайдеры.'
+      'Ollama не отвечает по адресу http://127.0.0.1:11434. Запустите Ollama или проверьте адрес в Настройках → Ключи и провайдеры.'
     )
   })
 

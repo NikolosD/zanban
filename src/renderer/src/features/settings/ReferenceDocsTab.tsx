@@ -50,14 +50,7 @@ export function ReferenceDocsTab() {
         const ok = results.filter((r): r is ReferenceDoc => 'id' in r).length
         const errs = results.filter((r): r is { error: string; path: string } => 'error' in r)
         if (ok > 0) {
-          toast.success(
-            t(
-              ok === 1
-                ? 'settings.documents.upload_added_one'
-                : 'settings.documents.upload_added_other',
-              { count: ok }
-            )
-          )
+          toast.success(t('settings.documents.upload_added', { count: ok }))
         }
         for (const e of errs) {
           toast.error(t('settings.documents.upload_failed', { path: e.path }), {

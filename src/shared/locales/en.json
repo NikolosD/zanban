@@ -408,7 +408,7 @@
       "ollama_privacy_no_models": "Privacy Mode uses Ollama, but no models are installed. Pull one below or the assistant will fail on the first prompt.",
       "key_configured": "configured · {{mask}}",
       "status": {
-        "ok": "Configured — use Test to verify",
+        "ok": "Configured — press Check to verify",
         "missing": "Not configured",
         "unknown": "Status unknown",
         "error": "Last attempt failed"
