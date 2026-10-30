@@ -72,6 +72,8 @@ const settingsShape = {
   hideFromAppSwitcher: z.boolean(),
   overlayOpacity: fraction,
   overlayAnswerMaxHeight: amount,
+  overlayWidth: amount,
+  overlayPosition: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable(),
   recap: z.object({
     autoGenerate: z.boolean(),
     tone: z.enum(['concise', 'friendly', 'formal']),

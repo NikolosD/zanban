@@ -384,6 +384,10 @@ export interface AppSettings {
    * Persisted so each new session opens at the user's preferred ceiling.
    */
   overlayAnswerMaxHeight: number
+  /** Overlay window width in px; dragged with the corner grip, clamped to the display on use. */
+  overlayWidth: number
+  /** Where the user last dropped the overlay (global screen coordinates); null = top-centre. */
+  overlayPosition: { x: number; y: number } | null
   /**
    * Post-meeting recap (RecapTab in SessionDetail). Separate from the
    * overlay's mid-meeting "Recap last 90s" chip — that one uses RECAP_PROMPT
@@ -679,6 +683,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideFromAppSwitcher: false,
   overlayOpacity: 1,
   overlayAnswerMaxHeight: 320,
+  overlayWidth: 720,
+  overlayPosition: null,
   recap: {
     autoGenerate: true,
     tone: 'concise',

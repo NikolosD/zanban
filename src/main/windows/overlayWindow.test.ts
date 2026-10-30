@@ -18,7 +18,10 @@ vi.mock('electron', async () => {
   }
   return {
     BrowserWindow: FakeWindow,
-    screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 1920, height: 1080 } }) }
+    screen: {
+      getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }),
+      getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }]
+    }
   }
 })
 vi.mock('../appIcon.js', () => ({ getAppIcon: () => undefined }))
@@ -27,7 +30,7 @@ vi.mock('../security.js', () => ({ DEV_SERVER_URL: undefined }))
 const { createOverlayWindow } = await import('./overlayWindow.js')
 
 function overlay() {
-  return createOverlayWindow() as unknown as {
+  return createOverlayWindow({ position: null, width: 720 }) as unknown as {
     emit(event: string): boolean
     destroyed: boolean
     webContents: { send: ReturnType<typeof vi.fn> }
