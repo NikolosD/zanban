@@ -92,7 +92,9 @@
       "screenshot_alt": "Attached screenshot"
     },
     "continue_tooltip": "Write the rest of the answer from where it stopped",
-    "resize_answer": "Answer pane height",
+    "resize_overlay": "Resize overlay",
+    "resize_overlay_tooltip": "Drag to resize, double-click to reset",
+    "drag_to_move": "Drag to move",
     "preview": {
       "heard": "How do you handle reconciliation when streams disagree?",
       "answer": "System audio is authoritative for what the room said, the mic for what you said. The reconciler diffs both streams every 800 ms."

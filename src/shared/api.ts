@@ -67,6 +67,11 @@ export interface ZanbanApi {
     toggle(): Promise<void>
     setIgnoreMouse(ignore: boolean): Promise<void>
     setContentHeight(height: number): Promise<void>
+    /** Resize the overlay window, keeping its left edge; main clamps to the display. */
+    setWidth(width: number): Promise<void>
+    /** Main follows the cursor with the window until `dragEnd` (or blur / hide). */
+    dragStart(): Promise<void>
+    dragEnd(): Promise<void>
     onFocusAsk(cb: () => void): () => void
     onAnswerLast(cb: () => void): () => void
     onSnapshotAsk(cb: (snap: ScreenSnapshot) => void): () => void

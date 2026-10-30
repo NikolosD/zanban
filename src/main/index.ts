@@ -15,6 +15,12 @@ import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
 import { fitOverlayHeight } from './windows/overlayHeight.js'
+import {
+  startOverlayDrag,
+  stopOverlayDrag,
+  updateOverlayDragHeight
+} from './windows/overlayDrag.js'
+import { fitOverlayWidth } from './windows/overlayBounds.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
@@ -318,7 +324,21 @@ app.whenReady().then(async () => {
     const [curW = 0, curH = 0] = overlayWindow.getContentSize()
     if (Math.abs(curH - next) < 2) return
     overlayWindow.setContentSize(curW, next, false)
+    updateOverlayDragHeight(next)
   })
+  handleIpc(IPC.overlay.setWidth, (_e, requested: number) => {
+    if (!overlayWindow || overlayWindow.isDestroyed() || !Number.isFinite(requested)) return
+    const bounds = overlayWindow.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    const width = fitOverlayWidth(requested, bounds.x, display.workArea)
+    if (width === bounds.width) return
+    overlayWindow.setBounds({ ...bounds, width })
+  })
+  handleIpc(IPC.overlay.dragStart, () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    startOverlayDrag(overlayWindow, (overlayPosition) => setSettings({ overlayPosition }))
+  })
+  handleIpc(IPC.overlay.dragEnd, () => stopOverlayDrag())
   // Apply a stealth state and keep every dependent surface in sync: content
   // protection, dashboard taskbar posture, persisted setting, overlay badge,
   // and the tray's checkbox/tooltip. Shared by the overlay IPC and the tray.
@@ -465,7 +485,8 @@ app.whenReady().then(async () => {
   // once that frame is out — or on first use, whichever comes first.
   function ensureOverlay(): BrowserWindow {
     if (!overlayWindow) {
-      overlayWindow = createOverlayWindow()
+      const { overlayPosition, overlayWidth } = getSettings()
+      overlayWindow = createOverlayWindow({ position: overlayPosition, width: overlayWidth })
       wireWindow(overlayWindow)
     }
     return overlayWindow

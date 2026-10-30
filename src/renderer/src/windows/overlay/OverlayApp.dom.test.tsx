@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +24,10 @@ const NEXT_QUESTION = 'And how long did that project take?'
 interface Bridge {
   ask: ReturnType<typeof vi.fn>
   set: ReturnType<typeof vi.fn>
+  dragStart: ReturnType<typeof vi.fn>
+  dragEnd: ReturnType<typeof vi.fn>
+  setWidth: ReturnType<typeof vi.fn>
+  setIgnoreMouse: ReturnType<typeof vi.fn>
   settingsChanged(settings: AppSettings): void
   visibilityChanged(visible: boolean): void
 }
@@ -39,6 +43,10 @@ function stubBridge(
   const settings: AppSettings = { ...DEFAULT_SETTINGS, autoAnswer }
   const askFn = vi.fn(ask)
   const set = vi.fn(async () => settings)
+  const dragStart = vi.fn(async () => {})
+  const dragEnd = vi.fn(async () => {})
+  const setWidth = vi.fn(async () => {})
+  const setIgnoreMouse = vi.fn(async () => {})
   const overrides: Record<string, unknown> = {
     'settings.get': async () => settings,
     'settings.set': set,
@@ -47,6 +55,10 @@ function stubBridge(
       return () => {}
     },
     'overlay.getStealth': async () => true,
+    'overlay.dragStart': dragStart,
+    'overlay.dragEnd': dragEnd,
+    'overlay.setWidth': setWidth,
+    'overlay.setIgnoreMouse': setIgnoreMouse,
     'overlay.onVisibilityChanged': (cb: typeof visibilityListener) => {
       visibilityListener = cb
       return () => {}
@@ -67,6 +79,10 @@ function stubBridge(
   return {
     ask: askFn,
     set,
+    dragStart,
+    dragEnd,
+    setWidth,
+    setIgnoreMouse,
     settingsChanged: (next) => act(() => settingsListener(next)),
     visibilityChanged: (visible) => act(() => visibilityListener(visible))
   }
@@ -302,5 +318,124 @@ describe('OverlayApp action chips', () => {
     expect(keys[0]!.className).toContain('opacity-60')
     expect(keys[1]!.className).toContain('opacity-60')
     expect(keys[2]!.className).not.toContain('opacity-60')
+  })
+})
+
+describe('OverlayApp moving and resizing', () => {
+  function statusPill(): Element {
+    return document.querySelector('svg.lucide-grip-vertical')!.parentElement!.parentElement!
+  }
+
+  function showAnswer(): void {
+    act(() => {
+      useAi.getState().newRequest('Answer last question', 'r1')
+      useAi.getState().appendChunk('r1', 'const total = items.length')
+      useAi.getState().finishRequest('r1', 'stop')
+    })
+  }
+
+  it('starts a move from the status pill background and ends it on mouseup', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseDown(statusPill())
+    expect(bridge.dragStart).toHaveBeenCalledTimes(1)
+    expect(bridge.dragEnd).not.toHaveBeenCalled()
+
+    fireEvent.mouseUp(window)
+    expect(bridge.dragEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps click-through as it was while a button is held over empty space', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseMove(window, { clientX: 5, clientY: 5, buttons: 1 })
+    expect(bridge.setIgnoreMouse).not.toHaveBeenCalled()
+
+    fireEvent.mouseMove(window, { clientX: 5, clientY: 5, buttons: 0 })
+    expect(bridge.setIgnoreMouse).toHaveBeenCalledWith(true)
+  })
+
+  it('stops listening once a move has ended', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseDown(statusPill())
+    fireEvent.mouseUp(window)
+    fireEvent.mouseUp(window)
+    fireEvent.blur(window)
+    expect(bridge.dragEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts a move from the grip icon and from the transcript line', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+    startSession()
+
+    fireEvent.mouseDown(document.querySelector('svg.lucide-grip-vertical')!)
+    fireEvent.mouseUp(window)
+    fireEvent.mouseDown(screen.getByTestId('overlay-rolling-transcript'))
+    fireEvent.mouseUp(window)
+    expect(bridge.dragStart).toHaveBeenCalledTimes(2)
+  })
+
+  it('ends a move when the window loses focus', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseDown(statusPill())
+    fireEvent.blur(window)
+    expect(bridge.dragEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not start a move from a button, the input or the answer text', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+    startSession()
+    showAnswer()
+
+    fireEvent.mouseDown(
+      screen.getByRole('button', { name: 'Open dashboard · session keeps running' })
+    )
+    fireEvent.mouseDown(screen.getByRole('textbox'))
+    fireEvent.mouseDown(screen.getByText('const total = items.length'))
+    fireEvent.mouseDown(screen.getByTestId('overlay-resize-grip'))
+    expect(bridge.dragStart).not.toHaveBeenCalled()
+  })
+
+  it('does not start a move from the right mouse button', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseDown(screen.getByTestId('overlay-resize-grip').parentElement!, { button: 2 })
+    expect(bridge.dragStart).not.toHaveBeenCalled()
+  })
+
+  it('widens the window from the corner grip and remembers the width', async () => {
+    const bridge = stubBridge(false)
+    Object.defineProperty(window, 'innerWidth', { value: 720, configurable: true })
+    Object.defineProperty(window.screen, 'availWidth', { value: 1920, configurable: true })
+    await mountOverlay()
+
+    const grip = screen.getByTestId('overlay-resize-grip')
+    fireEvent.mouseDown(grip, { clientX: 700, clientY: 400 })
+    fireEvent.mouseMove(document, { clientX: 800, clientY: 400 })
+    expect(bridge.setWidth).toHaveBeenLastCalledWith(820)
+    fireEvent.mouseUp(document)
+    await wait(300)
+    expect(bridge.set).toHaveBeenCalledWith({ overlayWidth: 820 })
+  })
+
+  it('remembers the answer height after a vertical drag of the corner grip', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    const grip = screen.getByTestId('overlay-resize-grip')
+    fireEvent.mouseDown(grip, { clientX: 700, clientY: 400 })
+    fireEvent.mouseMove(document, { clientX: 700, clientY: 440 })
+    fireEvent.mouseUp(document)
+    await wait(300)
+    expect(bridge.set).toHaveBeenCalledWith({ overlayAnswerMaxHeight: 360 })
   })
 })

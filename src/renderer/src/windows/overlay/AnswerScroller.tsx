@@ -68,11 +68,12 @@ export function AnswerScroller({
       <div
         ref={setRefs}
         data-interactive
+        data-no-drag
         data-more-below={moreBelow}
         onScroll={measure}
         style={{ maxHeight: `${maxHeight}px` }}
         className={cn(
-          'flex min-w-0 flex-col overflow-y-auto overflow-x-hidden px-1',
+          'flex min-w-0 cursor-auto flex-col overflow-y-auto overflow-x-hidden px-1',
           moreBelow && '[mask-image:linear-gradient(to_bottom,black_calc(100%-24px),transparent)]'
         )}
       >

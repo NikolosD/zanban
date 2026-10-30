@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Copy,
   ArrowDownToLine,
-  Camera
+  Camera,
+  GripVertical
 } from 'lucide-react'
 import i18n from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -67,13 +68,16 @@ import { compactHotkeyTokens } from '@renderer/lib/hotkeys'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
-import { AnswerPaneResizer } from './AnswerPaneResizer'
+import { OverlayResizeGrip } from './OverlayResizeGrip'
+import { useOverlayDrag } from './overlayDrag'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 import { AnswerScroller } from './AnswerScroller'
 import { splitAnswerLead } from './answerLead'
 import { TranscriptOrNotice } from './CaptureNoticeLine'
 import { useCaptureNotices, wireCaptureNotices } from './captureNotices'
 import { ANSWER_SURFACE, GLASS_PANEL, GLASS_PILL, overlayGlassVars } from './glass'
+
+type LayoutKey = 'overlayAnswerMaxHeight' | 'overlayWidth'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -128,20 +132,32 @@ export function OverlayApp() {
     setUserMaxHeight(clampAnswerHeight(persistedAnswerMax, hardCap))
   }
 
-  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const commitAnswerMaxHeight = useCallback((next: number) => {
-    if (persistTimer.current) clearTimeout(persistTimer.current)
-    persistTimer.current = setTimeout(() => {
-      void window.zanban.settings.set({ overlayAnswerMaxHeight: next })
+  const persistTimers = useRef<Partial<Record<LayoutKey, ReturnType<typeof setTimeout>>>>({})
+  const persistLayout = useCallback((key: LayoutKey, next: number) => {
+    clearTimeout(persistTimers.current[key])
+    persistTimers.current[key] = setTimeout(() => {
+      void window.zanban.settings.set({ [key]: next })
     }, 300)
+  }, [])
+  const commitAnswerMaxHeight = useCallback(
+    (next: number) => persistLayout('overlayAnswerMaxHeight', next),
+    [persistLayout]
+  )
+  const commitOverlayWidth = useCallback(
+    (next: number) => persistLayout('overlayWidth', next),
+    [persistLayout]
+  )
+  const resizeOverlayWidth = useCallback((next: number) => {
+    void window.zanban.overlay.setWidth(next)
   }, [])
 
   useEffect(
     () => () => {
-      if (persistTimer.current) clearTimeout(persistTimer.current)
+      for (const timer of Object.values(persistTimers.current)) clearTimeout(timer)
     },
     []
   )
+  const startDrag = useOverlayDrag()
 
   const transcriptionError =
     status.mic?.kind === 'error'
@@ -233,6 +249,9 @@ export function OverlayApp() {
     )
 
     function onMove(e: MouseEvent): void {
+      // A held button means a drag or resize is under way; flipping click-through
+      // mid-gesture would drop the mouse capture.
+      if (e.buttons !== 0) return
       const el = document.elementFromPoint(e.clientX, e.clientY)
       // Three classes of pointer-active surfaces:
       //   1. our explicitly-tagged regions ([data-interactive])
@@ -402,10 +421,8 @@ export function OverlayApp() {
         <div
           ref={panelRef}
           data-interactive
-          className={cn(
-            'pointer-events-auto mx-auto flex w-full flex-col gap-1.5',
-            'max-w-[680px]'
-          )}
+          onMouseDown={startDrag}
+          className="pointer-events-auto flex w-full cursor-move flex-col gap-1.5"
         >
           <StatusBar
             startedAt={startedAt}
@@ -427,7 +444,7 @@ export function OverlayApp() {
               input are secondary and follow it. */}
           <div
             className={cn(
-              'flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
+              'relative flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
               GLASS_PANEL,
               'text-foreground shadow-2xl overflow-hidden'
             )}
@@ -470,14 +487,6 @@ export function OverlayApp() {
                     maxHeight={userMaxHeight}
                     onContinue={continueAnswer}
                     onContentChange={measurePanel}
-                  />
-                )}
-                {hasHistory && (
-                  <AnswerPaneResizer
-                    value={userMaxHeight}
-                    hardCap={hardCap}
-                    onChange={setUserMaxHeight}
-                    onCommit={commitAnswerMaxHeight}
                   />
                 )}
               </div>
@@ -542,6 +551,14 @@ export function OverlayApp() {
               screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
               askHotkey={settings?.hotkeys?.askAi ?? null}
             />
+            <OverlayResizeGrip
+              answerHeight={userMaxHeight}
+              hardCap={hardCap}
+              onWidthChange={resizeOverlayWidth}
+              onHeightChange={setUserMaxHeight}
+              onWidthCommit={commitOverlayWidth}
+              onHeightCommit={commitAnswerMaxHeight}
+            />
           </div>
         </div>
         <Toaster theme="dark" />
@@ -593,8 +610,15 @@ function StatusBar({
         'mx-auto flex items-center gap-2 rounded-full border border-white/10 px-2 py-1 shadow-xl',
         GLASS_PILL
       )}
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex h-7 w-4 shrink-0 items-center justify-center text-muted-foreground/70">
+            <GripVertical className="size-3.5" aria-hidden />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{t('overlay.drag_to_move')}</TooltipContent>
+      </Tooltip>
       {/* Brand lockup — clickable. Brings the dashboard forward and KEEPS the
           session running. Used when the user wants to peek at settings / past
           sessions mid-call. Sits a hair above baseline (-translate-y-px) for
@@ -612,17 +636,13 @@ function StatusBar({
               'hover:bg-white/[0.08] hover:-translate-y-0.5 hover:scale-105',
               'active:scale-95'
             )}
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <ZanbanMark size={18} signal={running ? 'oklch(0.72 0.18 25)' : undefined} />
           </button>
         </TooltipTrigger>
         <TooltipContent>{t('overlay.open_dashboard_keep_session')}</TooltipContent>
       </Tooltip>
-      <div
-        className="flex items-center gap-1"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+      <div className="flex items-center gap-1">
         {startedAt !== null ? (
           <RecordingChip startedAt={startedAt} busy={busy} onStop={onStop} />
         ) : (
@@ -794,17 +814,13 @@ function ActionChipsRow({
   // Two visible primaries (Answer + Catch up) and a `more` dropdown for the
   // rest — less eye travel while attention is split with the call.
   return (
-    <div
-      className="flex items-center gap-1.5 px-2.5 py-2"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-    >
+    <div className="flex items-center gap-1.5 px-2.5 py-2">
       <ActionChip label={t('overlay.chips.catch_up')} disabled={busy} onClick={onCatchUp} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             data-interactive
             disabled={busy}
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             className={cn(
               'inline-flex h-7 items-center gap-1 rounded-full px-3 text-small transition-colors',
               'border border-white/10 bg-white/[0.04] text-foreground/85',
@@ -883,7 +899,6 @@ function ActionChip({
       data-interactive
       onClick={onClick}
       disabled={disabled}
-      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       className={cn(
         'inline-flex h-7 items-center rounded-full px-3 text-small transition-colors',
         emphasis
@@ -1006,16 +1021,12 @@ function ModelOverrideSubmenu(props: ModelOverrideProps) {
 }
 
 /** Shown in the ask row only while an override is active, so it can be seen and reset. */
-function ModelOverridePicker({
-  noDrag,
-  ...props
-}: ModelOverrideProps & { value: string; noDrag: React.CSSProperties }) {
+function ModelOverridePicker(props: ModelOverrideProps & { value: string }) {
   const { t } = useTranslation()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         data-interactive
-        style={noDrag}
         className={cn(
           'inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10',
           'bg-white/[0.04] px-2 py-1 text-small text-muted-foreground',
@@ -1084,7 +1095,6 @@ function InputPill({
   askHotkey: string | null
 }) {
   const { t } = useTranslation()
-  const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
   const snapLabel = screenshotHotkey
     ? t('overlay.input.snap_hotkey_tooltip', {
         chord: acceleratorTokens(screenshotHotkey).join(' + ')
@@ -1096,17 +1106,13 @@ function InputPill({
       ? t('overlay.ask_placeholder_hotkey', { chord: acceleratorTokens(askHotkey).join('+') })
       : t('overlay.ask_placeholder')
   return (
-    <div
-      className="flex items-center gap-2 px-3 py-2"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-    >
+    <div className="flex items-center gap-2 px-3 py-2">
       {image && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               data-interactive
               onClick={onClearImage}
-              style={noDrag}
               className="group relative shrink-0"
               title={t('overlay.input.remove_screenshot')}
             >
@@ -1131,7 +1137,6 @@ function InputPill({
         onChange={(e) => onTextChange(e.target.value)}
         onKeyDown={onKey}
         placeholder={placeholder}
-        style={noDrag}
         className={cn(
           'flex-1 resize-none bg-transparent py-1 text-body text-foreground placeholder:text-muted-foreground',
           'border-0 outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0'
@@ -1143,7 +1148,6 @@ function InputPill({
           onChange={onModelChange}
           provider={activeProvider}
           defaultModel={activeDefaultModel}
-          noDrag={noDrag}
         />
       )}
       {!image && (
@@ -1156,7 +1160,6 @@ function InputPill({
               size="icon"
               variant="ghost"
               aria-label={snapLabel}
-              style={noDrag}
               className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             >
               {snapping ? (
@@ -1178,7 +1181,6 @@ function InputPill({
               size="icon"
               variant="ghost"
               aria-label={t('overlay.stop_generating')}
-              style={noDrag}
               className="size-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             >
               <Square className="size-3 fill-current" />
@@ -1194,7 +1196,6 @@ function InputPill({
           size="icon"
           variant={text.trim() || image ? 'default' : 'ghost'}
           aria-label={t('overlay.send')}
-          style={noDrag}
           className="size-7 shrink-0 rounded-full"
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
