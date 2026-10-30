@@ -285,6 +285,42 @@ describe('OverlayApp auto-answer', () => {
   })
 })
 
+describe('OverlayApp action chips', () => {
+  it('names the catch-up chip by its window, so it cannot read as part of an answer', async () => {
+    stubBridge(false)
+    await mountOverlay()
+    startSession()
+
+    expect(screen.getByRole('button', { name: 'Last 90 s' })).toBeTruthy()
+    expect(screen.queryByText('Catch up')).toBeNull()
+  })
+
+  it('names it in Russian without echoing the answer heading «Что было не так»', async () => {
+    await act(() => i18n.changeLanguage('ru'))
+    stubBridge(false)
+    await mountOverlay()
+    startSession()
+
+    expect(screen.getByRole('button', { name: 'Кратко за 90 с' })).toBeTruthy()
+    expect(screen.queryByText('Что было')).toBeNull()
+    await act(() => i18n.changeLanguage('en'))
+  })
+
+  it('shows the Answer chord as glyphs with the modifiers dimmer than the trigger', async () => {
+    stubBridge(false)
+    await mountOverlay()
+    startSession()
+    await wait(0)
+
+    const kbd = screen.getByRole('button', { name: /^Answer/ }).querySelector('kbd')!
+    const keys = [...kbd.querySelectorAll('span')]
+    expect(keys.map((k) => k.textContent)).toEqual(['⌃', '⇧', '↵'])
+    expect(keys[0]!.className).toContain('opacity-60')
+    expect(keys[1]!.className).toContain('opacity-60')
+    expect(keys[2]!.className).not.toContain('opacity-60')
+  })
+})
+
 describe('OverlayApp moving and resizing', () => {
   function statusPill(): Element {
     return document.querySelector('svg.lucide-grip-vertical')!.parentElement!.parentElement!

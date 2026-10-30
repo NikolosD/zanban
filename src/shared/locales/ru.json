@@ -41,6 +41,7 @@
     "confirm_stop_tooltip": "Нажмите ещё раз, чтобы остановить сессию",
     "send": "Отправить",
     "more": "ещё",
+    "more_below": "↓ ещё",
     "on": "вкл",
     "off": "выкл",
     "question": "Вопрос: {{question}}",
@@ -66,7 +67,7 @@
       "screenshot_answer": "Ответ по скриншоту"
     },
     "chips": {
-      "catch_up": "Что было",
+      "catch_up": "Кратко за 90 с",
       "answer": "Ответить",
       "auto_answer": "Автоответ",
       "which_question": "Какой вопрос?",

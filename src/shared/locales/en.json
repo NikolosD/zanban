@@ -41,6 +41,7 @@
     "confirm_stop_tooltip": "Click again to stop the session",
     "send": "Send",
     "more": "more",
+    "more_below": "↓ more",
     "on": "on",
     "off": "off",
     "question": "Q: {{question}}",
@@ -66,7 +67,7 @@
       "screenshot_answer": "Screenshot answer"
     },
     "chips": {
-      "catch_up": "Catch up",
+      "catch_up": "Last 90 s",
       "answer": "Answer",
       "auto_answer": "Auto-answer",
       "which_question": "Which question?",

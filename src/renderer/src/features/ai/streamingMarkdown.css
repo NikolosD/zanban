@@ -58,3 +58,20 @@
 .zb-codeblock pre::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Highlighting lands when the answer finishes: spans are new elements, so the
+   colour eases in from the base code colour rather than switching. Colour only,
+   so nothing moves. */
+@keyframes zb-hl-in {
+  from {
+    color: #e6edf3;
+  }
+}
+.zb-codeblock .hljs span[class^='hljs-'] {
+  animation: zb-hl-in 180ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .zb-codeblock .hljs span[class^='hljs-'] {
+    animation: none;
+  }
+}

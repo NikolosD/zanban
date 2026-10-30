@@ -102,4 +102,46 @@ describe('AnswerPane', () => {
 
     expect(screen.getByText(`Q: ${QUESTION}`)).toBeTruthy()
   })
+
+  it('puts the bold first line in its own larger slot and dims the rest', async () => {
+    const answer = ['**Wrap the siblings in a fragment.**', '', '- one', '- two'].join('\n')
+    const message = { ...card(), answer }
+    const { container } = render(<AnswerPane message={message} onContinue={() => {}} />)
+
+    const lead = screen.getByTestId('answer-lead')
+    expect(lead.textContent).toBe('Wrap the siblings in a fragment.')
+    expect(lead.className).toContain('text-[16px]')
+    expect(lead.className).toContain('font-semibold')
+    expect(lead.className).not.toContain('/')
+    await screen.findByText('one')
+    expect(container.querySelector('[class*="--md-body-alpha:80%"]')).toBeTruthy()
+  })
+
+  it('shows an answer without a bold first line as ordinary text', async () => {
+    const message = { ...card(), answer: ['Wrap the siblings.', '', '- one'].join('\n') }
+    const { container } = render(<AnswerPane message={message} onContinue={() => {}} />)
+
+    expect(screen.queryByTestId('answer-lead')).toBeNull()
+    await screen.findByText('one')
+    expect(container.querySelector('[class*="--md-body-alpha:80%"]')).toBeNull()
+  })
+
+  it('shows nothing, not stray asterisks, while the bold line is only opening', () => {
+    const message = { ...card(), status: 'streaming' as const, answer: '**' }
+    const { container } = render(<AnswerPane message={message} onContinue={() => {}} />)
+
+    expect(screen.queryByTestId('answer-lead')).toBeNull()
+    expect(container.textContent).not.toContain('*')
+  })
+
+  it('keeps the question header sticky above the answer', () => {
+    const message = { ...card(QUESTION), answer: '**Say it.**' }
+    render(<AnswerPane message={message} onContinue={() => {}} />)
+
+    const header = screen.getByText(`Q: ${QUESTION}`).parentElement!
+    expect(header.className).toContain('sticky')
+    expect(header.className).toContain('top-0')
+    const lead = screen.getByTestId('answer-lead')
+    expect(header.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

@@ -3,6 +3,7 @@ import ReactMarkdown, { type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/atom-one-dark.css'
+import { inlineCodeClass } from './inlineCode'
 import './streamingMarkdown.css'
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
@@ -30,17 +31,13 @@ const components = {
     if (hasLang || isMultiline) {
       return (
         <code
-          className={`hljs block whitespace-pre overflow-x-auto rounded-lg p-3 text-[12px] leading-[1.55] font-mono ${className ?? ''}`}
+          className={`hljs block whitespace-pre overflow-x-auto rounded-lg p-3 text-[13px] leading-[1.5] font-mono ${className ?? ''}`}
         >
           {children}
         </code>
       )
     }
-    return (
-      <code className="break-all rounded bg-white/[0.06] border border-white/[0.06] px-1.5 py-0.5 text-[0.85em] font-mono text-foreground">
-        {children}
-      </code>
-    )
+    return <code className={inlineCodeClass(children)}>{children}</code>
   },
   pre(props: { children?: React.ReactNode }) {
     // Pull the language tag from the inner <code>'s className, if any, to
@@ -70,13 +67,25 @@ const components = {
     return <p className="my-1">{props.children}</p>
   },
   h1(props: { children?: React.ReactNode }) {
-    return <h1 className="mb-1 mt-3 text-[1.08em] font-semibold first:mt-0">{props.children}</h1>
+    return (
+      <h1 className="mb-1 mt-4 text-[1.2em] font-semibold text-foreground first:mt-0">
+        {props.children}
+      </h1>
+    )
   },
   h2(props: { children?: React.ReactNode }) {
-    return <h2 className="mb-1 mt-3 text-[1.04em] font-semibold first:mt-0">{props.children}</h2>
+    return (
+      <h2 className="mb-1 mt-4 text-[1.1em] font-semibold text-foreground first:mt-0">
+        {props.children}
+      </h2>
+    )
   },
   h3(props: { children?: React.ReactNode }) {
-    return <h3 className="mb-0.5 mt-2.5 font-semibold first:mt-0">{props.children}</h3>
+    return (
+      <h3 className="mb-0.5 mt-3 text-[1.1em] font-semibold text-foreground first:mt-0">
+        {props.children}
+      </h3>
+    )
   },
   table(props: { children?: React.ReactNode }) {
     return (
@@ -135,7 +144,8 @@ const NO_PLUGINS: Options['rehypePlugins'] = []
 function StreamingMarkdownImpl({ text, highlight }: { text: string; highlight: boolean }) {
   return (
     // --md-text lets a host enlarge one answer (the overlay's newest) without a prop.
-    <div className="min-w-0 text-[length:var(--md-text,13px)] leading-[1.5] text-foreground break-words">
+    // --md-body-alpha dims body copy; headings and inline code keep full contrast.
+    <div className="min-w-0 text-[length:var(--md-text,13px)] leading-[1.5] [color:color-mix(in_oklab,var(--foreground)_var(--md-body-alpha,100%),transparent)] break-words">
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={highlight ? HIGHLIGHT_PLUGINS : NO_PLUGINS}
