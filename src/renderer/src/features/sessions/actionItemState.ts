@@ -7,6 +7,8 @@
 // follows its item across regenerations, and stale keys for deleted items are
 // simply ignored (and can be garbage-collected).
 
+import { useSyncExternalStore } from 'react'
+
 export interface RecapActionItem {
   text: string
   owner: 'you' | 'them' | 'unknown'
@@ -34,6 +36,14 @@ export function actionItemStorageKey(sessionId: string, item: { text: string }):
   return `recap-checked-v2-${sessionId}-${hashText(item.text)}`
 }
 
+const listeners = new Set<() => void>()
+
+/** localStorage only notifies other documents, so same-window readers subscribe here. */
+export function subscribeActionItemState(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 export function isActionItemChecked(sessionId: string, item: { text: string }): boolean {
   try {
     return localStorage.getItem(actionItemStorageKey(sessionId, item)) === '1'
@@ -54,4 +64,11 @@ export function setActionItemChecked(
   } catch {
     /* storage may be unavailable (private mode quota) — checkbox is best-effort */
   }
+  for (const listener of listeners) listener()
+}
+
+export function useOpenActionItemCount(sessionId: string, items: Array<{ text: string }>): number {
+  return useSyncExternalStore(subscribeActionItemState, () =>
+    items.reduce((open, item) => open + (isActionItemChecked(sessionId, item) ? 0 : 1), 0)
+  )
 }

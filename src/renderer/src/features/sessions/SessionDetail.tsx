@@ -13,6 +13,7 @@ import { formatDuration } from '@renderer/lib/dateFormat'
 import { useStickToBottom } from '@renderer/lib/useStickToBottom'
 import { resumeSession } from '@renderer/features/transcript/sessionStart'
 import { useTranscript } from '@renderer/features/transcript/store'
+import { useSettingsStore } from '@renderer/features/settings/store'
 import { useAi } from '@renderer/features/ai/store'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import type { SessionDetailPayload, StoredSegment, StoredExchange } from '@shared/api'
@@ -26,15 +27,19 @@ type TabId = 'recap' | 'transcript' | 'stats'
 
 export function SessionDetail({
   sessionId,
+  afterCall = false,
   onBack,
   onOpenSettings
 }: {
   sessionId: string
+  /** Opened straight from the end of this call, so the recap is the place to land. */
+  afterCall?: boolean
   onBack(): void
   onOpenSettings?(): void
 }) {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<TabId | null>(null)
+  const autoRecap = useSettingsStore((s) => s.settings?.recap.autoGenerate ?? false)
   const live = useTranscript(
     (s) => s.session.kind === 'running' && s.session.sessionId === sessionId
   )
@@ -49,8 +54,9 @@ export function SessionDetail({
     queryKey: queryKeys.recap(sessionId),
     queryFn: () => window.zanban.recap.get(sessionId)
   })
-  // Until a recap exists the transcript is the useful view.
-  const activeTab = tab ?? (recap === null ? 'transcript' : 'recap')
+  // Until a recap exists the transcript is the useful view, unless the call
+  // just ended and the recap is the thing the user came for.
+  const activeTab = tab ?? (recap === null && !afterCall ? 'transcript' : 'recap')
 
   if (isLoading) {
     return (
@@ -115,7 +121,7 @@ export function SessionDetail({
       >
         <TabSwitcher />
         <Tabs.Content value="recap" className="min-h-0 flex-1 overflow-hidden">
-          <RecapTab session={data} />
+          <RecapTab session={data} awaitingAuto={afterCall && autoRecap} />
         </Tabs.Content>
         <Tabs.Content value="transcript" className="min-h-0 flex-1 overflow-hidden">
           <TranscriptTab session={data} />

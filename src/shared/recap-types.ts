@@ -8,6 +8,11 @@ export const PROMPT_VERSION = 1
 // CONST_CONSISTENCY: must match recapSchema.ts RECAP_SCHEMA_VERSION
 export const RECAP_SCHEMA_VERSION = 1
 
+/** Background-job id of the recap written automatically after a session stops. */
+export function autoRecapJobId(sessionId: string): string {
+  return `recap-${sessionId}`
+}
+
 export type RecapTone = 'concise' | 'friendly' | 'formal'
 export type RecapLanguage = 'auto' | 'en' | 'ru'
 

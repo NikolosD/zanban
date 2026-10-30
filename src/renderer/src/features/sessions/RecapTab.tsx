@@ -8,7 +8,8 @@ import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
 import { copyToClipboard } from '@renderer/lib/clipboard'
 import { cn } from '@renderer/lib/utils'
 import { queryKeys } from '@renderer/lib/queryKeys'
-import { PROMPT_VERSION } from '@shared/recap-types'
+import { useJobs } from '@renderer/features/jobs/jobsStore'
+import { PROMPT_VERSION, autoRecapJobId } from '@shared/recap-types'
 import type { SessionDetailPayload } from '@shared/api'
 import type { RecapPayload, RecapResult } from '@shared/recap-types'
 import { toast } from 'sonner'
@@ -20,20 +21,31 @@ import {
 } from './recapActions'
 import { isActionItemChecked, setActionItemChecked } from './actionItemState'
 
-export function RecapTab({ session }: { session: SessionDetailPayload }) {
+export function RecapTab({
+  session,
+  awaitingAuto = false
+}: {
+  session: SessionDetailPayload
+  /** The call just ended and its recap is being written automatically. */
+  awaitingAuto?: boolean
+}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const { data: recap } = useQuery<RecapPayload | null>({
+  const { data: recap, isFetching } = useQuery<RecapPayload | null>({
     queryKey: queryKeys.recap(session.id),
     queryFn: () => window.zanban.recap.get(session.id)
   })
+  const autoJobOver = useJobs((s) => s.finished.has(autoRecapJobId(session.id)))
 
+  // The recap is written once the session is finalized, so the transcript this
+  // tab was opened with may predate its last seconds.
   useEffect(() => {
     return window.zanban.recap.onUpdated((sessionId) => {
-      if (sessionId === session.id)
-        void qc.invalidateQueries({ queryKey: queryKeys.recap(sessionId) })
+      if (sessionId !== session.id) return
+      void qc.invalidateQueries({ queryKey: queryKeys.recap(sessionId) })
+      void qc.invalidateQueries({ queryKey: queryKeys.sessionDetail(sessionId) })
     })
   }, [qc, session.id])
 
@@ -57,6 +69,8 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
     mutationFn: () => window.zanban.recap.delete(session.id),
     onSuccess: invalidateRecap
   })
+
+  if (!recap && awaitingAuto && (!autoJobOver || isFetching)) return <RecapPending />
 
   if (!recap && generate.isPending) return <RecapSkeleton />
 
@@ -110,8 +124,6 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
           </div>
         )}
 
-        <TldrCard text={recap.tldr} />
-
         {recap.actionItems.length > 0 && (
           <Section
             title={t('session_detail.recap.action_items', { count: recap.actionItems.length })}
@@ -119,6 +131,8 @@ export function RecapTab({ session }: { session: SessionDetailPayload }) {
             <ActionList sessionId={session.id} items={recap.actionItems} />
           </Section>
         )}
+
+        <TldrCard text={recap.tldr} />
 
         {recap.decisions.length > 0 && (
           <Section title={t('session_detail.recap.decisions')}>
@@ -347,6 +361,24 @@ function FollowUpSection({ followUp }: { followUp: { subject: string; body: stri
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function RecapPending() {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-5">
+      <div role="status" className="flex flex-col gap-2 px-1">
+        <div className="flex items-center gap-2 font-mono text-meta uppercase tracking-wider text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          {t('session_detail.recap.pending_label')}
+        </div>
+        <p className="max-w-md text-body leading-relaxed text-muted-foreground">
+          {t('session_detail.recap.pending_blurb')}
+        </p>
+      </div>
+      <RecapSkeleton />
     </div>
   )
 }

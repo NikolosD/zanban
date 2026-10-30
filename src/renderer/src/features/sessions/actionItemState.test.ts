@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   actionItemStorageKey,
   hashText,
   isActionItemChecked,
-  setActionItemChecked
+  setActionItemChecked,
+  subscribeActionItemState
 } from './actionItemState'
 
 afterEach(() => {
@@ -53,5 +54,27 @@ describe('checked-state round trip', () => {
   it('isolates state per session', () => {
     setActionItemChecked('sessA', { text: 'shared text' }, true)
     expect(isActionItemChecked('sessB', { text: 'shared text' })).toBe(false)
+  })
+})
+
+describe('subscribeActionItemState', () => {
+  it('notifies every time an item is checked or unchecked', () => {
+    const listener = vi.fn()
+    const off = subscribeActionItemState(listener)
+
+    setActionItemChecked('s1', { text: 'Send the recap' }, true)
+    setActionItemChecked('s1', { text: 'Send the recap' }, false)
+
+    expect(listener).toHaveBeenCalledTimes(2)
+    off()
+  })
+
+  it('stops notifying once unsubscribed', () => {
+    const listener = vi.fn()
+    subscribeActionItemState(listener)()
+
+    setActionItemChecked('s1', { text: 'Send the recap' }, true)
+
+    expect(listener).not.toHaveBeenCalled()
   })
 })

@@ -1,3 +1,4 @@
+import { autoRecapJobId } from '../../../shared/recap-types.js'
 import type { AppSettings } from '../../../shared/types.js'
 import type { RecapPayload, RecapResult } from './recapSchema.js'
 
@@ -41,13 +42,18 @@ export function createAutoTrigger(deps: AutoTriggerDeps): AutoTrigger {
         if (existing && !existing.partial) return
       }
       try {
-        await deps.trackJob(`recap-${sessionId}`, 'Generating meeting recap', 'other', async () => {
-          const result = await deps.generate(sessionId, {})
-          if (!result.ok) {
-            console.warn(`[recap] auto-generate failed (${result.code}): ${result.message}`)
+        await deps.trackJob(
+          autoRecapJobId(sessionId),
+          'Generating meeting recap',
+          'other',
+          async () => {
+            const result = await deps.generate(sessionId, {})
+            if (!result.ok) {
+              console.warn(`[recap] auto-generate failed (${result.code}): ${result.message}`)
+            }
+            return result
           }
-          return result
-        })
+        )
       } catch {
         // Swallow — auto-trigger is best-effort. The user did not request
         // this explicitly, so surfacing a modal/toast would be noise.

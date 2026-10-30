@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import '@testing-library/jest-dom/vitest'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { useJobs } from '@renderer/features/jobs/jobsStore'
 import { RecapTab } from './RecapTab'
 import type { SessionDetailPayload } from '@shared/api'
 import type { RecapPayload } from '@shared/recap-types'
@@ -27,6 +28,8 @@ if (!i18n.isInitialized) {
               empty_label: 'Recap',
               empty_blurb: 'No recap yet.',
               generate: 'Generate recap',
+              pending_label: 'writing recap…',
+              pending_blurb: 'Action items will show up here in a moment.',
               regenerate: 'Regenerate',
               copy_all: 'Copy all',
               delete: 'Delete',
@@ -99,6 +102,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  useJobs.setState({ jobs: [], finished: new Set() })
 })
 
 function wrap(ui: React.ReactElement) {
@@ -162,5 +166,51 @@ describe('RecapTab', () => {
     const btn = await findByRole('button', { name: /generate recap/i })
     btn.click()
     await findByText(/provider rate-limited/i)
+  })
+
+  it('puts the action items ahead of the TL;DR', async () => {
+    ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockResolvedValue(makeRecap())
+    render(wrap(<RecapTab session={session} />))
+    const tldr = await screen.findByText('overall ok')
+    const item = screen.getByText('do y')
+    expect(item.compareDocumentPosition(tldr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows a pending state, not the generate button, while an automatic recap is due', async () => {
+    ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    render(wrap(<RecapTab session={session} awaitingAuto />))
+    await screen.findByText('writing recap…')
+    expect(screen.queryByRole('button', { name: /generate recap/i })).toBeNull()
+  })
+
+  it('swaps the pending state for the recap once it is written', async () => {
+    const get = zanban.recap.get as ReturnType<typeof vi.fn>
+    get.mockResolvedValue(null)
+    render(wrap(<RecapTab session={session} awaitingAuto />))
+    await screen.findByText('writing recap…')
+
+    get.mockResolvedValue(makeRecap())
+    const onUpdated = (zanban.recap.onUpdated as ReturnType<typeof vi.fn>).mock.calls[0]![0] as (
+      id: string
+    ) => void
+    act(() => onUpdated(session.id))
+
+    await screen.findByText('overall ok')
+    expect(screen.queryByText('writing recap…')).toBeNull()
+  })
+
+  it('offers the generate button once the automatic job ended without a recap', async () => {
+    ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    useJobs.setState({ finished: new Set(['recap-s1']) })
+    render(wrap(<RecapTab session={session} awaitingAuto />))
+    await screen.findByRole('button', { name: /generate recap/i })
+    expect(screen.queryByText('writing recap…')).toBeNull()
+  })
+
+  it('does not wait when no automatic recap is due', async () => {
+    ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+    render(wrap(<RecapTab session={session} />))
+    await screen.findByRole('button', { name: /generate recap/i })
+    expect(screen.queryByText('writing recap…')).toBeNull()
   })
 })
