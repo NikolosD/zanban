@@ -30,6 +30,11 @@ describe('shared prompts', () => {
     expect(ANSWER_LAST_PROMPT.toLowerCase()).toContain('no preamble')
   })
 
+  it('answer-last asks for the spoken answer shape, not a bullet count', () => {
+    expect(ANSWER_LAST_PROMPT).toContain('answer shape from your instructions')
+    expect(ANSWER_LAST_PROMPT).not.toContain('3-5 short bullets')
+  })
+
   it('shorten references "previous answer"', () => {
     expect(SHORTEN_PROMPT.toLowerCase()).toContain('previous answer')
   })
