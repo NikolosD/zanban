@@ -49,6 +49,10 @@ export function useExpandedCode(answerScrollRef: React.RefObject<HTMLElement | n
     setExpanded(null)
   }, [])
 
+  const update = useCallback((block: ExpandedCode): void => {
+    setExpanded((current) => (current?.id === block.id ? block : current))
+  }, [])
+
   const toggle = useCallback((): void => {
     if (open.current) {
       void collapse()
@@ -78,5 +82,5 @@ export function useExpandedCode(answerScrollRef: React.RefObject<HTMLElement | n
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [expanded, collapse])
 
-  return { expanded, expand, collapse, toggle }
+  return { expanded, expand, update, collapse, toggle }
 }

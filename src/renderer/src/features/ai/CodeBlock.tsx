@@ -1,14 +1,27 @@
-import { Children, createContext, isValidElement, useContext, useState } from 'react'
+import {
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
+  useEffect,
+  useId,
+  useState
+} from 'react'
 import { Maximize2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export interface ExpandedCode {
+  /** Identifies the block in the answer, so the expanded copy can follow its stream. */
+  id: string
   lang: string | undefined
   code: React.ReactNode
 }
 
 export interface CodeBlockOptions {
   onExpand?: (block: ExpandedCode) => void
+  /** The block currently shown expanded; it reports every re-render through `onUpdate`. */
+  expandedId?: string | null
+  onUpdate?: (block: ExpandedCode) => void
 }
 
 /**
@@ -40,6 +53,12 @@ export function CodeBlock({
   const options = useContext(CodeBlockContext)
   const { t } = useTranslation()
   const [wrap, setWrap] = useState(true)
+  const id = useId()
+  const { expandedId, onUpdate } = options ?? {}
+
+  useEffect(() => {
+    if (expandedId === id) onUpdate?.({ id, lang, code: children })
+  }, [expandedId, id, onUpdate, lang, children])
 
   if (!options) {
     return (
@@ -74,7 +93,7 @@ export function CodeBlock({
               type="button"
               data-code-expand
               className={`${BUTTON_CLASS} inline-flex items-center gap-1`}
-              onClick={() => options.onExpand?.({ lang, code: children })}
+              onClick={() => options.onExpand?.({ id, lang, code: children })}
             >
               <Maximize2 className="size-3" aria-hidden />
               {t('overlay.code.expand')}

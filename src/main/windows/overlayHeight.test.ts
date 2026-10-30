@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expandedOverlayBounds, fitOverlayHeight } from './overlayHeight.js'
+import { clampOverlayTop, expandedOverlayBounds, fitOverlayHeight } from './overlayHeight.js'
 
 describe('fitOverlayHeight', () => {
   it('fits the content on the primary display', () => {
@@ -33,5 +33,21 @@ describe('expandedOverlayBounds', () => {
 
   it('keeps the minimum height on a tiny work area', () => {
     expect(expandedOverlayBounds({ y: 0, height: 100 }).height).toBe(120)
+  })
+})
+
+describe('clampOverlayTop', () => {
+  const area = { y: 100, height: 1000 }
+
+  it('leaves a top inside the work area alone', () => {
+    expect(clampOverlayTop(300, area)).toBe(300)
+  })
+
+  it('lifts a top above the work area to its edge', () => {
+    expect(clampOverlayTop(-50, area)).toBe(100)
+  })
+
+  it('keeps room for the minimum height below the top', () => {
+    expect(clampOverlayTop(5000, area)).toBe(100 + 1000 - 120 - 24)
   })
 })

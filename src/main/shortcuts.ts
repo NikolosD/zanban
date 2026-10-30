@@ -33,7 +33,17 @@ export interface PickFreeResult {
 
 type AppHotkeys = ReturnType<typeof getSettings>['hotkeys']
 
+// These only act on a visible overlay, so they are held only while it shows and
+// an IDE or browser keeps the chords the rest of the time.
+const OVERLAY_ACTIONS: Array<keyof AppHotkeys> = [
+  'scrollAnswerUp',
+  'scrollAnswerDown',
+  'expandCode'
+]
+
 let registered: string[] = []
+let overlayRegistered: string[] = []
+let overlayActive = false
 let conflicts: ShortcutRegistration['failed'] = []
 // Cached so `reRegisterShortcuts()` can re-run after a rebind without the
 // caller having to thread the handler closures through settings.set.
@@ -57,6 +67,20 @@ function actionHandlers(handlers: ShortcutHandlers): Record<keyof AppHotkeys, ()
   }
 }
 
+function tryRegister(accelerator: string, fn: () => void): boolean {
+  try {
+    return globalShortcut.register(accelerator, fn)
+  } catch {
+    // register() throws on a malformed accelerator (vs. returning false for
+    // an OS-level conflict) — treat both as a registration failure.
+    return false
+  }
+}
+
+function isOverlayAction(action: keyof AppHotkeys): boolean {
+  return OVERLAY_ACTIONS.includes(action)
+}
+
 export function registerShortcuts(handlers: ShortcutHandlers): ShortcutRegistration {
   lastHandlers = handlers
   unregisterShortcuts()
@@ -66,17 +90,42 @@ export function registerShortcuts(handlers: ShortcutHandlers): ShortcutRegistrat
   for (const action of Object.keys(byAction) as Array<keyof AppHotkeys>) {
     const accelerator = hotkeys[action]
     if (!accelerator) continue
-    try {
-      const ok = globalShortcut.register(accelerator, byAction[action])
-      if (ok) registered.push(accelerator)
-      else failed.push({ action, accelerator })
-    } catch {
-      // register() throws on a malformed accelerator (vs. returning false for
-      // an OS-level conflict) — treat both as a registration failure.
+    if (isOverlayAction(action) && !overlayActive) {
+      // Probed so a clash still reaches the conflict notice before the overlay ever shows.
+      if (!registersFree(accelerator, byAction[action])) failed.push({ action, accelerator })
+    } else if (tryRegister(accelerator, byAction[action])) {
+      ;(isOverlayAction(action) ? overlayRegistered : registered).push(accelerator)
+    } else {
       failed.push({ action, accelerator })
     }
   }
   conflicts = failed
+  return { failed }
+}
+
+/**
+ * Holds the overlay-only hotkeys while the overlay shows and releases them when
+ * it hides. A clash found on show joins the conflicts. No-op until shortcuts
+ * were registered once; the state is kept for that first registration.
+ */
+export function setOverlayShortcutsActive(active: boolean): ShortcutRegistration {
+  overlayActive = active
+  if (!lastHandlers) return { failed: [] }
+  if (!active) {
+    for (const a of overlayRegistered) globalShortcut.unregister(a)
+    overlayRegistered = []
+    return { failed: [] }
+  }
+  const { hotkeys } = getSettings()
+  const byAction = actionHandlers(lastHandlers)
+  const failed: ShortcutRegistration['failed'] = []
+  for (const action of OVERLAY_ACTIONS) {
+    const accelerator = hotkeys[action]
+    if (!accelerator || overlayRegistered.includes(accelerator)) continue
+    if (tryRegister(accelerator, byAction[action])) overlayRegistered.push(accelerator)
+    else failed.push({ action, accelerator })
+  }
+  conflicts = [...conflicts.filter((c) => !isOverlayAction(c.action)), ...failed]
   return { failed }
 }
 
@@ -136,6 +185,7 @@ export function reRegisterShortcuts(): ShortcutRegistration {
 }
 
 export function unregisterShortcuts(): void {
-  for (const a of registered) globalShortcut.unregister(a)
+  for (const a of [...registered, ...overlayRegistered]) globalShortcut.unregister(a)
   registered = []
+  overlayRegistered = []
 }

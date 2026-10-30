@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -173,6 +173,30 @@ describe('expanded code', () => {
     expect(big.querySelectorAll('.zb-line')).toHaveLength(3)
     expect(big.querySelector('code')!.textContent).toBe(CODE)
     expect(big.querySelector('[data-code-expand]')).toBeNull()
+  })
+
+  it('keeps following a block expanded mid-stream and highlights it when the answer ends', async () => {
+    stubBridge()
+    act(() => {
+      useAi.getState().newRequest('q', 'r1')
+      useAi.getState().appendChunk('r1', '```js\nconst a = 1\n')
+    })
+    render(<OverlayApp />)
+    fireEvent.click(await screen.findByText('expand'))
+    await screen.findByText('collapse')
+    const big = (): Element => document.querySelector('.zb-codeblock[data-large="true"]')!
+    expect(big().querySelector('code')!.textContent).toBe('const a = 1\n')
+    expect(big().querySelector('.hljs-keyword')).toBeNull()
+
+    act(() => {
+      useAi.getState().appendChunk('r1', 'const b = 2\n```')
+    })
+    await waitFor(() =>
+      expect(big().querySelector('code')!.textContent).toBe('const a = 1\nconst b = 2\n')
+    )
+    act(() => useAi.getState().finishRequest('r1'))
+    await waitFor(() => expect(big().querySelector('.hljs-keyword')).not.toBeNull())
+    expect(big().querySelectorAll('.zb-line')).toHaveLength(2)
   })
 
   it('keeps the expanded text out of window drags', async () => {

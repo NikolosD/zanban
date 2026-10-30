@@ -14,13 +14,8 @@ import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
-import { fitOverlayHeight } from './windows/overlayHeight.js'
-import { createOverlayExpansion } from './windows/overlayExpand.js'
-import {
-  startOverlayDrag,
-  stopOverlayDrag,
-  updateOverlayDragHeight
-} from './windows/overlayDrag.js'
+import { registerOverlayWindowIpc } from './windows/overlayIpc.js'
+import { stopOverlayDrag } from './windows/overlayDrag.js'
 import { fitOverlayWidth } from './windows/overlayBounds.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
@@ -47,6 +42,7 @@ import {
   pickFreeShortcuts,
   registerShortcuts,
   reRegisterShortcuts,
+  setOverlayShortcutsActive,
   shortcutConflicts,
   unregisterShortcuts
 } from './shortcuts.js'
@@ -92,7 +88,6 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
-const overlayExpansion = createOverlayExpansion()
 // The standalone chat window — shows AI answers, so it must honor the same
 // stealth/content-protection posture as the overlay/dashboard. Hoisted here
 // so applyStealth() can include it (it's lazily created inside openChat).
@@ -314,20 +309,10 @@ app.whenReady().then(async () => {
   handleIpc(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
     overlayWindow?.setIgnoreMouseEvents(ignore, { forward: true })
   })
-  // Renderer measures the visible glass panel and asks us to resize the
-  // window to match. We clamp to the current display's work area so a long
-  // streamed answer never drives the window off-screen — anything beyond the
-  // cap falls back to the inner pane scrolling.
-  handleIpc(IPC.overlay.setContentHeight, (_e, requested: number) => {
-    if (!overlayWindow || overlayWindow.isDestroyed() || overlayExpansion.isExpanded()) return
-    const bounds = overlayWindow.getBounds()
-    const display = screen.getDisplayMatching(bounds)
-    const next = fitOverlayHeight(requested, bounds.y, display.workArea)
-    const [curW = 0, curH = 0] = overlayWindow.getContentSize()
-    if (Math.abs(curH - next) < 2) return
-    overlayWindow.setContentSize(curW, next, false)
-    updateOverlayDragHeight(next)
-  })
+  const overlayWindowIpc = registerOverlayWindowIpc(
+    () => overlayWindow,
+    (overlayPosition) => setSettings({ overlayPosition })
+  )
   handleIpc(IPC.overlay.setWidth, (_e, requested: number) => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !Number.isFinite(requested)) return
     const bounds = overlayWindow.getBounds()
@@ -335,13 +320,6 @@ app.whenReady().then(async () => {
     const width = fitOverlayWidth(requested, bounds.x, display.workArea)
     if (width === bounds.width) return
     overlayWindow.setBounds({ ...bounds, width })
-  })
-  handleIpc(IPC.overlay.setExpanded, (_e, expanded: boolean) => {
-    if (overlayWindow) overlayExpansion.set(overlayWindow, expanded === true)
-  })
-  handleIpc(IPC.overlay.dragStart, () => {
-    if (!overlayWindow || overlayWindow.isDestroyed() || overlayExpansion.isExpanded()) return
-    startOverlayDrag(overlayWindow, (overlayPosition) => setSettings({ overlayPosition }))
   })
   handleIpc(IPC.overlay.dragEnd, () => stopOverlayDrag())
   // Apply a stealth state and keep every dependent surface in sync: content
@@ -494,7 +472,9 @@ app.whenReady().then(async () => {
       overlayWindow = createOverlayWindow({ position: overlayPosition, width: overlayWidth })
       wireWindow(overlayWindow)
       const created = overlayWindow
-      created.on('hide', () => overlayExpansion.set(created, false))
+      overlayWindowIpc.watch(created)
+      created.on('show', () => setOverlayShortcutsActive(true))
+      created.on('hide', () => setOverlayShortcutsActive(false))
     }
     return overlayWindow
   }

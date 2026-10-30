@@ -73,4 +73,39 @@ describe('createOverlayExpansion', () => {
 
     expect(raw.setBounds).not.toHaveBeenCalled()
   })
+
+  it('asks for the display the window is on, using the window bounds', () => {
+    const { win } = fakeWindow({ x: 300, y: 200, width: 640, height: 380 })
+    const expansion = createOverlayExpansion()
+
+    expansion.set(win, true)
+    expect(getDisplayMatching).toHaveBeenLastCalledWith({ x: 300, y: 200, width: 640, height: 380 })
+    expansion.set(win, false)
+    expect(getDisplayMatching).toHaveBeenLastCalledWith({ x: 300, y: 12, width: 640, height: 1004 })
+  })
+
+  it('re-fits the saved size to a smaller display on restore', () => {
+    const { win, state } = fakeWindow({ x: 300, y: 900, width: 640, height: 600 })
+    const expansion = createOverlayExpansion()
+    expansion.set(win, true)
+    getDisplayMatching.mockReturnValue({ workArea: { x: 0, y: 0, width: 1280, height: 720 } })
+
+    expansion.set(win, false)
+
+    expect(state.y).toBe(720 - 120 - 24)
+    expect(state.y + state.height).toBeLessThanOrEqual(720)
+    expect(state.height).toBe(120)
+  })
+
+  it('puts the saved top back inside a display that sits lower than before', () => {
+    const { win, state } = fakeWindow({ x: 300, y: 50, width: 640, height: 380 })
+    const expansion = createOverlayExpansion()
+    expansion.set(win, true)
+    getDisplayMatching.mockReturnValue({ workArea: { x: 0, y: 1080, width: 1920, height: 1040 } })
+
+    expansion.set(win, false)
+
+    expect(state.y).toBe(1080)
+    expect(state.height).toBe(380)
+  })
 })

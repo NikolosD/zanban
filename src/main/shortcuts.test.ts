@@ -35,6 +35,7 @@ import {
   pickFreeShortcuts,
   registerShortcuts,
   reRegisterShortcuts,
+  setOverlayShortcutsActive,
   shortcutConflicts,
   unregisterShortcuts
 } from './shortcuts'
@@ -57,19 +58,85 @@ const handlers = {
   onExpandCode: noop
 }
 
+const OVERLAY_ONLY = [hotkeys.scrollAnswerUp, hotkeys.scrollAnswerDown, hotkeys.expandCode]
+const registeredAccelerators = (): string[] => registerMock.mock.calls.map(([acc]) => acc)
+
 describe('registerShortcuts', () => {
   beforeEach(() => {
+    setOverlayShortcutsActive(false)
+    unregisterShortcuts()
     registerMock.mockReset()
     unregisterMock.mockReset()
-    unregisterShortcuts()
   })
 
   it('reports no failures when every accelerator registers', () => {
     registerMock.mockReturnValue(true)
     const { failed } = registerShortcuts(handlers)
     expect(failed).toEqual([])
-    // One register() call per non-empty binding (all 13 are set).
+    // The 10 always-on bindings, plus 3 probes that are released again at once.
     expect(registerMock).toHaveBeenCalledTimes(13)
+    expect(unregisterMock.mock.calls.map(([acc]) => acc)).toEqual(OVERLAY_ONLY)
+  })
+
+  it('keeps the overlay-only hotkeys free while the overlay is hidden', () => {
+    registerMock.mockReturnValue(true)
+    registerShortcuts(handlers)
+    expect(unregisterMock).toHaveBeenCalledTimes(3)
+    setOverlayShortcutsActive(true)
+    expect(registeredAccelerators().slice(-3)).toEqual(OVERLAY_ONLY)
+    unregisterMock.mockClear()
+    setOverlayShortcutsActive(false)
+    expect(unregisterMock.mock.calls.map(([acc]) => acc)).toEqual(OVERLAY_ONLY)
+  })
+
+  it('registers the overlay-only hotkeys for real when the overlay is already shown', () => {
+    registerMock.mockReturnValue(true)
+    registerShortcuts(handlers)
+    setOverlayShortcutsActive(true)
+    registerMock.mockClear()
+    unregisterMock.mockClear()
+    reRegisterShortcuts()
+    expect(registeredAccelerators().filter((a) => OVERLAY_ONLY.includes(a))).toHaveLength(3)
+    expect(unregisterMock).toHaveBeenCalledTimes(13)
+  })
+
+  it('reports a clash on an overlay-only hotkey before the overlay ever shows', () => {
+    registerMock.mockImplementation((acc: string) => acc !== hotkeys.expandCode)
+    const { failed } = registerShortcuts(handlers)
+    expect(failed).toEqual([{ action: 'expandCode', accelerator: hotkeys.expandCode }])
+    expect(shortcutConflicts()).toEqual(failed)
+  })
+
+  it('adds a clash found on show to the conflicts, and drops it once it clears', () => {
+    registerMock.mockReturnValue(true)
+    registerShortcuts(handlers)
+    registerMock.mockImplementation((acc: string) => acc !== hotkeys.scrollAnswerUp)
+    const { failed } = setOverlayShortcutsActive(true)
+    expect(failed).toEqual([{ action: 'scrollAnswerUp', accelerator: hotkeys.scrollAnswerUp }])
+    expect(shortcutConflicts()).toEqual(failed)
+
+    setOverlayShortcutsActive(false)
+    registerMock.mockReturnValue(true)
+    expect(setOverlayShortcutsActive(true).failed).toEqual([])
+    expect(shortcutConflicts()).toEqual([])
+  })
+
+  it('does not register twice when shown again without a hide', () => {
+    registerMock.mockReturnValue(true)
+    registerShortcuts(handlers)
+    setOverlayShortcutsActive(true)
+    registerMock.mockClear()
+    setOverlayShortcutsActive(true)
+    expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  it('unregisterShortcuts releases the overlay-only hotkeys too', () => {
+    registerMock.mockReturnValue(true)
+    registerShortcuts(handlers)
+    setOverlayShortcutsActive(true)
+    unregisterMock.mockClear()
+    unregisterShortcuts()
+    expect(unregisterMock).toHaveBeenCalledTimes(13)
   })
 
   it('binds the scroll and expand hotkeys to their handlers', () => {
@@ -80,13 +147,13 @@ describe('registerShortcuts', () => {
     registerShortcuts({ ...handlers, onScrollAnswerUp, onScrollAnswerDown, onExpandCode })
     const callbackFor = (acc: string): (() => void) =>
       registerMock.mock.calls.find(([a]) => a === acc)![1]
+    setOverlayShortcutsActive(true)
     callbackFor(hotkeys.scrollAnswerUp)()
-    callbackFor(hotkeys.scrollAnswerDown)()
-    callbackFor(hotkeys.scrollAnswerDown)()
-    callbackFor(hotkeys.expandCode)()
+    for (let i = 0; i < 2; i++) callbackFor(hotkeys.scrollAnswerDown)()
+    for (let i = 0; i < 3; i++) callbackFor(hotkeys.expandCode)()
     expect(onScrollAnswerUp).toHaveBeenCalledTimes(1)
     expect(onScrollAnswerDown).toHaveBeenCalledTimes(2)
-    expect(onExpandCode).toHaveBeenCalledTimes(1)
+    expect(onExpandCode).toHaveBeenCalledTimes(3)
   })
 
   it('reports the action + accelerator that fails to bind', () => {
@@ -109,7 +176,7 @@ describe('registerShortcuts', () => {
     registerShortcuts(handlers)
     unregisterMock.mockClear()
     reRegisterShortcuts()
-    // Re-register unregisters the 13 it bound last time.
+    // Re-register releases the 10 it bound, then probes the 3 overlay-only ones.
     expect(unregisterMock).toHaveBeenCalledTimes(13)
   })
 
@@ -139,9 +206,10 @@ describe('pickFreeShortcuts', () => {
   let busy: Set<string>
 
   beforeEach(() => {
+    setOverlayShortcutsActive(false)
+    unregisterShortcuts()
     registerMock.mockReset()
     unregisterMock.mockReset()
-    unregisterShortcuts()
     persist.mockReset()
     busy = new Set([hotkeys.screenshot, hotkeys.chat])
     registerMock.mockImplementation((acc: string) => !busy.has(acc))

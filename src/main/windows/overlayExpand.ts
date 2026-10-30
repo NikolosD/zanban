@@ -1,5 +1,5 @@
 import { screen, type BrowserWindow } from 'electron'
-import { expandedOverlayBounds } from './overlayHeight.js'
+import { clampOverlayTop, expandedOverlayBounds, fitOverlayHeight } from './overlayHeight.js'
 
 export interface OverlayExpansion {
   isExpanded(): boolean
@@ -9,7 +9,8 @@ export interface OverlayExpansion {
 /**
  * Grows the overlay to the work-area height of its display and puts it back.
  * Only top and height change, so width, stealth, content protection and
- * always-on-top are untouched; a width changed meanwhile is kept on restore.
+ * always-on-top are untouched; a width changed meanwhile is kept on restore,
+ * and the saved top and height are re-fitted to the display it is on then.
  */
 export function createOverlayExpansion(): OverlayExpansion {
   let restore: { y: number; height: number } | null = null
@@ -26,7 +27,9 @@ export function createOverlayExpansion(): OverlayExpansion {
       } else if (!expanded && restore) {
         const previous = restore
         restore = null
-        win.setBounds({ ...bounds, ...previous })
+        const { workArea } = screen.getDisplayMatching(bounds)
+        const y = clampOverlayTop(previous.y, workArea)
+        win.setBounds({ ...bounds, y, height: fitOverlayHeight(previous.height, y, workArea) })
       }
     }
   }

@@ -167,12 +167,14 @@ export function OverlayApp() {
   const {
     expanded,
     expand,
+    update,
     collapse: collapseCode,
     toggle: toggleCode
   } = useExpandedCode(answerScrollRef)
+  const expandedId = expanded?.id ?? null
   const codeBlockOptions = useMemo<CodeBlockOptions>(
-    () => ({ onExpand: (block) => void expand(block) }),
-    [expand]
+    () => ({ onExpand: (block) => void expand(block), expandedId, onUpdate: update }),
+    [expand, expandedId, update]
   )
   const expandedRef = useRef(expanded)
   useEffect(() => {
