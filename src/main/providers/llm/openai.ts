@@ -50,6 +50,9 @@ export function makeOpenAiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'openai',
     label: 'OpenAI',
+    async warm() {
+      await client(apiKey)
+    },
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       const res = (await c.chat.completions.create(

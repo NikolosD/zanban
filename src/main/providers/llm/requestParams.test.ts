@@ -91,6 +91,30 @@ describe('LLM request params', () => {
   })
 })
 
+describe('LLM request order', () => {
+  const ordered = { ...args, system: 'SYSTEM', prompt: 'VOLATILE' }
+
+  it.each([
+    ['OpenAI', makeOpenAiProvider, 'gpt-6.1-terra'],
+    ['Groq', makeGroqProvider, 'openai/gpt-oss-120b']
+  ] as const)(
+    '%s gets the unchanging system prompt first and the volatile one last',
+    async (_, make, model) => {
+      await make('k').generate({ ...ordered, model })
+      expect(sent.body?.messages).toEqual([
+        { role: 'system', content: 'SYSTEM' },
+        { role: 'user', content: 'VOLATILE' }
+      ])
+    }
+  )
+
+  it('Gemini gets the system prompt as its instruction, apart from the volatile contents', async () => {
+    await makeGeminiProvider('k').generate({ ...ordered, model: 'gemini-3.5-flash-lite' })
+    expect(sent.body?.config).toMatchObject({ systemInstruction: 'SYSTEM' })
+    expect(sent.body?.contents).toEqual([{ role: 'user', parts: [{ text: 'VOLATILE' }] }])
+  })
+})
+
 describe('LLM model lists', () => {
   it('lists the ids each provider takes in a request', async () => {
     const signal = new AbortController().signal
