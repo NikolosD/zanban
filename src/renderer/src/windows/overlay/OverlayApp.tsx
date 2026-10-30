@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   X,
   Send,
@@ -35,6 +35,7 @@ import { useAskRequest, type AskRequestOptions } from '@renderer/features/ai/use
 import { useAutoAnswer } from '@renderer/features/ai/useAutoAnswer'
 import { useScreenshotAttachment } from '@renderer/features/ai/useScreenshotAttachment'
 import { StreamingMarkdown } from '@renderer/features/ai/StreamingMarkdown'
+import { CodeBlockContext, type CodeBlockOptions } from '@renderer/features/ai/CodeBlock'
 import { useSettingsStore, wireSettingsIpc } from '@renderer/features/settings/store'
 import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import { Button } from '@renderer/components/ui/button'
@@ -70,6 +71,9 @@ import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
 import { OverlayResizeGrip } from './OverlayResizeGrip'
 import { useOverlayDrag } from './overlayDrag'
+import { ExpandedCodeView } from './ExpandedCode'
+import { scrollPage } from './scrollPage'
+import { useExpandedCode } from './useExpandedCode'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
 import { AnswerScroller } from './AnswerScroller'
 import { splitAnswerLead } from './answerLead'
@@ -158,6 +162,25 @@ export function OverlayApp() {
     []
   )
   const startDrag = useOverlayDrag()
+  const answerScrollRef = useRef<HTMLDivElement>(null)
+  const expandedScrollRef = useRef<HTMLDivElement>(null)
+  const {
+    expanded,
+    expand,
+    collapse: collapseCode,
+    toggle: toggleCode
+  } = useExpandedCode(answerScrollRef)
+  const codeBlockOptions = useMemo<CodeBlockOptions>(
+    () => ({ onExpand: (block) => void expand(block) }),
+    [expand]
+  )
+  const expandedRef = useRef(expanded)
+  useEffect(() => {
+    expandedRef.current = expanded
+  })
+  useEffect(() => {
+    if (!visible) void collapseCode()
+  }, [visible, collapseCode])
 
   const transcriptionError =
     status.mic?.kind === 'error'
@@ -279,6 +302,14 @@ export function OverlayApp() {
 
     const offAnswerLast = window.zanban.overlay.onAnswerLast(handleAnswer)
 
+    const offScroll = window.zanban.overlay.onScrollAnswer((direction) =>
+      scrollPage(
+        expandedRef.current ? expandedScrollRef.current : answerScrollRef.current,
+        direction
+      )
+    )
+    const offExpandCode = window.zanban.overlay.onToggleExpandCode(toggleCode)
+
     const offSnapshot = window.zanban.overlay.onSnapshotAsk((snap) => {
       attachSnapshot(snap)
       inputRef.current?.focus()
@@ -309,6 +340,8 @@ export function OverlayApp() {
       offNotices()
       offAsk()
       offAnswerLast()
+      offScroll()
+      offExpandCode()
       offSnapshot()
       offSnapshotAnswer()
       offStealth()
@@ -317,7 +350,7 @@ export function OverlayApp() {
       offReplaced()
       window.removeEventListener('mousemove', onMove)
     }
-  }, [handleAnswer, attachSnapshot])
+  }, [handleAnswer, attachSnapshot, toggleCode])
 
   async function toggleStealth(): Promise<void> {
     const next = await window.zanban.overlay.setStealth(!stealth)
@@ -408,162 +441,181 @@ export function OverlayApp() {
   // simply ignores it.
 
   return (
-    <TooltipProvider delayDuration={250}>
-      <div
-        className="pointer-events-none p-3"
-        style={{
-          height: '100vh',
-          width: '100vw',
-          overflow: 'hidden',
-          ...overlayGlassVars(settings?.overlayOpacity ?? 1)
-        }}
-      >
+    <CodeBlockContext.Provider value={codeBlockOptions}>
+      <TooltipProvider delayDuration={250}>
         <div
-          ref={panelRef}
-          data-interactive
-          onMouseDown={startDrag}
-          className="pointer-events-auto flex w-full cursor-move flex-col gap-1.5"
+          className="pointer-events-none p-3"
+          style={{
+            height: '100vh',
+            width: '100vw',
+            overflow: 'hidden',
+            ...overlayGlassVars(settings?.overlayOpacity ?? 1)
+          }}
         >
-          <StatusBar
-            startedAt={startedAt}
-            busy={stoppingSession}
-            sessionPending={sessionPending}
-            stealth={stealth}
-            toggleHotkey={settings?.hotkeys?.toggleOverlay ?? null}
-            sessionHotkey={settings?.hotkeys?.toggleSession ?? null}
-            onStart={() => void window.zanban.session.requestToggle()}
-            onStop={() => void stopSession()}
-            onToggleStealth={() => void toggleStealth()}
-            onCollapse={() => void collapse()}
-            onOpenDashboard={() => void openDashboardKeepSession()}
-          />
+          <div
+            ref={panelRef}
+            data-interactive
+            onMouseDown={expanded ? undefined : startDrag}
+            className={cn(
+              'pointer-events-auto flex w-full flex-col gap-1.5',
+              expanded ? 'h-full cursor-auto' : 'cursor-move'
+            )}
+          >
+            <StatusBar
+              startedAt={startedAt}
+              busy={stoppingSession}
+              sessionPending={sessionPending}
+              stealth={stealth}
+              toggleHotkey={settings?.hotkeys?.toggleOverlay ?? null}
+              sessionHotkey={settings?.hotkeys?.toggleSession ?? null}
+              onStart={() => void window.zanban.session.requestToggle()}
+              onStop={() => void stopSession()}
+              onToggleStealth={() => void toggleStealth()}
+              onCollapse={() => void collapse()}
+              onOpenDashboard={() => void openDashboardKeepSession()}
+            />
 
-          {/* One container, sections divided by 1px rules. The answer comes
+            {/* One container, sections divided by 1px rules. The answer comes
               first: during heads-up it is the one thing the user reads, so it
               sits right under the status pill; the transcript line, chips and
               input are secondary and follow it. */}
-          <div
-            className={cn(
-              'relative flex flex-col divide-y divide-white/10 rounded-2xl border border-white/10',
-              GLASS_PANEL,
-              'text-foreground shadow-2xl overflow-hidden'
-            )}
-          >
-            {hasContent && (
-              <div className={cn('flex flex-col gap-2 px-3 py-2.5', ANSWER_SURFACE)}>
-                {apiKeysMissing && (
-                  <div className="space-y-2">
+            <div
+              className={cn(
+                'relative flex flex-col rounded-2xl border border-white/10',
+                GLASS_PANEL,
+                'text-foreground shadow-2xl overflow-hidden',
+                expanded && 'min-h-0 flex-1'
+              )}
+            >
+              {expanded && (
+                <ExpandedCodeView
+                  block={expanded}
+                  scrollRef={expandedScrollRef}
+                  onCollapse={() => void collapseCode()}
+                />
+              )}
+              <div className={cn('flex flex-col divide-y divide-white/10', expanded && 'hidden')}>
+                {hasContent && (
+                  <div className={cn('flex flex-col gap-2 px-3 py-2.5', ANSWER_SURFACE)}>
                     {apiKeysMissing && (
-                      <Alert variant="default" className="border-warn/30 bg-warn/10 text-warn">
-                        <AlertTriangle className="size-4 text-warn" />
-                        <AlertTitle>{t('overlay.api_keys_missing_title')}</AlertTitle>
-                        <AlertDescription>
-                          {t('overlay.api_keys_missing_body', {
-                            providers: missingProviders.join(', ')
-                          })}{' '}
-                          <span className="flex items-center gap-1.5">
-                            <button
-                              className="underline underline-offset-2"
-                              onClick={() => void openDashboardKeepSession()}
-                            >
-                              {t('overlay.open_dashboard')}
-                            </button>
-                            <span aria-hidden>·</span>
-                            <button
-                              className="underline underline-offset-2"
-                              onClick={() => void refreshSettings()}
-                            >
-                              {t('overlay.recheck')}
-                            </button>
-                          </span>
-                        </AlertDescription>
-                      </Alert>
+                      <div className="space-y-2">
+                        {apiKeysMissing && (
+                          <Alert variant="default" className="border-warn/30 bg-warn/10 text-warn">
+                            <AlertTriangle className="size-4 text-warn" />
+                            <AlertTitle>{t('overlay.api_keys_missing_title')}</AlertTitle>
+                            <AlertDescription>
+                              {t('overlay.api_keys_missing_body', {
+                                providers: missingProviders.join(', ')
+                              })}{' '}
+                              <span className="flex items-center gap-1.5">
+                                <button
+                                  className="underline underline-offset-2"
+                                  onClick={() => void openDashboardKeepSession()}
+                                >
+                                  {t('overlay.open_dashboard')}
+                                </button>
+                                <span aria-hidden>·</span>
+                                <button
+                                  className="underline underline-offset-2"
+                                  onClick={() => void refreshSettings()}
+                                >
+                                  {t('overlay.recheck')}
+                                </button>
+                              </span>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    )}
+
+                    {hasHistory && (
+                      <AnswerHistory
+                        maxHeight={userMaxHeight}
+                        scrollRef={answerScrollRef}
+                        onContinue={continueAnswer}
+                        onContentChange={measurePanel}
+                      />
                     )}
                   </div>
                 )}
 
-                {hasHistory && (
-                  <AnswerHistory
-                    maxHeight={userMaxHeight}
-                    onContinue={continueAnswer}
-                    onContentChange={measurePanel}
+                <TranscriptOrNotice error={transcriptionError} />
+
+                {running && (
+                  <ActionChipsRow
+                    busy={busy}
+                    hasAnswer={hasAnswer}
+                    answerHotkey={settings?.hotkeys?.answerLast ?? null}
+                    onWhichQuestion={() =>
+                      void runPrompt({
+                        prompt: WHAT_TO_ANSWER_PROMPT,
+                        label: t('overlay.chips.which_question'),
+                        waitForTranscript: true
+                      })
+                    }
+                    onShorten={() =>
+                      void runPrompt({ prompt: SHORTEN_PROMPT, label: t('overlay.chips.shorten') })
+                    }
+                    onCatchUp={() =>
+                      void runPrompt({ prompt: RECAP_PROMPT, label: t('overlay.chips.catch_up') })
+                    }
+                    onFollowUp={() =>
+                      void runPrompt({
+                        prompt: FOLLOW_UP_PROMPT,
+                        label: t('overlay.chips.follow_up')
+                      })
+                    }
+                    onAnswer={handleAnswer}
+                    autoAnswer={autoAnswer}
+                    onToggleAutoAnswer={() =>
+                      void window.zanban.settings.set({ autoAnswer: !autoAnswer })
+                    }
+                    modelMenu={
+                      <ModelOverrideSubmenu
+                        value={modelOverride}
+                        onChange={setModelOverride}
+                        provider={activeProvider}
+                        defaultModel={activeDefaultModel}
+                      />
+                    }
                   />
                 )}
+
+                <InputPill
+                  text={text}
+                  image={image}
+                  busy={busy}
+                  streaming={streaming}
+                  snapping={attachment.snapping}
+                  inputRef={inputRef}
+                  onTextChange={setText}
+                  onKey={onKey}
+                  onSend={() => void send()}
+                  onStop={stopAsk}
+                  onSnap={() => void snap()}
+                  onClearImage={clearAttachment}
+                  modelOverride={modelOverride}
+                  onModelChange={setModelOverride}
+                  activeProvider={activeProvider}
+                  activeDefaultModel={activeDefaultModel}
+                  screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
+                  askHotkey={settings?.hotkeys?.askAi ?? null}
+                />
               </div>
-            )}
-
-            <TranscriptOrNotice error={transcriptionError} />
-
-            {running && (
-              <ActionChipsRow
-                busy={busy}
-                hasAnswer={hasAnswer}
-                answerHotkey={settings?.hotkeys?.answerLast ?? null}
-                onWhichQuestion={() =>
-                  void runPrompt({
-                    prompt: WHAT_TO_ANSWER_PROMPT,
-                    label: t('overlay.chips.which_question'),
-                    waitForTranscript: true
-                  })
-                }
-                onShorten={() =>
-                  void runPrompt({ prompt: SHORTEN_PROMPT, label: t('overlay.chips.shorten') })
-                }
-                onCatchUp={() =>
-                  void runPrompt({ prompt: RECAP_PROMPT, label: t('overlay.chips.catch_up') })
-                }
-                onFollowUp={() =>
-                  void runPrompt({ prompt: FOLLOW_UP_PROMPT, label: t('overlay.chips.follow_up') })
-                }
-                onAnswer={handleAnswer}
-                autoAnswer={autoAnswer}
-                onToggleAutoAnswer={() =>
-                  void window.zanban.settings.set({ autoAnswer: !autoAnswer })
-                }
-                modelMenu={
-                  <ModelOverrideSubmenu
-                    value={modelOverride}
-                    onChange={setModelOverride}
-                    provider={activeProvider}
-                    defaultModel={activeDefaultModel}
-                  />
-                }
+              <OverlayResizeGrip
+                answerHeight={userMaxHeight}
+                hardCap={hardCap}
+                onWidthChange={resizeOverlayWidth}
+                onHeightChange={setUserMaxHeight}
+                onWidthCommit={commitOverlayWidth}
+                onHeightCommit={commitAnswerMaxHeight}
               />
-            )}
-
-            <InputPill
-              text={text}
-              image={image}
-              busy={busy}
-              streaming={streaming}
-              snapping={attachment.snapping}
-              inputRef={inputRef}
-              onTextChange={setText}
-              onKey={onKey}
-              onSend={() => void send()}
-              onStop={stopAsk}
-              onSnap={() => void snap()}
-              onClearImage={clearAttachment}
-              modelOverride={modelOverride}
-              onModelChange={setModelOverride}
-              activeProvider={activeProvider}
-              activeDefaultModel={activeDefaultModel}
-              screenshotHotkey={settings?.hotkeys?.screenshot ?? null}
-              askHotkey={settings?.hotkeys?.askAi ?? null}
-            />
-            <OverlayResizeGrip
-              answerHeight={userMaxHeight}
-              hardCap={hardCap}
-              onWidthChange={resizeOverlayWidth}
-              onHeightChange={setUserMaxHeight}
-              onWidthCommit={commitOverlayWidth}
-              onHeightCommit={commitAnswerMaxHeight}
-            />
+            </div>
           </div>
+          <Toaster theme="dark" />
         </div>
-        <Toaster theme="dark" />
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </CodeBlockContext.Provider>
   )
 }
 
@@ -1221,22 +1273,23 @@ interface AskMessage {
  */
 function AnswerHistory({
   maxHeight,
+  scrollRef,
   onContinue,
   onContentChange
 }: {
   maxHeight: number
+  scrollRef: React.RefObject<HTMLDivElement | null>
   onContinue: (id: string) => void
   onContentChange: () => void
 }) {
   const messages = useAi((s) => s.messages)
   const latest = messages.at(-1)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   // The newest answer is at the top, so a fresh ask scrolls back up to it. A
   // continued answer keeps its place: the reader is at its end.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
-  }, [messages.length])
+  }, [messages.length, scrollRef])
 
   useEffect(() => {
     const id = requestAnimationFrame(onContentChange)

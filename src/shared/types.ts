@@ -419,6 +419,10 @@ export interface AppSettings {
      *  (where the dashboard is removed from Alt+Tab/taskbar and would
      *  otherwise be unrecoverable without re-launching the app). */
     showDashboard: string
+    scrollAnswerUp: string
+    scrollAnswerDown: string
+    /** Expands the code block in view to the display's height, or collapses it again. */
+    expandCode: string
   }
   audio: {
     micDeviceId: string | null
@@ -694,7 +698,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // Global hotkeys take these keys away from every other app while Zanban runs,
   // so the defaults skip Save As, Teams call controls and IDE staples. Ctrl+Alt
   // is AltGr on Polish, German, Czech… layouts, so it only pairs with keys no
-  // common layout types a character with (R, H, J).
+  // common layout types a character with (R, H, J). The answer-scroll and
+  // expand-code keys use Alt+Shift with PageUp/PageDown/Return: IDEs and
+  // browsers leave them free (Ctrl+Shift+Up/Down move or select lines, and
+  // Ctrl+Alt+Up/Down add cursors in VS Code), and no layout types a character
+  // with them.
   hotkeys: {
     toggleSession: 'Control+Alt+R',
     toggleOverlay: 'Control+\\',
@@ -705,7 +713,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     screenshotAnswer: 'Control+Shift+2',
     cropper: 'Control+Shift+3',
     chat: 'Control+Alt+J',
-    showDashboard: 'Control+Alt+Shift+H'
+    showDashboard: 'Control+Alt+Shift+H',
+    scrollAnswerUp: 'Alt+Shift+PageUp',
+    scrollAnswerDown: 'Alt+Shift+PageDown',
+    expandCode: 'Alt+Shift+Return'
   },
   audio: {
     micDeviceId: null,

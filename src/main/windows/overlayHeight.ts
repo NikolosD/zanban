@@ -15,3 +15,11 @@ export function fitOverlayHeight(requested: number, windowY: number, workArea: A
   const max = Math.max(MIN_HEIGHT, workArea.y + workArea.height - windowY - BOTTOM_MARGIN)
   return Math.max(MIN_HEIGHT, Math.min(max, Math.ceil(requested)))
 }
+
+const EXPANDED_TOP_MARGIN = 12
+
+/** Top edge and height of the overlay while a code block fills its display's work area. */
+export function expandedOverlayBounds(workArea: Area): Area {
+  const y = workArea.y + EXPANDED_TOP_MARGIN
+  return { y, height: fitOverlayHeight(workArea.height, y, workArea) }
+}

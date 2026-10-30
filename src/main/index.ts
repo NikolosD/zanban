@@ -15,6 +15,7 @@ import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
 import { fitOverlayHeight } from './windows/overlayHeight.js'
+import { createOverlayExpansion } from './windows/overlayExpand.js'
 import {
   startOverlayDrag,
   stopOverlayDrag,
@@ -91,6 +92,7 @@ if (!app.requestSingleInstanceLock()) {
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
+const overlayExpansion = createOverlayExpansion()
 // The standalone chat window — shows AI answers, so it must honor the same
 // stealth/content-protection posture as the overlay/dashboard. Hoisted here
 // so applyStealth() can include it (it's lazily created inside openChat).
@@ -317,7 +319,7 @@ app.whenReady().then(async () => {
   // streamed answer never drives the window off-screen — anything beyond the
   // cap falls back to the inner pane scrolling.
   handleIpc(IPC.overlay.setContentHeight, (_e, requested: number) => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    if (!overlayWindow || overlayWindow.isDestroyed() || overlayExpansion.isExpanded()) return
     const bounds = overlayWindow.getBounds()
     const display = screen.getDisplayMatching(bounds)
     const next = fitOverlayHeight(requested, bounds.y, display.workArea)
@@ -334,8 +336,11 @@ app.whenReady().then(async () => {
     if (width === bounds.width) return
     overlayWindow.setBounds({ ...bounds, width })
   })
+  handleIpc(IPC.overlay.setExpanded, (_e, expanded: boolean) => {
+    if (overlayWindow) overlayExpansion.set(overlayWindow, expanded === true)
+  })
   handleIpc(IPC.overlay.dragStart, () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    if (!overlayWindow || overlayWindow.isDestroyed() || overlayExpansion.isExpanded()) return
     startOverlayDrag(overlayWindow, (overlayPosition) => setSettings({ overlayPosition }))
   })
   handleIpc(IPC.overlay.dragEnd, () => stopOverlayDrag())
@@ -488,6 +493,8 @@ app.whenReady().then(async () => {
       const { overlayPosition, overlayWidth } = getSettings()
       overlayWindow = createOverlayWindow({ position: overlayPosition, width: overlayWidth })
       wireWindow(overlayWindow)
+      const created = overlayWindow
+      created.on('hide', () => overlayExpansion.set(created, false))
     }
     return overlayWindow
   }
@@ -652,6 +659,12 @@ app.whenReady().then(async () => {
   }
   handleIpc(IPC.session.requestToggle, () => toggleSession())
 
+  function sendToVisibleOverlay(channel: string, payload?: unknown): void {
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+      overlayWindow.webContents.send(channel, payload)
+    }
+  }
+
   const { failed: failedHotkeys } = registerShortcuts({
     onToggleSession: toggleSession,
     onToggleOverlay: () => {
@@ -679,7 +692,11 @@ app.whenReady().then(async () => {
     // dropped it from Alt+Tab/taskbar — that combination used to be a one-way
     // trip that required relaunching the app. showDashboard() overrides the
     // low-profile posture until the next session boundary.
-    onShowDashboard: () => showDashboard()
+    onShowDashboard: () => showDashboard(),
+    // Sent without showOverlay(): scrolling must not pull focus from the user's editor.
+    onScrollAnswerUp: () => sendToVisibleOverlay(IPC.overlay.scrollAnswer, 'up'),
+    onScrollAnswerDown: () => sendToVisibleOverlay(IPC.overlay.scrollAnswer, 'down'),
+    onExpandCode: () => sendToVisibleOverlay(IPC.overlay.toggleExpandCode)
   })
   if (failedHotkeys.length > 0) {
     console.warn('[shortcuts] could not register at startup', failedHotkeys)

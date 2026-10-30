@@ -83,6 +83,12 @@ export interface ZanbanApi {
     onStealthChanged(cb: (stealth: boolean) => void): () => void
     /** Main → overlay: the window was shown (true) or hidden (false). */
     onVisibilityChanged(cb: (visible: boolean) => void): () => void
+    /** Main → overlay: the scroll-answer hotkeys. */
+    onScrollAnswer(cb: (direction: 'up' | 'down') => void): () => void
+    /** Main → overlay: the expand-code hotkey. */
+    onToggleExpandCode(cb: () => void): () => void
+    /** Grow the window to the work-area height of its display, or restore the previous size. */
+    setExpanded(expanded: boolean): Promise<void>
   }
   dashboard: {
     show(): Promise<void>

@@ -42,6 +42,12 @@
     "send": "Send",
     "more": "more",
     "more_below": "↓ more",
+    "code": {
+      "no_wrap": "no wrap",
+      "wrap": "wrap",
+      "expand": "expand",
+      "collapse": "collapse"
+    },
     "on": "on",
     "off": "off",
     "question": "Q: {{question}}",

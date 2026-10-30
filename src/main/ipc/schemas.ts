@@ -32,7 +32,10 @@ const hotkeys = {
   screenshotAnswer: z.string(),
   cropper: z.string(),
   chat: z.string(),
-  showDashboard: z.string()
+  showDashboard: z.string(),
+  scrollAnswerUp: z.string(),
+  scrollAnswerDown: z.string(),
+  expandCode: z.string()
 } satisfies Record<keyof AppSettings['hotkeys'], z.ZodTypeAny>
 
 const settingsShape = {

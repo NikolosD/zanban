@@ -29,7 +29,10 @@ const api: ZanbanApi = {
     getStealth: () => ipcRenderer.invoke(IPC.overlay.getStealth),
     setStealth: (on) => ipcRenderer.invoke(IPC.overlay.setStealth, on),
     onStealthChanged: (cb) => on<boolean>(IPC.overlay.stealthChanged, (v) => cb(v)),
-    onVisibilityChanged: (cb) => on<boolean>(IPC.overlay.visibilityChanged, (v) => cb(v))
+    onVisibilityChanged: (cb) => on<boolean>(IPC.overlay.visibilityChanged, (v) => cb(v)),
+    onScrollAnswer: (cb) => on<'up' | 'down'>(IPC.overlay.scrollAnswer, (d) => cb(d)),
+    onToggleExpandCode: (cb) => on(IPC.overlay.toggleExpandCode, () => cb()),
+    setExpanded: (expanded) => ipcRenderer.invoke(IPC.overlay.setExpanded, expanded)
   },
   dashboard: {
     show: () => ipcRenderer.invoke(IPC.dashboard.show),

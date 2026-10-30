@@ -21,7 +21,10 @@ const hotkeys = {
   screenshotAnswer: 'Control+Shift+A',
   cropper: 'Control+Shift+Alt+S',
   chat: 'Control+Shift+G',
-  showDashboard: 'Control+Shift+D'
+  showDashboard: 'Control+Shift+D',
+  scrollAnswerUp: 'Alt+Shift+PageUp',
+  scrollAnswerDown: 'Alt+Shift+PageDown',
+  expandCode: 'Alt+Shift+Return'
 }
 vi.mock('./settings.js', () => ({
   getSettings: () => ({ hotkeys })
@@ -48,7 +51,10 @@ const handlers = {
   onScreenshotAnswer: noop,
   onCropper: noop,
   onChat: noop,
-  onShowDashboard: noop
+  onShowDashboard: noop,
+  onScrollAnswerUp: noop,
+  onScrollAnswerDown: noop,
+  onExpandCode: noop
 }
 
 describe('registerShortcuts', () => {
@@ -62,8 +68,25 @@ describe('registerShortcuts', () => {
     registerMock.mockReturnValue(true)
     const { failed } = registerShortcuts(handlers)
     expect(failed).toEqual([])
-    // One register() call per non-empty binding (all 10 are set).
-    expect(registerMock).toHaveBeenCalledTimes(10)
+    // One register() call per non-empty binding (all 13 are set).
+    expect(registerMock).toHaveBeenCalledTimes(13)
+  })
+
+  it('binds the scroll and expand hotkeys to their handlers', () => {
+    registerMock.mockReturnValue(true)
+    const onScrollAnswerUp = vi.fn()
+    const onScrollAnswerDown = vi.fn()
+    const onExpandCode = vi.fn()
+    registerShortcuts({ ...handlers, onScrollAnswerUp, onScrollAnswerDown, onExpandCode })
+    const callbackFor = (acc: string): (() => void) =>
+      registerMock.mock.calls.find(([a]) => a === acc)![1]
+    callbackFor(hotkeys.scrollAnswerUp)()
+    callbackFor(hotkeys.scrollAnswerDown)()
+    callbackFor(hotkeys.scrollAnswerDown)()
+    callbackFor(hotkeys.expandCode)()
+    expect(onScrollAnswerUp).toHaveBeenCalledTimes(1)
+    expect(onScrollAnswerDown).toHaveBeenCalledTimes(2)
+    expect(onExpandCode).toHaveBeenCalledTimes(1)
   })
 
   it('reports the action + accelerator that fails to bind', () => {
@@ -86,8 +109,8 @@ describe('registerShortcuts', () => {
     registerShortcuts(handlers)
     unregisterMock.mockClear()
     reRegisterShortcuts()
-    // Re-register unregisters the 10 it bound last time.
-    expect(unregisterMock).toHaveBeenCalledTimes(10)
+    // Re-register unregisters the 13 it bound last time.
+    expect(unregisterMock).toHaveBeenCalledTimes(13)
   })
 
   it('remembers the latest failures for a window that loads later', () => {
@@ -140,6 +163,17 @@ describe('pickFreeShortcuts', () => {
     expect(result.unresolved).toEqual([])
     expect(persist).toHaveBeenCalledTimes(1)
     expect(persist).toHaveBeenCalledWith({ ...hotkeys, screenshot: first, chat: second })
+  })
+
+  it('finds an alternative for a busy scroll hotkey too', () => {
+    busy.add(hotkeys.scrollAnswerDown)
+    registerShortcuts(handlers)
+    persist.mockReset()
+    const result = pickFreeShortcuts(persist)
+    expect(result.assigned).toContainEqual(expect.objectContaining({ action: 'scrollAnswerDown' }))
+    expect(persist).toHaveBeenCalledWith(
+      expect.objectContaining({ scrollAnswerUp: hotkeys.scrollAnswerUp })
+    )
   })
 
   it('leaves the registration to the settings path by releasing what it probed', () => {

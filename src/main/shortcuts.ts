@@ -13,6 +13,9 @@ export interface ShortcutHandlers {
   onCropper(): void
   onChat(): void
   onShowDashboard(): void
+  onScrollAnswerUp(): void
+  onScrollAnswerDown(): void
+  onExpandCode(): void
 }
 
 /** Hotkey ids that failed to register, keyed by the accelerator that clashed. */
@@ -47,7 +50,10 @@ function actionHandlers(handlers: ShortcutHandlers): Record<keyof AppHotkeys, ()
     screenshotAnswer: handlers.onScreenshotAnswer,
     cropper: handlers.onCropper,
     chat: handlers.onChat,
-    showDashboard: handlers.onShowDashboard
+    showDashboard: handlers.onShowDashboard,
+    scrollAnswerUp: handlers.onScrollAnswerUp,
+    scrollAnswerDown: handlers.onScrollAnswerDown,
+    expandCode: handlers.onExpandCode
   }
 }
 
