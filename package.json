@@ -20,7 +20,7 @@
     "lint": "eslint .",
     "format": "prettier --write . --log-level warn",
     "format:check": "prettier --check .",
-    "bench:answers": "node scripts/bench/answer-shape.mjs",
+    "bench:answers": "node --env-file-if-exists=.env scripts/bench/answer-shape.mjs",
     "analyze": "ANALYZE=1 electron-vite build",
     "bench:overlay": "electron scripts/bench/overlay-readability.mjs",
     "bench:overlay:compare": "node scripts/bench/overlay-readability.mjs --compare",
