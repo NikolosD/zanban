@@ -77,6 +77,9 @@ export function makeGroqProvider(apiKey: string): ILlmProvider {
   return {
     id: 'groq',
     label: 'Groq',
+    async warm() {
+      await client(apiKey)
+    },
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       const res = (await c.chat.completions.create(

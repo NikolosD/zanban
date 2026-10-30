@@ -107,6 +107,9 @@ export function makeGeminiProvider(apiKey: string): ILlmProvider {
   return {
     id: 'google-gemini',
     label: 'Google Gemini',
+    async warm() {
+      await client(apiKey)
+    },
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       // generateContentStream returns Promise<AsyncIterable> — must await

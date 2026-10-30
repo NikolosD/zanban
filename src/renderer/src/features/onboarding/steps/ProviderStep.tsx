@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
 import type { AppSettings, LlmProvider } from '@shared/types'
 import type { StepProps } from '../types'
-import { matchPreset, presetPatch, SETUP_PRESETS, type PresetId } from '../presets'
+import { presetPatch, SETUP_PRESETS } from '../presets'
 import { StepFooter } from './StepFooter'
 
 type BadgeKey = 'recommended' | 'no_key'
@@ -33,27 +32,27 @@ const BADGE_STYLES: Record<BadgeKey, string> = {
   no_key: 'border-border text-muted-foreground'
 }
 
-type Choice = PresetId | 'manual'
-
 export function ProviderStep({
   settings,
   draftProvider,
   setDraftProvider,
+  setup,
+  setSetup,
+  setSpeechEngine,
   update,
-  goNext,
-  goBack
+  goNext
 }: StepProps) {
   const { t } = useTranslation()
-  const [choice, setChoice] = useState<Choice>(() => matchPreset(settings) ?? 'manual')
 
   async function next(): Promise<void> {
-    const preset = SETUP_PRESETS.find((p) => p.id === choice)
+    const preset = SETUP_PRESETS.find((p) => p.id === setup)
     if (preset) {
       const patch = presetPatch(preset, settings)
       for (const key of Object.keys(patch) as Array<keyof AppSettings>) {
         await update(key, patch[key] as never)
       }
       setDraftProvider(preset.llmProvider)
+      setSpeechEngine(preset.sttProvider)
     } else {
       await update('llmProvider', draftProvider)
     }
@@ -70,7 +69,7 @@ export function ProviderStep({
       </div>
       <div className="flex flex-col gap-1.5">
         {[...SETUP_PRESETS.map((p) => p.id), 'manual' as const].map((id) => (
-          <Option key={id} selected={choice === id} onSelect={() => setChoice(id)}>
+          <Option key={id} selected={setup === id} onSelect={() => setSetup(id)}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-body">{t(`onboarding.presets.${id}.label`)}</span>
               {id !== 'manual' && (
@@ -86,7 +85,7 @@ export function ProviderStep({
         ))}
       </div>
 
-      {choice === 'manual' && (
+      {setup === 'manual' && (
         <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
           <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
             {t('onboarding.provider.manual_label')}
@@ -120,10 +119,7 @@ export function ProviderStep({
         </div>
       )}
 
-      <StepFooter>
-        <Button variant="ghost" onClick={goBack}>
-          {t('common.back')}
-        </Button>
+      <StepFooter className="justify-end">
         <Button onClick={() => void next()}>{t('common.next')}</Button>
       </StepFooter>
     </div>

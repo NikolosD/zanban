@@ -19,7 +19,7 @@ import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
 import { getSettings, initialUiLocale, setSettings } from './settings.js'
 import { refreshModels } from './ai/providerModels.js'
-import type { AudioChannel, CaptureNotice } from '../shared/types.js'
+import type { AppSettings, AudioChannel, CaptureNotice } from '../shared/types.js'
 import { redactSettings } from '../shared/settingsBoundary.js'
 import { registerSyncWindow, awaitSessionFinalized, shutdownSync } from './sync/sessionSync.js'
 import { closeDb, flushAll } from './rag/index.js'
@@ -36,6 +36,7 @@ import { createChatWindow } from './windows/chatWindow.js'
 import { initAutoUpdate } from './updater/autoUpdate.js'
 import { createTray, destroyTray } from './tray.js'
 import {
+  pickFreeShortcuts,
   registerShortcuts,
   reRegisterShortcuts,
   shortcutConflicts,
@@ -394,8 +395,7 @@ app.whenReady().then(async () => {
   // keys stay in main.
   handleIpc(IPC.settings.get, () => redactSettings(getSettings()))
   handleIpc(IPC.settings.hotkeyConflicts, () => shortcutConflicts())
-  handleIpc(IPC.settings.set, (_e, input: unknown) => {
-    const patch = settingsPatchSchema.parse(input)
+  function applySettingsPatch(patch: Partial<AppSettings>) {
     const next = redactSettings(setSettings(patch))
     // Keep the stealth/content-protection cache in sync with settings written
     // from the dashboard, otherwise the user has to toggle in the overlay too.
@@ -418,14 +418,12 @@ app.whenReady().then(async () => {
       applyAppSwitcherVisibility()
     }
     // Re-register global shortcuts when hotkeys change so a rebind takes effect
-    // immediately instead of waiting for an app restart. Surface any accelerator
-    // that failed to bind (already taken by another app, malformed) back to the
-    // dashboard so the KeyRecorder can flag it.
+    // immediately instead of waiting for an app restart. Report which
+    // accelerators failed to bind (already taken by another app, malformed) back
+    // to the dashboard, an empty list included so it can drop its notice.
     if (Object.prototype.hasOwnProperty.call(patch, 'hotkeys')) {
       const { failed } = reRegisterShortcuts()
-      if (failed.length > 0) {
-        mainWindow?.webContents.send(IPC.settings.hotkeyConflict, failed)
-      }
+      mainWindow?.webContents.send(IPC.settings.hotkeyConflict, failed)
     }
     // Broadcast the new settings to every window — the overlay holds its own
     // copy in zustand, so without this it would not pick up changes like
@@ -434,7 +432,13 @@ app.whenReady().then(async () => {
       win?.webContents.send(IPC.settings.changed, next)
     }
     return next
-  })
+  }
+  handleIpc(IPC.settings.set, (_e, input: unknown) =>
+    applySettingsPatch(settingsPatchSchema.parse(input))
+  )
+  handleIpc(IPC.settings.pickFreeHotkeys, () =>
+    pickFreeShortcuts((hotkeys) => applySettingsPatch({ hotkeys }))
+  )
 
   mainWindow = createMainWindow()
   overlayWindow = createOverlayWindow()
