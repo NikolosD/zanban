@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionState } from '../../shared/types.js'
 
 const mocks = vi.hoisted(() => ({
@@ -45,6 +45,11 @@ beforeEach(() => {
   mocks.hasChunks.mockResolvedValue(true)
   mocks.getLocalEmbedder.mockResolvedValue({})
   registerRagWarmup()
+})
+
+afterEach(() => {
+  mocks.emit({ kind: 'idle' })
+  vi.useRealTimers()
 })
 
 describe('embedder warm-up', () => {
@@ -131,5 +136,92 @@ describe('embedder warm-up', () => {
     await flush()
     expect(warn).toHaveBeenCalledTimes(1)
     expect(mocks.getLocalEmbedder).not.toHaveBeenCalled()
+  })
+})
+
+// The embedder unloads after 5 idle minutes.
+describe('keeping the embedder loaded during a session', () => {
+  const MINUTE = 60_000
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('pings it every 4 minutes while the session runs', async () => {
+    mocks.emit(running('a'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(4 * MINUTE - 1)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(4)
+  })
+
+  it.each([
+    { stop: 'is stopping', state: { kind: 'stopping' } as SessionState },
+    { stop: 'has ended', state: { kind: 'idle' } as SessionState }
+  ])('stops pinging once the session $stop', async ({ state }) => {
+    mocks.emit(running('a'))
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+
+    mocks.emit(state)
+    await vi.advanceTimersByTimeAsync(20 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not ping before the session is running', async () => {
+    mocks.emit({ kind: 'starting' })
+    await vi.advanceTimersByTimeAsync(20 * MINUTE)
+    expect(mocks.getLocalEmbedder).not.toHaveBeenCalled()
+  })
+
+  it('counts the 4 minutes from the start of the next session', async () => {
+    mocks.emit(running('a'))
+    await vi.advanceTimersByTimeAsync(3 * MINUTE)
+    mocks.emit({ kind: 'idle' })
+    mocks.emit(running('b'))
+    await vi.advanceTimersByTimeAsync(3 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(3)
+  })
+
+  it('checks the warm-up conditions again at every ping', async () => {
+    mocks.emit(running('a'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+
+    mocks.activePersonaId = 'custom:brainstorm'
+    mocks.persona = { ragStrategy: { useRag: false } }
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+
+    mocks.persona = { ragStrategy: { useRag: true } }
+    mocks.hasChunks.mockResolvedValue(false)
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(1)
+
+    mocks.hasChunks.mockResolvedValue(true)
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps pinging after a ping fails', async () => {
+    mocks.getLocalEmbedder.mockResolvedValueOnce(null)
+    mocks.emit(running('a'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(4 * MINUTE)
+    expect(mocks.getLocalEmbedder).toHaveBeenCalledTimes(2)
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 })

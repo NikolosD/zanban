@@ -9,7 +9,7 @@ export {
   countChunks,
   indexedDocIds
 } from './vectorStore.js'
-export { retrieveContext, retrieve } from './ragRetriever.js'
+export { retrieveContext, retrieve, retrievalTimedOut } from './ragRetriever.js'
 export type { RetrievedSource, RetrievalResult, RetrievalOptions } from './ragRetriever.js'
 export { pushSegment, flushSession, flushAll, clearSession } from './liveRagIndexer.js'
 export { indexDoc, dropDoc, reconcileDocs } from './docIndexer.js'

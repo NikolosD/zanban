@@ -61,6 +61,13 @@ describe('aiAskInputSchema', () => {
       aiAskInputSchema.safeParse({ ...base, imageDataUrl: 'data:text/html,<b>' }).success
     ).toBe(false)
   })
+
+  it('passes skipRetrieval through instead of stripping it', () => {
+    const base = { requestId: 'r1', prompt: 'hi' }
+    expect(aiAskInputSchema.parse({ ...base, skipRetrieval: true }).skipRetrieval).toBe(true)
+    expect(aiAskInputSchema.parse(base).skipRetrieval).toBeUndefined()
+    expect(aiAskInputSchema.safeParse({ ...base, skipRetrieval: 'yes' }).success).toBe(false)
+  })
 })
 
 describe('documentPathSchema', () => {

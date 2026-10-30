@@ -4,9 +4,12 @@ import { search, type RetrievedChunk } from './vectorStore.js'
 // relevant RU/EN query–chunk pairs measured ≤ 1.14, the best hit for an
 // off-topic question ≥ 1.18.
 export const DEFAULT_DISTANCE_THRESHOLD = 1.16
-// A hit this much farther than the best one is noise next to it; the expected
-// fragment trailed the best hit by at most 0.15 in calibration.
-const RELATIVE_CUTOFF = 0.2
+// A hit this much farther than the best one is noise next to it; in the eval the
+// expected fragment trailed the best hit by at most 0.091.
+const RELATIVE_CUTOFF = 0.12
+// Fragments run ~80 words, so this is about five; past that they bury the one
+// that answers and cost prompt latency.
+const MAX_INJECTED_WORDS = 400
 const DUPLICATE_JACCARD = 0.85
 
 export interface RetrievalOptions {
@@ -45,6 +48,9 @@ const CURRENT_CALL_LABEL = 'earlier in this call'
 const NO_MATCH_BLOCK =
   '\n\n<retrieved_context>\nNo matching past sessions or documents.\n</retrieved_context>'
 
+const NOT_SEARCHED_BLOCK =
+  "\n\n<retrieved_context>\nPast sessions and documents weren't searched in time, so they may hold an answer that is not shown here.\n</retrieved_context>"
+
 const EN_HISTORY =
   /\b(last time|last (meeting|call|session|week)|(previous|past|earlier) (meetings?|calls?|sessions?|conversations?)|we (discussed|agreed|decided|talked about)|did (we|i|you|they|he|she) (say|mention|agree|decide|discuss|promise)|what did (we|i|you|they|he|she)|recap|meeting notes|(my|the|this|that|our|their) (document|doc|file|resume|cv|contract|spec|presentation|deck)|according to|remind me)\b/i
 const RU_HISTORY =
@@ -53,6 +59,15 @@ const RU_HISTORY =
 /** Whether a question refers to past meetings or the user's documents. */
 export function looksLikeHistoryQuestion(query: string): boolean {
   return EN_HISTORY.test(query) || RU_HISTORY.test(query)
+}
+
+/**
+ * The result for a search that outlasted its time budget: nothing, except that
+ * a question about past meetings or documents is told they went unsearched, so
+ * the model doesn't claim there is nothing in them.
+ */
+export function retrievalTimedOut(query: string): RetrievalResult {
+  return { prompt: looksLikeHistoryQuestion(query) ? NOT_SEARCHED_BLOCK : '', sources: [] }
 }
 
 function shortLabel(h: RetrievedChunk, currentSessionId?: string): string {
@@ -100,8 +115,16 @@ function inTranscriptWindow(h: RetrievedChunk, opts?: RetrievalOptions): boolean
   )
 }
 
-/** `hits` arrive ordered by distance, closest first. */
-function selectHits(
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * `hits` arrive ordered by distance, closest first, and stay in that order. The
+ * hit that would take the total past the word budget ends the list rather than
+ * making room for a smaller, farther one; the closest hit is always kept.
+ */
+export function selectHits(
   hits: RetrievedChunk[],
   k: number,
   threshold: number,
@@ -110,11 +133,15 @@ function selectHits(
   const eligible = hits.filter((h) => h.distance <= threshold && !inTranscriptWindow(h, opts))
   const cutoff = (eligible[0]?.distance ?? 0) + RELATIVE_CUTOFF
   const kept: Array<{ hit: RetrievedChunk; words: Set<string> }> = []
+  let injectedWords = 0
   for (const hit of eligible) {
     if (kept.length === k || hit.distance > cutoff) break
     const words = wordSet(hit.text)
     if (kept.some((o) => nearDuplicate(o.words, words))) continue
+    const size = wordCount(hit.text)
+    if (kept.length > 0 && injectedWords + size > MAX_INJECTED_WORDS) break
     kept.push({ hit, words })
+    injectedWords += size
   }
   return kept.map((o) => o.hit)
 }

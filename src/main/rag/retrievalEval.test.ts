@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { TranscriptSegment } from '../../shared/types.js'
 import { createMlTasks } from '../ml/tasks.js'
-import { DEFAULT_DISTANCE_THRESHOLD } from './ragRetriever.js'
+import { DEFAULT_DISTANCE_THRESHOLD, selectHits } from './ragRetriever.js'
 import { chunkSegments, chunkText } from './semanticChunker.js'
 import { cleanSegments } from './transcriptCleaner.js'
+import type { RetrievedChunk } from './vectorStore.js'
 
 // ragRetriever → vectorStore → db imports electron, whose binary isn't
 // installed when CI runs `pnpm install --ignore-scripts`.
@@ -14,7 +15,20 @@ vi.mock('electron', () => ({ app: {} }))
 const ENABLED = process.env.RAG_EVAL === '1'
 
 // Measured with the pinned encoder. Raise when retrieval improves; a drop fails.
-const BASELINE = { recallAt6: 1, thresholdedRecallAt6: 1, offTopicHits: 0 }
+// meanUnrelatedPerQuery and smallTalkMaxInjected are ceilings (lower them when
+// retrieval improves) that no run of the encoder has measured yet; tighten them
+// to the first real run.
+const BASELINE = {
+  recallAt6: 1,
+  selectedRecall: 1,
+  offTopicHits: 0,
+  meanUnrelatedPerQuery: 1,
+  smallTalkMaxInjected: 1
+}
+
+// The production search over-fetches this many times k before selecting.
+const K = 6
+const OVERFETCH = 3
 
 type Turn = ['You' | 'Them', string]
 
@@ -161,8 +175,19 @@ const OFF_TOPIC = [
   'How do I fix a flat bicycle tire?'
 ]
 
-function corpus(): Array<{ source: string; text: string }> {
-  const out: Array<{ source: string; text: string }> = []
+// What "Answer last" searches for when the other speaker asked nothing: their
+// last 60 words, here pleasantries and call logistics with no topic in them.
+const SMALL_TALK = [
+  "Hi everyone, thanks for joining. Can you all hear me okay? Great, perfect. Let's give it another minute or two for people to hop on. No rush at all, I'm just going to grab some water real quick. Okay, looks like most folks are here, so thanks again for making the time today.",
+  "Yeah, no worries, totally understand. Sure, that works for me. Sounds good, thanks so much. Appreciate it. Okay, cool, let me just share my screen. Can you see it? Awesome. Alright, give me one second, I think my connection dropped for a moment there. Okay, I'm back, sorry about that.",
+  "Right, right, absolutely. Mm-hmm, yeah, I hear you. That makes sense, thank you. Okay, great, I think we're all set then. Thanks everybody, have a good one, talk soon. Bye now, see you next time, take care.",
+  'Всем привет, спасибо, что нашли время. Меня хорошо слышно? Отлично, замечательно. Давайте подождём ещё пару минут, пока все подключатся. Никуда не торопимся, я пока налью воды. Так, вроде почти все на месте, ещё раз спасибо, что пришли сегодня.',
+  'Да, конечно, без проблем, понимаю. Хорошо, меня это устраивает. Отлично, большое спасибо. Так, сейчас покажу экран. Вам видно? Супер. Секунду, у меня на мгновение пропала связь. Всё, я снова с вами, извините за паузу.',
+  'Ага, понятно, совершенно верно. Угу, я вас услышал. Это логично, спасибо. Хорошо, тогда, кажется, всё. Спасибо всем, хорошего дня, до скорой встречи. Пока, до связи, всего доброго.'
+]
+
+function corpus(): Array<{ source: string; kind: RetrievedChunk['sourceKind']; text: string }> {
+  const out: Array<{ source: string; kind: RetrievedChunk['sourceKind']; text: string }> = []
   for (const [source, turns] of Object.entries(CALLS)) {
     const segments: TranscriptSegment[] = turns.map(([who, text], i) => ({
       id: `${source}-${i}`,
@@ -174,10 +199,12 @@ function corpus(): Array<{ source: string; text: string }> {
       isFinal: true,
       createdAt: i * 1000
     }))
-    for (const c of chunkSegments(cleanSegments(segments))) out.push({ source, text: c.text })
+    for (const c of chunkSegments(cleanSegments(segments))) {
+      out.push({ source, kind: 'session', text: c.text })
+    }
   }
   for (const [source, text] of Object.entries(DOCS)) {
-    for (const c of chunkText(text, 0)) out.push({ source, text: c.text })
+    for (const c of chunkText(text, 0)) out.push({ source, kind: 'doc', text: c.text })
   }
   return out
 }
@@ -194,42 +221,64 @@ function l2(cos: number): number {
 }
 
 describe.skipIf(!ENABLED)('retrieval eval', () => {
-  it('keeps recall@6 at or above the committed baseline', async () => {
+  it('keeps recall, noise and small-talk injection within the committed baseline', async () => {
     const tasks = createMlTasks('node_modules/.cache/zanban-rag-eval/models')
     const embedder = { embed: (texts: string[]) => tasks.run({ kind: 'embed', texts }) }
     const chunks = corpus()
     const vectors = await embedder.embed(chunks.map((c) => c.text))
-    const rank = async (query: string): Promise<Array<{ source: string; distance: number }>> => {
+    const rank = async (query: string): Promise<RetrievedChunk[]> => {
       const [q] = await embedder.embed([query])
       return chunks
-        .map((c, i) => ({ source: c.source, distance: l2(cosine(q!, vectors[i]!)) }))
+        .map(
+          (c, i): RetrievedChunk => ({
+            id: i,
+            sourceKind: c.kind,
+            sourceId: c.source,
+            sourceLabel: null,
+            speaker: null,
+            ts: 0,
+            text: c.text,
+            distance: l2(cosine(q!, vectors[i]!))
+          })
+        )
         .sort((a, b) => a.distance - b.distance)
     }
+    const inject = (ranked: RetrievedChunk[]): RetrievedChunk[] =>
+      selectHits(ranked.slice(0, K * OVERFETCH), K, DEFAULT_DISTANCE_THRESHOLD)
 
     let found = 0
-    let foundWithinThreshold = 0
+    let selectedFound = 0
+    let unrelated = 0
     for (const [query, expected] of QUERIES) {
-      const top = (await rank(query)).slice(0, 6)
-      const hit = top.find((r) => r.source === expected)
-      if (hit) found++
-      if (hit && hit.distance <= DEFAULT_DISTANCE_THRESHOLD) foundWithinThreshold++
+      const ranked = await rank(query)
+      if (ranked.slice(0, K).some((h) => h.sourceId === expected)) found++
+      const injected = inject(ranked)
+      if (injected.some((h) => h.sourceId === expected)) selectedFound++
+      unrelated += injected.filter((h) => h.sourceId !== expected).length
     }
     let offTopicHits = 0
     for (const query of OFF_TOPIC) {
-      const [best] = await rank(query)
-      if (best && best.distance <= DEFAULT_DISTANCE_THRESHOLD) offTopicHits++
+      if (inject(await rank(query)).length > 0) offTopicHits++
+    }
+    let smallTalkMaxInjected = 0
+    for (const tail of SMALL_TALK) {
+      smallTalkMaxInjected = Math.max(smallTalkMaxInjected, inject(await rank(tail)).length)
     }
 
     const metrics = {
       recallAt6: found / QUERIES.length,
-      thresholdedRecallAt6: foundWithinThreshold / QUERIES.length,
-      offTopicHits
+      selectedRecall: selectedFound / QUERIES.length,
+      offTopicHits,
+      meanUnrelatedPerQuery: unrelated / QUERIES.length,
+      smallTalkMaxInjected
     }
     const report = JSON.stringify(metrics)
     expect(metrics.recallAt6, report).toBeGreaterThanOrEqual(BASELINE.recallAt6)
-    expect(metrics.thresholdedRecallAt6, report).toBeGreaterThanOrEqual(
-      BASELINE.thresholdedRecallAt6
-    )
+    expect(metrics.selectedRecall, report).toBeGreaterThanOrEqual(BASELINE.selectedRecall)
     expect(metrics.offTopicHits, report).toBeLessThanOrEqual(BASELINE.offTopicHits)
+    expect(metrics.meanUnrelatedPerQuery, report).toBeLessThanOrEqual(
+      BASELINE.meanUnrelatedPerQuery
+    )
+    expect(metrics.smallTalkMaxInjected, report).toBeLessThanOrEqual(BASELINE.smallTalkMaxInjected)
   }, 600_000)
 })
