@@ -11,3 +11,4 @@ release/
 *.tsbuildinfo
 .omc/
 .claude/
+bench-results/
