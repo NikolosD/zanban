@@ -1,6 +1,12 @@
 import type { ILlmProvider, LlmFinishReason, LlmStreamArgs } from '../types.js'
 import { normalizeFinishReason } from './finishReason.js'
 
+interface SystemBlock {
+  type: 'text'
+  text: string
+  cache_control?: { type: 'ephemeral' }
+}
+
 interface AnthropicSdk {
   messages: {
     create(
@@ -17,7 +23,7 @@ interface AnthropicSdk {
     stream(
       args: {
         model: string
-        system: string
+        system: SystemBlock[]
         messages: Array<{ role: string; content: unknown }>
         max_tokens: number
         thinking?: { type: 'disabled' | 'between_tools' }
@@ -58,18 +64,42 @@ function thinkingFor(model: string): { type: 'disabled' | 'between_tools' } | un
   return undefined
 }
 
+// The system prompt is the only part of an answer request that repeats from ask to
+// ask; the transcript right after it differs every time, so nothing past it is
+// marked. A prefix under the model's minimum length (512 tokens on 5.5 models) is
+// not cached and not rejected: the API ignores the marker.
+function cachedSystem(text: string): SystemBlock[] {
+  return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }]
+}
+
+interface InputUsage {
+  input_tokens?: number
+  cache_read_input_tokens?: number | null
+  cache_creation_input_tokens?: number | null
+}
+
+function traceCacheUsage(usage: InputUsage): void {
+  console.debug(
+    `[anthropic] input tokens: ${usage.cache_read_input_tokens ?? 0} read from cache, ` +
+      `${usage.cache_creation_input_tokens ?? 0} written to cache, ${usage.input_tokens ?? 0} uncached`
+  )
+}
+
 // The caller's temperature is not forwarded: Claude 4.7+ and 5.x models reject
 // any non-default value with a 400.
 export function makeAnthropicProvider(apiKey: string): ILlmProvider {
   return {
     id: 'anthropic',
     label: 'Anthropic Claude',
+    async warm() {
+      await client(apiKey)
+    },
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const c = await client(apiKey)
       const stream = c.messages.stream(
         {
           model: args.model,
-          system: args.system,
+          system: cachedSystem(args.system),
           messages: buildMessages(args),
           max_tokens: args.maxOutputTokens ?? 1200,
           thinking: thinkingFor(args.model)
@@ -82,11 +112,14 @@ export function makeAnthropicProvider(apiKey: string): ILlmProvider {
       for await (const event of stream as AsyncIterable<{
         type?: string
         delta?: { type?: string; text?: string; stop_reason?: string | null }
+        message?: { usage?: InputUsage }
       }>) {
         if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
           if (event.delta.text) yield event.delta.text
         } else if (event.type === 'message_delta' && event.delta?.stop_reason) {
           stopReason = event.delta.stop_reason
+        } else if (event.type === 'message_start' && event.message?.usage) {
+          traceCacheUsage(event.message.usage)
         }
       }
       return normalizeFinishReason(stopReason)

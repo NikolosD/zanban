@@ -45,7 +45,8 @@ import {
 } from '@renderer/features/transcript/sessionStart'
 import { Button } from '@renderer/components/ui/button'
 import { Kbd } from '@renderer/components/ui/kbd'
-import { acceleratorTokens, prettyAccelerator } from '@renderer/features/settings/KeyRecorder'
+import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
+import { showHotkeyConflicts } from '@renderer/features/settings/HotkeyConflictNotice'
 import {
   Dialog,
   DialogContent,
@@ -164,27 +165,11 @@ export function DashboardApp() {
       toast.error(i18n.t('updates.error'), { description: message })
     })
     // Covers the startup registration too, which runs before this window loads.
-    const toastHotkeyConflicts = (failed: HotkeyConflict[]) => {
-      for (const f of failed) {
-        toast.error(
-          i18n.t('settings.hotkeys_section.conflict_toast', {
-            action: i18n.t(`settings.hotkey.${f.action}.label`),
-            accelerator: prettyAccelerator(f.accelerator)
-          }),
-          {
-            id: `hotkey-conflict-${f.action}`,
-            duration: Infinity,
-            action: {
-              label: i18n.t('settings.hotkeys_section.conflict_change'),
-              onClick: () => {
-                setSettingsTab('hotkeys')
-                setSettingsOpen(true)
-              }
-            }
-          }
-        )
-      }
-    }
+    const toastHotkeyConflicts = (failed: HotkeyConflict[]) =>
+      showHotkeyConflicts(failed, () => {
+        setSettingsTab('hotkeys')
+        setSettingsOpen(true)
+      })
     void window.zanban.settings.hotkeyConflicts().then(toastHotkeyConflicts)
     const offHotkeyConflict = window.zanban.settings.onHotkeyConflict(toastHotkeyConflicts)
     return () => {

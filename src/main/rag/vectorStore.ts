@@ -126,14 +126,29 @@ const SELECT_COLS = `c.id as id, c.source_kind as sourceKind, c.source_id as sou
                      c.source_label as sourceLabel, c.speaker as speaker,
                      c.ts as ts, c.text as text, v.distance as distance`
 
+// A LIMIT 1 probe reads one leaf page whatever the table size (~6 µs at 200k rows),
+// so there is nothing worth caching or invalidating.
+function hasRows(db: Db): boolean {
+  return !!db.prepare('SELECT 1 FROM chunks LIMIT 1').get()
+}
+
+/** Whether anything is indexed, i.e. whether a search could find something. */
+export async function hasChunks(): Promise<boolean> {
+  const db = await getDb()
+  return !!db && hasRows(db)
+}
+
 /**
  * Find top-k chunks across ALL sources semantically similar to `query`.
- * Returns empty array if RAG is unavailable (db or embedder failed to load).
+ * Returns empty array if RAG is unavailable (db or embedder failed to load), or
+ * if nothing is indexed — checked before the embedder, whose cold load would
+ * otherwise be waited on for nothing.
  */
 export async function search(query: string, k = 6): Promise<RetrievedChunk[]> {
   const db = await getDb()
+  if (!db || !query.trim() || !hasRows(db)) return []
   const embedder = await getLocalEmbedder()
-  if (!db || !embedder || !query.trim()) return []
+  if (!embedder) return []
 
   const [vec] = await embedder.embed([query])
   if (!vec) return []

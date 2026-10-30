@@ -48,4 +48,20 @@ describe('LLM SDK client cache', () => {
     await make('key-b').generate(args)
     expect(constructed[id]).toEqual(['key-a', 'key-b'])
   })
+
+  it.each([
+    ['anthropic', makeAnthropicProvider],
+    ['openai', makeOpenAiProvider],
+    ['groq', makeGroqProvider]
+  ] as const)(
+    '%s builds its client in warm(), and the first request reuses it',
+    async (id, make) => {
+      const provider = make('key-warm')
+      const built = (): number => constructed[id].filter((k) => k === 'key-warm').length
+      await provider.warm?.()
+      expect(built()).toBe(1)
+      await provider.generate(args)
+      expect(built()).toBe(1)
+    }
+  )
 })

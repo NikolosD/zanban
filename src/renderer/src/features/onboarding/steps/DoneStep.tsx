@@ -6,6 +6,7 @@ import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
 import { missingProviderNames } from '@renderer/features/settings/providerStatus'
 import type { StepProps } from '../types'
 import { StepFooter } from './StepFooter'
+import { TestCall } from './TestCall'
 
 const KEY_HOTKEYS = ['toggleOverlay', 'answerLast', 'toggleSession'] as const
 
@@ -47,6 +48,7 @@ export function DoneStep({ settings, complete, goBack }: StepProps) {
           </div>
         </div>
       )}
+      <TestCall settings={settings} />
       <div className="flex flex-col gap-2">
         <div className="font-mono text-meta uppercase tracking-wider text-muted-foreground">
           {t('onboarding.done.hotkeys_title')}
@@ -67,6 +69,7 @@ export function DoneStep({ settings, complete, goBack }: StepProps) {
         </div>
         <p className="text-small text-muted-foreground">{t('onboarding.done.hotkeys_more')}</p>
       </div>
+      <p className="text-small text-muted-foreground">{t('onboarding.done.persona_hint')}</p>
       <StepFooter>
         <Button variant="ghost" onClick={goBack}>
           {t('common.back')}
