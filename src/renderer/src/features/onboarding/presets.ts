@@ -2,6 +2,8 @@ import type { AppSettings, LlmProvider, SttProvider } from '@shared/types'
 
 export type PresetId = 'recommended' | 'quality' | 'private'
 
+export type SetupChoice = PresetId | 'manual'
+
 export interface SetupPreset {
   id: PresetId
   llmProvider: LlmProvider

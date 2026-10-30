@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { LlmProvider, SttProvider } from '@shared/types'
@@ -32,16 +32,21 @@ function useCheck<T extends string>(
   const [testing, setTesting] = useState(false)
   // Kept with the id it belongs to, so switching providers drops a stale verdict.
   const [checked, setChecked] = useState<{ id: T; result: ProviderTestResult } | null>(null)
+  const latest = useRef(0)
   const check = useCallback(async () => {
+    const mine = ++latest.current
     setTesting(true)
     setChecked(null)
+    let result: ProviderTestResult
     try {
-      setChecked({ id, result: await probe(id) })
+      result = await probe(id)
     } catch (err) {
-      setChecked({ id, result: { ok: false, message: errorMessage(err) } })
-    } finally {
-      setTesting(false)
+      result = { ok: false, message: errorMessage(err) }
     }
+    // A slow check that a newer one has overtaken must not overwrite it when it lands.
+    if (mine !== latest.current) return
+    setChecked({ id, result })
+    setTesting(false)
   }, [id, probe])
   return { testing, result: checked?.id === id ? checked.result : null, check }
 }
