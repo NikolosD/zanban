@@ -27,6 +27,7 @@ interface Bridge {
   dragStart: ReturnType<typeof vi.fn>
   dragEnd: ReturnType<typeof vi.fn>
   setWidth: ReturnType<typeof vi.fn>
+  setIgnoreMouse: ReturnType<typeof vi.fn>
   settingsChanged(settings: AppSettings): void
   visibilityChanged(visible: boolean): void
 }
@@ -45,6 +46,7 @@ function stubBridge(
   const dragStart = vi.fn(async () => {})
   const dragEnd = vi.fn(async () => {})
   const setWidth = vi.fn(async () => {})
+  const setIgnoreMouse = vi.fn(async () => {})
   const overrides: Record<string, unknown> = {
     'settings.get': async () => settings,
     'settings.set': set,
@@ -56,6 +58,7 @@ function stubBridge(
     'overlay.dragStart': dragStart,
     'overlay.dragEnd': dragEnd,
     'overlay.setWidth': setWidth,
+    'overlay.setIgnoreMouse': setIgnoreMouse,
     'overlay.onVisibilityChanged': (cb: typeof visibilityListener) => {
       visibilityListener = cb
       return () => {}
@@ -79,6 +82,7 @@ function stubBridge(
     dragStart,
     dragEnd,
     setWidth,
+    setIgnoreMouse,
     settingsChanged: (next) => act(() => settingsListener(next)),
     visibilityChanged: (visible) => act(() => visibilityListener(visible))
   }
@@ -303,6 +307,28 @@ describe('OverlayApp moving and resizing', () => {
     expect(bridge.dragEnd).not.toHaveBeenCalled()
 
     fireEvent.mouseUp(window)
+    expect(bridge.dragEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps click-through as it was while a button is held over empty space', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseMove(window, { clientX: 5, clientY: 5, buttons: 1 })
+    expect(bridge.setIgnoreMouse).not.toHaveBeenCalled()
+
+    fireEvent.mouseMove(window, { clientX: 5, clientY: 5, buttons: 0 })
+    expect(bridge.setIgnoreMouse).toHaveBeenCalledWith(true)
+  })
+
+  it('stops listening once a move has ended', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+
+    fireEvent.mouseDown(statusPill())
+    fireEvent.mouseUp(window)
+    fireEvent.mouseUp(window)
+    fireEvent.blur(window)
     expect(bridge.dragEnd).toHaveBeenCalledTimes(1)
   })
 

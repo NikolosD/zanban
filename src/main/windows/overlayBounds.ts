@@ -33,6 +33,11 @@ function clamp(value: number, min: number, max: number): number {
   return min > max ? (min + max) / 2 : Math.max(min, Math.min(max, value))
 }
 
+/** Widest the window may be at `x` without running past the right edge of its work area. */
+export function fitOverlayWidth(requested: number, x: number, workArea: Rect): number {
+  return clampOverlayWidth(requested, Math.min(workArea.width, workArea.x + workArea.width - x))
+}
+
 export function topCenterPosition(width: number, workArea: Rect): Point {
   return {
     x: workArea.x + Math.max(0, Math.floor((workArea.width - width) / 2)),
@@ -80,8 +85,9 @@ export function resolveOverlayBounds(
     ? workAreas.find((a) => contains(a, pillCenter(position, saved.width)))
     : undefined
   if (position && home) {
-    const width = clampOverlayWidth(saved.width, home.width)
-    return { ...clampOverlayPosition(position, width, workAreas), width }
+    const placed = clampOverlayPosition(position, saved.width, workAreas)
+    const width = fitOverlayWidth(saved.width, placed.x, home)
+    return { ...clampOverlayPosition(placed, width, workAreas), width }
   }
   const width = clampOverlayWidth(saved.width, primary.width)
   return { ...topCenterPosition(width, primary), width }

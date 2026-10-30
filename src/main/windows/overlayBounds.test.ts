@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { clampOverlayPosition, resolveOverlayBounds, topCenterPosition } from './overlayBounds'
+import {
+  clampOverlayPosition,
+  fitOverlayWidth,
+  resolveOverlayBounds,
+  topCenterPosition
+} from './overlayBounds'
 
 const primary = { x: 0, y: 0, width: 1920, height: 1040 }
 const left = { x: -1280, y: 0, width: 1280, height: 984 }
@@ -96,5 +101,36 @@ describe('resolveOverlayBounds', () => {
     const next = resolveOverlayBounds({ position: null, width: 1100 }, [small], small)
     expect(next.width).toBe(800)
     expect(next.x).toBe(0)
+  })
+})
+
+describe('fitOverlayWidth', () => {
+  it('keeps a width that fits right of x', () => {
+    expect(fitOverlayWidth(720, 600, primary)).toBe(720)
+  })
+
+  it('stops at the right edge of the work area', () => {
+    expect(fitOverlayWidth(720, 1500, primary)).toBe(420)
+    expect(fitOverlayWidth(900, 1200, primary)).toBe(720)
+  })
+
+  it('keeps the minimum when there is no room at all', () => {
+    expect(fitOverlayWidth(720, 1900, primary)).toBe(420)
+  })
+
+  it('works on a monitor with negative coordinates', () => {
+    expect(fitOverlayWidth(1000, -900, left)).toBe(900)
+  })
+})
+
+describe('resolveOverlayBounds near the right edge', () => {
+  it('narrows a saved wide window so it stays on the display', () => {
+    const next = resolveOverlayBounds(
+      { position: { x: 1300, y: 12 }, width: 1100 },
+      [primary],
+      primary
+    )
+    expect(next.x + next.width).toBeLessThanOrEqual(1920)
+    expect(next.width).toBeGreaterThanOrEqual(420)
   })
 })

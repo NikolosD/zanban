@@ -16,7 +16,7 @@ import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
 import { fitOverlayHeight } from './windows/overlayHeight.js'
 import { startOverlayDrag, stopOverlayDrag } from './windows/overlayDrag.js'
-import { clampOverlayWidth } from '../shared/overlayLayout.js'
+import { fitOverlayWidth } from './windows/overlayBounds.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
 import { registerAiWindow } from './ai/aiGatewayClient.js'
@@ -325,7 +325,7 @@ app.whenReady().then(async () => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !Number.isFinite(requested)) return
     const bounds = overlayWindow.getBounds()
     const display = screen.getDisplayMatching(bounds)
-    const width = clampOverlayWidth(requested, display.workArea.width)
+    const width = fitOverlayWidth(requested, bounds.x, display.workArea)
     if (width === bounds.width) return
     overlayWindow.setBounds({ ...bounds, width })
   })
