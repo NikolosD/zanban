@@ -610,8 +610,16 @@
       "title": "hotkeys",
       "hint": "Work from any app. Click a shortcut to change it — Esc cancels, ⌫ clears.",
       "reset_all": "Reset all to defaults",
-      "conflict_toast": "{{action}}: {{accelerator}} is taken by another app, so this hotkey doesn't work.",
-      "conflict_change": "Change",
+      "conflict_title_one": "{{count}} hotkey is taken by another app",
+      "conflict_title_other": "{{count}} hotkeys are taken by other apps",
+      "conflict_hint_one": "It won't work until you pick another shortcut.",
+      "conflict_hint_other": "They won't work until you pick other shortcuts.",
+      "conflict_pick_free": "Pick free ones",
+      "conflict_change": "Change…",
+      "conflict_picked_one": "Moved {{count}} hotkey to a free shortcut",
+      "conflict_picked_other": "Moved {{count}} hotkeys to free shortcuts",
+      "conflict_unresolved": "No free shortcut found for {{actions}}. Set those yourself in Settings.",
+      "conflict_pick_failed": "Couldn't pick free hotkeys",
       "conflict_badge": "in use elsewhere"
     },
     "hotkey": {
