@@ -51,6 +51,40 @@ describe('coding problem answer shape', () => {
   })
 })
 
+describe('spoken answer shape', () => {
+  const out = buildSystemPrompt()
+
+  it('makes conceptual, behavioral and explain questions read as the candidate speaking', () => {
+    expect(out).toContain('conceptual, behavioral or "explain X" question')
+    expect(out).toContain('says it aloud in their own voice')
+    expect(out).toContain('the sentence to start with')
+    expect(out).toContain('Then 2-3 "-" bullets')
+    expect(out).toContain('at most about 20 words')
+    expect(out).toContain('first person where natural')
+    expect(out).toContain('Leave out definitions like "X is…", headers, "Rules:" lists')
+    expect(out).toContain('at most one short snippet')
+  })
+
+  it('carries one Russian example that opens with a bold lead and has three bullets', () => {
+    const example = out.slice(out.indexOf('Example, for'))
+    expect(example).toContain('Какие правила работы с ключами')
+    expect(example).toContain('**Ключ нужен, чтобы React понимал')
+    expect(example.match(/^- /gm)).toHaveLength(3)
+    expect(example).toContain('answer in the language of the question')
+    expect(example).not.toContain('Правила:')
+  })
+
+  it('keeps the whole system prompt compact enough to cache cheaply', () => {
+    expect(out.length).toBeLessThan(3500)
+  })
+
+  it('keeps the coding shape and leaves the screenshot prompt without the spoken example', () => {
+    expect(out).toContain('a bold lead of at most 15 words naming the core idea and the complexity')
+    expect(out).toContain('then the code, then at most 2 short bullets')
+    expect(buildVisionSystemPrompt()).not.toContain('Example, for')
+  })
+})
+
 describe('buildSystemPrompt', () => {
   it('returns the bare system prompt when no persona / language given', () => {
     const out = buildSystemPrompt()
