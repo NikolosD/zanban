@@ -241,6 +241,15 @@ export function SettingsPanel({
                   onCheckedChange={(v) => update('detailedAnswers', v)}
                 />
               </Row>
+              <Row
+                label={t('settings.ai.auto_answer_label')}
+                hint={t('settings.ai.auto_answer_hint')}
+              >
+                <Switch
+                  checked={settings.autoAnswer}
+                  onCheckedChange={(v) => update('autoAnswer', v)}
+                />
+              </Row>
               <Field
                 label={t('settings.ai.context_window_label')}
                 hint={t('settings.ai.context_window_hint')}

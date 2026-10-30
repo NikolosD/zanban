@@ -32,7 +32,9 @@ export const IPC = {
     snapshotAnswer: 'overlay:snapshot-answer',
     getStealth: 'overlay:get-stealth',
     setStealth: 'overlay:set-stealth',
-    stealthChanged: 'overlay:stealth-changed'
+    stealthChanged: 'overlay:stealth-changed',
+    /** Main → overlay: the window was shown or hidden. */
+    visibilityChanged: 'overlay:visibility-changed'
   },
   dashboard: {
     show: 'dashboard:show',

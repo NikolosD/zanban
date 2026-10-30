@@ -324,6 +324,11 @@ export interface AppSettings {
    */
   detailedAnswers: boolean
   /**
+   * Answer by itself when the other side finishes asking a question during a
+   * session. Off by default: every question it catches is a paid request.
+   */
+  autoAnswer: boolean
+  /**
    * Per-role model IDs **per provider**. Empty string in any slot means
    * "use the provider's default" — see PROVIDER_MODEL_DEFAULTS. Switching
    * providers automatically swaps which set of model IDs is in effect, so
@@ -661,6 +666,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacyCloudFallback: false,
   autoWebSearch: false,
   detailedAnswers: false,
+  autoAnswer: false,
   aiModels: {},
   transcriptionLanguage: 'multi',
   contextSeconds: 120,

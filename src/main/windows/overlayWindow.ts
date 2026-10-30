@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { IPC } from '../../shared/ipc-channels.js'
 import { getAppIcon } from '../appIcon.js'
 import { DEV_SERVER_URL } from '../security.js'
 
@@ -54,6 +55,15 @@ export function createOverlayWindow(): BrowserWindow {
     win.setSkipTaskbar(true)
     win.setAlwaysOnTop(true, 'screen-saver')
   })
+
+  // Answers streamed to a hidden overlay are held until it is shown, so the
+  // renderer needs to know to stop asking for them. Its own document stays
+  // "visible" (backgroundThrottling is off), so it can't tell on its own.
+  const announceVisibility = (visible: boolean): void => {
+    if (!win.isDestroyed()) win.webContents.send(IPC.overlay.visibilityChanged, visible)
+  }
+  win.on('show', () => announceVisibility(true))
+  win.on('hide', () => announceVisibility(false))
 
   win.webContents.on('preload-error', (_e, preloadPath, err) => {
     console.error('[overlay] preload-error', preloadPath, err)

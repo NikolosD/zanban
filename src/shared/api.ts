@@ -76,6 +76,8 @@ export interface ZanbanApi {
     getStealth(): Promise<boolean>
     setStealth(on: boolean): Promise<boolean>
     onStealthChanged(cb: (stealth: boolean) => void): () => void
+    /** Main → overlay: the window was shown (true) or hidden (false). */
+    onVisibilityChanged(cb: (visible: boolean) => void): () => void
   }
   dashboard: {
     show(): Promise<void>

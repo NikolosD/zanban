@@ -20,12 +20,14 @@ interface AiMessage {
   /** RAG fragments retrieved for this answer (Sources affordance). */
   sources?: AiSource[]
   request?: AskedRequest
+  /** What the other side said that this answer responds to, fixed when it was asked. */
+  question?: string
 }
 
 interface AiState {
   messages: AiMessage[]
   pending: Record<string, string>
-  newRequest(prompt: string, requestId: string, request?: AskedRequest): void
+  newRequest(prompt: string, requestId: string, request?: AskedRequest, question?: string): void
   /** Stream `requestId` onto the end of the answer `fromId` and make it the latest. */
   resumeRequest(fromId: string, requestId: string): void
   appendChunk(requestId: string, text: string): void
@@ -38,9 +40,12 @@ interface AiState {
 export const useAi = create<AiState>((set) => ({
   messages: [],
   pending: {},
-  newRequest(prompt, requestId, request) {
+  newRequest(prompt, requestId, request, question) {
     set((s) => ({
-      messages: [...s.messages, { id: requestId, prompt, answer: '', status: 'streaming', request }]
+      messages: [
+        ...s.messages,
+        { id: requestId, prompt, answer: '', status: 'streaming', request, question }
+      ]
     }))
   },
   resumeRequest(fromId, requestId) {
