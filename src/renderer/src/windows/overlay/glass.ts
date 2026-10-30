@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react'
 
 const MIN_OPACITY = 0.4
-const MIN_ALPHA = 0.6
+const MIN_ALPHA = 0.85
 const MAX_ALPHA = 0.95
 
 /**
  * Maps the Interface Opacity setting (0.4–1) to the overlay glass alpha
- * (0.6–0.95). Only the glass background reads it — text stays fully opaque.
+ * (0.85–0.95). Only the glass background reads it — text stays fully opaque.
  */
 export function overlayGlassAlpha(opacity: number): number {
   const t = (Math.min(1, Math.max(MIN_OPACITY, opacity)) - MIN_OPACITY) / (1 - MIN_OPACITY)
@@ -22,3 +22,10 @@ export const GLASS_PANEL =
 
 export const GLASS_PILL =
   'bg-[oklch(0.13_0.012_260/calc(var(--overlay-glass,0.84)*0.85))] backdrop-blur-2xl backdrop-saturate-150'
+
+/**
+ * backdrop-blur doesn't blur the desktop behind a transparent Electron window,
+ * so page text shows through glass. The answer zone sits on a near-solid
+ * surface instead; Interface Opacity only changes the chrome around it.
+ */
+export const ANSWER_SURFACE = 'bg-[oklch(0.13_0.012_260/0.97)]'

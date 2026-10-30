@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hotkeyHint, hotkeyLabel } from './hotkeys'
+import { compactHotkeyTokens, hotkeyHint, hotkeyLabel } from './hotkeys'
 
 describe('hotkeyLabel', () => {
   it('returns a friendly label for every known hotkey id', () => {
@@ -50,5 +50,17 @@ describe('hotkeyHint', () => {
 
   it('returns empty string for unknown ids', () => {
     expect(hotkeyHint('mystery')).toBe('')
+  })
+})
+
+describe('compactHotkeyTokens', () => {
+  it('turns modifier words into glyphs and keeps the trigger key', () => {
+    expect(compactHotkeyTokens(['Ctrl', 'Shift', '↵'])).toEqual(['⌃', '⇧', '↵'])
+    expect(compactHotkeyTokens(['Alt', 'Space'])).toEqual(['⌥', '␣'])
+  })
+
+  it('leaves keys that are already a glyph or a plain letter', () => {
+    expect(compactHotkeyTokens(['⌘', 'K'])).toEqual(['⌘', 'K'])
+    expect(compactHotkeyTokens([])).toEqual([])
   })
 })

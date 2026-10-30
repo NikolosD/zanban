@@ -63,14 +63,17 @@ import { Kbd } from '@renderer/components/ui/kbd'
 import { acceleratorTokens } from '@renderer/features/settings/KeyRecorder'
 import { cn } from '@renderer/lib/utils'
 import { copyToClipboard } from '@renderer/lib/clipboard'
+import { compactHotkeyTokens } from '@renderer/lib/hotkeys'
 import { stopCaptures, wireCaptureAutostop } from '@renderer/audio/captureController'
 import { toastSessionError } from '@renderer/features/transcript/sessionStart'
 import { ZanbanMark } from '@renderer/components/brand'
 import { AnswerPaneResizer } from './AnswerPaneResizer'
 import { DEFAULT_ANSWER_MAX_HEIGHT, clampAnswerHeight, computeHardCap } from './answerPaneResize'
+import { AnswerScroller } from './AnswerScroller'
+import { splitAnswerLead } from './answerLead'
 import { TranscriptOrNotice } from './CaptureNoticeLine'
 import { useCaptureNotices, wireCaptureNotices } from './captureNotices'
-import { GLASS_PANEL, GLASS_PILL, overlayGlassVars } from './glass'
+import { ANSWER_SURFACE, GLASS_PANEL, GLASS_PILL, overlayGlassVars } from './glass'
 
 export function OverlayApp() {
   const { t } = useTranslation()
@@ -430,7 +433,7 @@ export function OverlayApp() {
             )}
           >
             {hasContent && (
-              <div className="flex flex-col gap-2 px-3 py-2.5">
+              <div className={cn('flex flex-col gap-2 px-3 py-2.5', ANSWER_SURFACE)}>
                 {apiKeysMissing && (
                   <div className="space-y-2">
                     {apiKeysMissing && (
@@ -853,7 +856,7 @@ function ActionChipsRow({
       <ActionChip
         label={t('overlay.chips.answer')}
         emphasis
-        hotkey={answerHotkey ? acceleratorTokens(answerHotkey) : undefined}
+        hotkey={answerHotkey ? compactHotkeyTokens(acceleratorTokens(answerHotkey)) : undefined}
         disabled={busy}
         onClick={onAnswer}
       />
@@ -891,7 +894,7 @@ function ActionChip({
     >
       {label}
       {hotkey && hotkey.length > 0 && (
-        <HotkeyKbd tokens={hotkey} className="ml-2 bg-background/15" />
+        <HotkeyKbd tokens={hotkey} className="ml-2 gap-0 bg-background/15" />
       )}
     </button>
   )
@@ -1242,11 +1245,10 @@ function AnswerHistory({
   if (!latest) return null
   const earlier = messages.slice(0, -1).reverse()
   return (
-    <div
+    <AnswerScroller
       ref={scrollRef}
-      data-interactive
-      style={{ maxHeight: `${maxHeight}px` }}
-      className="flex min-w-0 flex-col overflow-y-auto overflow-x-hidden px-1 py-1"
+      maxHeight={maxHeight}
+      contentKey={`${messages.length}:${latest.answer.length}`}
     >
       <AnswerPane message={latest} onContinue={onContinue} />
       {earlier.length > 0 && (
@@ -1256,7 +1258,7 @@ function AnswerHistory({
           ))}
         </div>
       )}
-    </div>
+    </AnswerScroller>
   )
 }
 
@@ -1270,7 +1272,7 @@ export const AnswerPane = memo(function AnswerPane({
   const { t } = useTranslation()
   return (
     <div className="space-y-1.5">
-      <div className="flex items-start gap-2">
+      <div className="sticky top-0 z-10 -mx-1 flex items-start gap-2 bg-[oklch(0.13_0.012_260)] px-1 pb-1 pt-1">
         <div
           title={m.question ?? m.prompt}
           className="line-clamp-2 min-w-0 flex-1 text-small text-muted-foreground"
@@ -1345,9 +1347,23 @@ const EarlierAnswer = memo(function EarlierAnswer({ message: m }: { message: Ask
 function AnswerBody({ message: m, lead }: { message: AskMessage; lead?: boolean }) {
   const error = <div className="text-xs text-destructive">{m.error}</div>
   if (m.status === 'error' && !m.answer) return error
+  const streaming = m.status === 'streaming'
+  const split = lead ? splitAnswerLead(m.answer, streaming) : { lead: null, rest: m.answer }
   return (
     <div className={cn('max-w-[65ch]', lead && '[--md-text:14px]')}>
-      <StreamingMarkdown text={m.answer} streaming={m.status === 'streaming'} />
+      {split.lead && (
+        <p
+          data-testid="answer-lead"
+          className="mb-2 text-[16px] font-semibold leading-snug text-foreground"
+        >
+          {split.lead}
+        </p>
+      )}
+      {split.lead === null || split.rest ? (
+        <div className={cn(split.lead && '[--md-body-alpha:80%]')}>
+          <StreamingMarkdown text={split.rest} streaming={streaming} />
+        </div>
+      ) : null}
       {m.status === 'error' && error}
     </div>
   )

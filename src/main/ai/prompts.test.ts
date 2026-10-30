@@ -6,6 +6,23 @@ import type { ResponseLanguage, TranscriptSegment } from '../../shared/types.js'
 // retrievedHistory block, so prompt-building no longer depends on the doc store.
 const { buildSystemPrompt, buildVisionSystemPrompt, buildUserPrompt } = await import('./prompts.js')
 
+describe('answer shape', () => {
+  it('asks every answer to open with one short bold line of what to say', () => {
+    const out = buildSystemPrompt()
+    expect(out).toContain('First line = what to say aloud')
+    expect(out).toContain('at most 15 words')
+    expect(out).toContain('at most 3 short points')
+    expect(out).not.toContain('4-7')
+  })
+
+  it('asks screenshot answers for the verdict line and only the changed lines of a fix', () => {
+    const out = buildVisionSystemPrompt()
+    expect(out).toContain('Start with one bold line of at most 15 words')
+    expect(out).toContain('Show only the changed lines (3-8')
+    expect(out).toContain('give the full code only if the user asks')
+  })
+})
+
 describe('buildSystemPrompt', () => {
   it('returns the bare system prompt when no persona / language given', () => {
     const out = buildSystemPrompt()

@@ -36,3 +36,18 @@ export function hotkeyLabel(k: string): string {
 export function hotkeyHint(k: string): string {
   return HINTS[k as HotkeyKey] ?? ''
 }
+
+const COMPACT_TOKENS: Record<string, string> = {
+  Ctrl: '⌃',
+  Shift: '⇧',
+  Alt: '⌥',
+  Win: '⊞',
+  Tab: '⇥',
+  Space: '␣',
+  Esc: '⎋'
+}
+
+/** Key words to single glyphs ("Ctrl", "Shift" → "⌃", "⇧") so a chord fits a chip. */
+export function compactHotkeyTokens(tokens: string[]): string[] {
+  return tokens.map((t) => COMPACT_TOKENS[t] ?? t)
+}
