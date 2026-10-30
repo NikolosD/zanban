@@ -12,7 +12,10 @@ const LABELS: Record<HotkeyKey, string> = {
   screenshotAnswer: 'Snap full screen → Answer',
   cropper: 'Drag region → OCR Ask',
   chat: 'Open chat window',
-  showDashboard: 'Force-show dashboard'
+  showDashboard: 'Force-show dashboard',
+  scrollAnswerUp: 'Scroll answer up',
+  scrollAnswerDown: 'Scroll answer down',
+  expandCode: 'Expand / collapse code'
 }
 
 const HINTS: Record<HotkeyKey, string> = {
@@ -26,7 +29,10 @@ const HINTS: Record<HotkeyKey, string> = {
   cropper: 'Drag a region, OCR only that area, attach to next Ask.',
   chat: 'Open the standalone chat window (no transcript context).',
   showDashboard:
-    'Brings back the dashboard window when stealth + hide-widget mode would otherwise leave it unreachable.'
+    'Brings back the dashboard window when stealth + hide-widget mode would otherwise leave it unreachable.',
+  scrollAnswerUp: 'Scroll the overlay answer up a page without leaving your editor.',
+  scrollAnswerDown: 'Scroll the overlay answer down a page without leaving your editor.',
+  expandCode: 'Grow the code block in view to the full screen height, or return to the answer.'
 }
 
 export function hotkeyLabel(k: string): string {

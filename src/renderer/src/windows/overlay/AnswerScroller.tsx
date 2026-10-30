@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { scrollPage } from './scrollPage'
 
 const MORE_BELOW_SLACK_PX = 4
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
 
 /**
  * The answer's scroll area. While more of the answer waits below the fold the
@@ -55,12 +52,7 @@ export function AnswerScroller({
   }
 
   function scrollOn(): void {
-    const el = innerRef.current
-    if (!el) return
-    el.scrollBy({
-      top: el.clientHeight * 0.8,
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth'
-    })
+    scrollPage(innerRef.current, 'down')
   }
 
   return (

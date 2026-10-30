@@ -12,20 +12,28 @@
 .zb-codeblock .hljs-built_in,
 .zb-codeblock .hljs-name,
 .zb-codeblock .hljs-tag {
-  color: #ff7b72;
+  color: #ffaaa0;
 }
 .zb-codeblock .hljs-string,
 .zb-codeblock .hljs-attr,
 .zb-codeblock .hljs-symbol,
-.zb-codeblock .hljs-bullet,
-.zb-codeblock .hljs-addition {
+.zb-codeblock .hljs-bullet {
   color: #a5d6ff;
 }
 .zb-codeblock .hljs-comment,
 .zb-codeblock .hljs-quote,
 .zb-codeblock .hljs-meta {
-  color: #8b949e;
+  color: #9ca5b0;
   font-style: italic;
+}
+.zb-codeblock .hljs-addition {
+  color: #7ee787;
+}
+.zb-codeblock .hljs-deletion {
+  color: #f08c94;
+}
+.zb-codeblock .zb-lang {
+  color: #afb3ba;
 }
 .zb-codeblock .hljs-number,
 .zb-codeblock .hljs-literal,
@@ -74,4 +82,40 @@
   .zb-codeblock .hljs span[class^='hljs-'] {
     animation: none;
   }
+}
+
+/* Overlay code blocks: numbered lines that wrap with a hanging indent. Only a
+   host that provides CodeBlockContext sets data-numbered, so other windows keep
+   one scrolling line per source line. The number is a pseudo-element, so it is
+   never part of a selection or a copy. */
+.zb-codeblock[data-numbered='true'] code.zb-code {
+  counter-reset: zb-line;
+}
+.zb-codeblock[data-numbered='true'] .zb-line {
+  position: relative;
+  display: block;
+  counter-increment: zb-line;
+  padding-left: calc(var(--zb-gutter) + 1ch + var(--zb-hang, 0ch));
+  text-indent: calc(-1 * var(--zb-hang, 0ch));
+}
+.zb-codeblock[data-numbered='true'] .zb-line::before {
+  content: counter(zb-line);
+  position: absolute;
+  left: 0;
+  width: var(--zb-gutter);
+  text-align: right;
+  text-indent: 0;
+  color: #6e7681;
+  user-select: none;
+}
+.zb-codeblock[data-wrap='true'] {
+  --zb-hang: 2ch;
+}
+.zb-codeblock[data-wrap='true'] code.zb-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+}
+.zb-codeblock[data-large='true'] code.zb-code {
+  font-size: 15px;
 }

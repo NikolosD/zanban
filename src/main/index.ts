@@ -14,12 +14,8 @@ import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
 import { runAfterFirstPaint } from './windows/firstPaint.js'
-import { fitOverlayHeight } from './windows/overlayHeight.js'
-import {
-  startOverlayDrag,
-  stopOverlayDrag,
-  updateOverlayDragHeight
-} from './windows/overlayDrag.js'
+import { registerOverlayWindowIpc } from './windows/overlayIpc.js'
+import { stopOverlayDrag } from './windows/overlayDrag.js'
 import { fitOverlayWidth } from './windows/overlayBounds.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
@@ -46,6 +42,7 @@ import {
   pickFreeShortcuts,
   registerShortcuts,
   reRegisterShortcuts,
+  setOverlayShortcutsActive,
   shortcutConflicts,
   unregisterShortcuts
 } from './shortcuts.js'
@@ -312,20 +309,10 @@ app.whenReady().then(async () => {
   handleIpc(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
     overlayWindow?.setIgnoreMouseEvents(ignore, { forward: true })
   })
-  // Renderer measures the visible glass panel and asks us to resize the
-  // window to match. We clamp to the current display's work area so a long
-  // streamed answer never drives the window off-screen — anything beyond the
-  // cap falls back to the inner pane scrolling.
-  handleIpc(IPC.overlay.setContentHeight, (_e, requested: number) => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
-    const bounds = overlayWindow.getBounds()
-    const display = screen.getDisplayMatching(bounds)
-    const next = fitOverlayHeight(requested, bounds.y, display.workArea)
-    const [curW = 0, curH = 0] = overlayWindow.getContentSize()
-    if (Math.abs(curH - next) < 2) return
-    overlayWindow.setContentSize(curW, next, false)
-    updateOverlayDragHeight(next)
-  })
+  const overlayWindowIpc = registerOverlayWindowIpc(
+    () => overlayWindow,
+    (overlayPosition) => setSettings({ overlayPosition })
+  )
   handleIpc(IPC.overlay.setWidth, (_e, requested: number) => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !Number.isFinite(requested)) return
     const bounds = overlayWindow.getBounds()
@@ -333,10 +320,6 @@ app.whenReady().then(async () => {
     const width = fitOverlayWidth(requested, bounds.x, display.workArea)
     if (width === bounds.width) return
     overlayWindow.setBounds({ ...bounds, width })
-  })
-  handleIpc(IPC.overlay.dragStart, () => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
-    startOverlayDrag(overlayWindow, (overlayPosition) => setSettings({ overlayPosition }))
   })
   handleIpc(IPC.overlay.dragEnd, () => stopOverlayDrag())
   // Apply a stealth state and keep every dependent surface in sync: content
@@ -488,6 +471,10 @@ app.whenReady().then(async () => {
       const { overlayPosition, overlayWidth } = getSettings()
       overlayWindow = createOverlayWindow({ position: overlayPosition, width: overlayWidth })
       wireWindow(overlayWindow)
+      const created = overlayWindow
+      overlayWindowIpc.watch(created)
+      created.on('show', () => setOverlayShortcutsActive(true))
+      created.on('hide', () => setOverlayShortcutsActive(false))
     }
     return overlayWindow
   }
@@ -652,6 +639,12 @@ app.whenReady().then(async () => {
   }
   handleIpc(IPC.session.requestToggle, () => toggleSession())
 
+  function sendToVisibleOverlay(channel: string, payload?: unknown): void {
+    if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
+      overlayWindow.webContents.send(channel, payload)
+    }
+  }
+
   const { failed: failedHotkeys } = registerShortcuts({
     onToggleSession: toggleSession,
     onToggleOverlay: () => {
@@ -679,7 +672,11 @@ app.whenReady().then(async () => {
     // dropped it from Alt+Tab/taskbar — that combination used to be a one-way
     // trip that required relaunching the app. showDashboard() overrides the
     // low-profile posture until the next session boundary.
-    onShowDashboard: () => showDashboard()
+    onShowDashboard: () => showDashboard(),
+    // Sent without showOverlay(): scrolling must not pull focus from the user's editor.
+    onScrollAnswerUp: () => sendToVisibleOverlay(IPC.overlay.scrollAnswer, 'up'),
+    onScrollAnswerDown: () => sendToVisibleOverlay(IPC.overlay.scrollAnswer, 'down'),
+    onExpandCode: () => sendToVisibleOverlay(IPC.overlay.toggleExpandCode)
   })
   if (failedHotkeys.length > 0) {
     console.warn('[shortcuts] could not register at startup', failedHotkeys)

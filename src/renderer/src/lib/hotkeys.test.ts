@@ -16,7 +16,10 @@ describe('hotkeyLabel', () => {
       'screenshot',
       'cropper',
       'chat',
-      'showDashboard'
+      'showDashboard',
+      'scrollAnswerUp',
+      'scrollAnswerDown',
+      'expandCode'
     ] as const
     for (const id of ids) {
       const label = hotkeyLabel(id)
@@ -41,7 +44,10 @@ describe('hotkeyHint', () => {
       'screenshot',
       'cropper',
       'chat',
-      'showDashboard'
+      'showDashboard',
+      'scrollAnswerUp',
+      'scrollAnswerDown',
+      'expandCode'
     ] as const
     for (const id of ids) {
       expect(hotkeyHint(id).length).toBeGreaterThan(0)

@@ -37,7 +37,13 @@ export const IPC = {
     setStealth: 'overlay:set-stealth',
     stealthChanged: 'overlay:stealth-changed',
     /** Main → overlay: the window was shown or hidden. */
-    visibilityChanged: 'overlay:visibility-changed'
+    visibilityChanged: 'overlay:visibility-changed',
+    /** Main → overlay: scroll the answer a page up or down (global hotkey). */
+    scrollAnswer: 'overlay:scroll-answer',
+    /** Main → overlay: expand the code block in view, or collapse the expanded one. */
+    toggleExpandCode: 'overlay:toggle-expand-code',
+    /** Renderer → main: grow the window to the display's work-area height, or restore it. */
+    setExpanded: 'overlay:set-expanded'
   },
   dashboard: {
     show: 'dashboard:show',
