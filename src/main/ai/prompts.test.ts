@@ -59,10 +59,36 @@ describe('spoken answer shape', () => {
     expect(out).toContain('says it aloud in their own voice')
     expect(out).toContain('the sentence to start with')
     expect(out).toContain('Then 2-3 "-" bullets')
-    expect(out).toContain('at most about 20 words')
+    expect(out).toContain('a bold lead of at most 12 words')
+    expect(out).toContain('each one idea in at most 15 words')
+    expect(out).toContain('The whole answer is around 60 words')
     expect(out).toContain('first person where natural')
     expect(out).toContain('Leave out definitions like "X is…", headers, "Rules:" lists')
-    expect(out).toContain('at most one short snippet')
+  })
+
+  it('keeps depth for the second layer and forbids code unless asked', () => {
+    expect(out).toContain('depth goes on the second one')
+    expect(out).toContain('the user can ask "ещё" or a follow-up')
+    expect(out).toContain(
+      'No code, not even inline code or a short snippet, unless the question asks'
+    )
+    expect(out).toContain('Answers in English follow the same limits')
+    expect(out).not.toContain('at most one short snippet')
+    expect(out).not.toContain('at most about 20 words')
+  })
+
+  it('has an example that obeys its own limits', () => {
+    const lines = out.slice(out.indexOf('Example, for')).split('\n').slice(1, 5)
+    const words = lines.map(
+      (l) =>
+        l
+          .replace(/^- |\*\*/g, '')
+          .split(/\s+/)
+          .filter(Boolean).length
+    )
+    expect(words[0]).toBeLessThanOrEqual(12)
+    expect(words.slice(1).every((n) => n <= 15)).toBe(true)
+    expect(words.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(65)
   })
 
   it('carries one Russian example that opens with a bold lead and has three bullets', () => {
