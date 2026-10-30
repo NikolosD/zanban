@@ -23,6 +23,34 @@ describe('answer shape', () => {
   })
 })
 
+describe('coding problem answer shape', () => {
+  it.each([
+    ['chat', buildSystemPrompt()],
+    ['screenshot', buildVisionSystemPrompt()]
+  ])(
+    'asks the %s prompt for idea and complexity, compact code, then at most 2 bullets',
+    (_n, out) => {
+      expect(out).toContain(
+        'a bold lead of at most 15 words naming the core idea and the complexity'
+      )
+      expect(out).toContain('the shortest idiomatic correct solution in the language shown')
+      expect(out).toContain('only the comments a candidate would type')
+      expect(out).toContain('at most 2 short bullets on edge cases or the likely follow-up')
+      expect(out).toContain('No walkthrough paragraph; explain only when the user asks')
+    }
+  )
+
+  it('no longer asks for an explanation of the approach or a complete code block', () => {
+    const out = buildVisionSystemPrompt()
+    expect(out).not.toContain('short explanation of approach')
+    expect(out).not.toContain('1-3 short bullets')
+  })
+
+  it('leaves the error answer as changed lines only', () => {
+    expect(buildVisionSystemPrompt()).toContain('Show only the changed lines (3-8')
+  })
+})
+
 describe('buildSystemPrompt', () => {
   it('returns the bare system prompt when no persona / language given', () => {
     const out = buildSystemPrompt()
