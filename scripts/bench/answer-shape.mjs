@@ -1,10 +1,24 @@
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import ts from 'typescript'
 import Anthropic from '@anthropic-ai/sdk'
+import { RUBRICS } from './answer-rubrics.mjs'
+import {
+  JUDGE_SYSTEM,
+  POWERSHELL_KEY_HINT,
+  autoCoverage,
+  buildJudgePrompt,
+  coveragePct,
+  loadSourceAtRef,
+  parseJudge,
+  pickOrder,
+  renderMarkdown,
+  unblind,
+  verdictForKind,
+  verdictLines
+} from './answer-quality.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const PROMPTS_PATH = 'src/main/ai/prompts.ts'
@@ -16,8 +30,36 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback
 }
 
+const HELP = `Usage: pnpm bench:answers [options]
+
+Compares the system prompt at --old-ref with the one at --new-ref, scores shape,
+rubric coverage (LLM judge, blinded A/B) and speakability.
+
+Options:
+  --old-ref <git ref>     prompt baseline (default 45e29c9)
+  --new-ref <git ref>     prompt under test (default: working tree)
+  --model <id>            answering model (env BENCH_MODEL)
+  --judge-model <id>      judge model (default: same as --model)
+  --max-tokens <n>        per answer (default 1024)
+  --dry-run               print the plan and cost estimate, send nothing
+  --yes                   skip the confirmation prompt
+  --help                  this text
+
+The key is read only from ANTHROPIC_API_KEY.
+${POWERSHELL_KEY_HINT}
+`
+
+if (flag('--help') || flag('-h')) {
+  console.log(HELP)
+  process.exit(0)
+}
+
 const oldRef = option('--old-ref', '45e29c9')
+const newRef = option('--new-ref', null)
 const model = option('--model', process.env.BENCH_MODEL ?? 'claude-sonnet-5-5')
+const judgeModel = option('--judge-model', model)
+const judgeMaxTokens = 800
+const judgeExpectedOut = 220
 const maxTokens = Number(option('--max-tokens', '1024'))
 const usdPerMtokIn = Number(process.env.BENCH_USD_PER_MTOK_IN ?? 3)
 const usdPerMtokOut = Number(process.env.BENCH_USD_PER_MTOK_OUT ?? 15)
@@ -156,7 +198,21 @@ async function run(client, system, user) {
     text += delta
   })
   await stream.finalMessage()
-  return measure(text, ttft ?? 0)
+  return { text, m: measure(text, ttft ?? 0) }
+}
+
+async function judge(client, c, answers) {
+  const order = pickOrder()
+  const reply = await client.messages.create({
+    model: judgeModel,
+    max_tokens: judgeMaxTokens,
+    system: JUDGE_SYSTEM,
+    messages: [
+      { role: 'user', content: buildJudgePrompt(c.prompt, RUBRICS[c.prompt], answers, order) }
+    ]
+  })
+  const text = reply.content.map((b) => (b.type === 'text' ? b.text : '')).join('')
+  return unblind(parseJudge(text, RUBRICS[c.prompt].length), order)
 }
 
 const estimateTokens = (s) => Math.ceil(s.length / 4)
@@ -165,25 +221,58 @@ function plan(variants) {
   let inTokens = 0
   let requests = 0
   let outExpected = 0
-  for (const v of variants) {
-    for (const c of CASES) {
+  let judgeIn = 0
+  let judgeRequests = 0
+  for (const c of CASES) {
+    for (const v of variants) {
       outExpected += expectedOutTokens[c.kind]
       inTokens += estimateTokens(v.system) + estimateTokens(userMessage(v.mod, c.prompt))
       requests += 1
     }
+    const rubricTokens = estimateTokens(RUBRICS[c.prompt].map((pt) => pt.text).join(' '))
+    judgeIn +=
+      estimateTokens(JUDGE_SYSTEM) +
+      estimateTokens(c.prompt) +
+      rubricTokens +
+      2 * expectedOutTokens[c.kind]
+    judgeRequests += 1
   }
-  const usd = (out) => (inTokens * usdPerMtokIn + out * usdPerMtokOut) / 1_000_000
+  const usd = (inTok, out) => (inTok * usdPerMtokIn + out * usdPerMtokOut) / 1_000_000
+  const gen = { expected: usd(inTokens, outExpected), max: usd(inTokens, requests * maxTokens) }
+  const jdg = {
+    expected: usd(judgeIn, judgeRequests * judgeExpectedOut),
+    max: usd(judgeIn, judgeRequests * judgeMaxTokens)
+  }
   return {
     requests,
+    judgeRequests,
     inTokens,
-    usdExpected: usd(outExpected),
-    usdMax: usd(requests * maxTokens)
+    judgeIn,
+    gen,
+    jdg,
+    usdExpected: gen.expected + jdg.expected,
+    usdMax: gen.max + jdg.max
   }
 }
 
 const fmt = (v) => (v === null ? '-' : String(v))
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0)
+const KINDS = ['coding', 'control', 'conceptual']
 
-function printTable(rows) {
+function flatten(cases) {
+  return cases.flatMap((c) =>
+    ['old', 'new'].map((variant) => ({
+      prompt: c.prompt,
+      kind: c.kind,
+      variant,
+      m: variant === 'old' ? c.oldM : c.newM,
+      auto: variant === 'old' ? c.oldAuto : c.newAuto,
+      j: c.judge ? c.judge[variant] : null
+    }))
+  )
+}
+
+function tableLines(rows) {
   const head = [
     'prompt',
     'kind',
@@ -197,6 +286,10 @@ function printTable(rows) {
     'doc marks',
     '1st person',
     'after lead',
+    'cov% judge',
+    'cov% kw',
+    'fact err',
+    'speech',
     'ttft ms'
   ]
   const body = rows.map((r) => [
@@ -212,24 +305,27 @@ function printTable(rows) {
     String(r.m.docMarkers),
     String(r.m.firstPerson),
     String(r.m.linesAfterLead),
+    r.j ? coveragePct(r.j.covered).toFixed(0) : '-',
+    coveragePct(r.auto).toFixed(0),
+    r.j ? (r.j.factualError ? 'YES' : 'no') : '-',
+    r.j ? String(r.j.speech) : '-',
     String(Math.round(r.m.ttftMs))
   ])
   const widths = head.map((h, i) => Math.max(h.length, ...body.map((b) => b[i].length)))
   const line = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join('  ')
-  console.log(line(head))
-  console.log(widths.map((w) => '-'.repeat(w)).join('  '))
-  for (const b of body) console.log(line(b))
+  return [line(head), widths.map((w) => '-'.repeat(w)).join('  '), ...body.map(line)]
 }
 
-function printSummary(rows) {
-  const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0)
-  console.log('\nAverages')
-  for (const kind of ['coding', 'control', 'conceptual']) {
+function summaryLines(cases) {
+  const rows = flatten(cases)
+  const out = ['Averages']
+  for (const kind of KINDS) {
     for (const variant of ['old', 'new']) {
       const sel = rows.filter((r) => r.kind === kind && r.variant === variant)
+      const judged = sel.filter((r) => r.j)
       const lead = sel.filter((r) => r.m.leadOk).length
       const before = sel.map((r) => r.m.linesBeforeCode).filter((v) => v !== null)
-      console.log(
+      out.push(
         `${kind.padEnd(10)} ${variant}  lead ok ${lead}/${sel.length}` +
           `  lines before code ${avg(before).toFixed(1)}` +
           `  words ${avg(sel.map((r) => r.m.words)).toFixed(0)}` +
@@ -239,32 +335,61 @@ function printSummary(rows) {
           `  doc marks ${avg(sel.map((r) => r.m.docMarkers)).toFixed(1)}` +
           `  1st person ${avg(sel.map((r) => r.m.firstPerson)).toFixed(1)}` +
           `  after lead ${avg(sel.map((r) => r.m.linesAfterLead)).toFixed(1)}` +
+          `  cov judge ${avg(judged.map((r) => coveragePct(r.j.covered))).toFixed(0)}%` +
+          `  cov kw ${avg(sel.map((r) => coveragePct(r.auto))).toFixed(0)}%` +
+          `  fact err ${judged.filter((r) => r.j.factualError).length}` +
+          `  speech ${avg(judged.map((r) => r.j.speech)).toFixed(2)}` +
           `  ttft ${avg(sel.map((r) => r.m.ttftMs)).toFixed(0)} ms`
       )
     }
   }
+  const wins = { old: 0, new: 0, tie: 0 }
+  for (const c of cases) if (c.judge) wins[c.judge.preference] += 1
+  out.push('', `Judge preference: old ${wins.old}, new ${wins.new}, tie ${wins.tie}`)
+  const failed = cases.filter((c) => c.judgeError).length
+  if (failed) out.push(`Judge failed on ${failed} case(s): verdicts exclude them`)
+  out.push('', 'Verdict')
+  for (const kind of KINDS) {
+    out.push(...verdictLines(kind, verdictForKind(cases.filter((c) => c.kind === kind))))
+  }
+  return out
+}
+
+function saveReport(cases, lines, meta) {
+  const dir = join(root, 'bench-results')
+  mkdirSync(dir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const file = join(dir, `answers-${stamp}.md`)
+  writeFileSync(file, renderMarkdown({ meta, rows: cases, summaryLines: lines }))
+  return file
 }
 
 async function main() {
-  const oldSource = execFileSync('git', ['show', `${oldRef}:${PROMPTS_PATH}`], {
-    cwd: root,
-    encoding: 'utf8'
-  })
-  const newSource = readFileSync(join(root, PROMPTS_PATH), 'utf8')
+  for (const c of CASES) {
+    const n = RUBRICS[c.prompt]?.length ?? 0
+    if (n < 3 || n > 5) throw new Error(`Rubric for "${c.prompt}" needs 3-5 points, has ${n}`)
+  }
+  const oldSource = loadSourceAtRef(oldRef, PROMPTS_PATH, { root })
+  const newSource = loadSourceAtRef(newRef, PROMPTS_PATH, { root })
   const variants = [
     { name: 'old', mod: await loadPrompts(oldSource) },
     { name: 'new', mod: await loadPrompts(newSource) }
   ].map((v) => ({ ...v, system: v.mod.buildSystemPrompt() }))
 
   const p = plan(variants)
-  console.log(`Model: ${model}  (old prompt from ${oldRef}, new prompt from working tree)`)
+  const sourceLine = `old prompt from ${oldRef}, new prompt from ${newRef ?? 'working tree'}`
+  const total = p.requests + p.judgeRequests
+  console.log(`Model: ${model}  judge: ${judgeModel}  (${sourceLine})`)
   console.log(
-    `Cases: ${CODING.length} coding + ${CONTROLS.length} control + ${CONCEPTUAL.length} conceptual, x2 variants`
+    `Cases: ${CODING.length} coding + ${CONTROLS.length} control + ${CONCEPTUAL.length} conceptual, x2 variants + 1 judge call each`
   )
-  console.log(`Requests: ${p.requests}  est. input tokens: ${p.inTokens}`)
+  console.log(
+    `Requests: ${total} (${p.requests} answers + ${p.judgeRequests} judge)  est. input tokens: ${p.inTokens + p.judgeIn}`
+  )
   console.log(
     `Est. cost: ~$${p.usdExpected.toFixed(2)} expected, $${p.usdMax.toFixed(2)} ceiling ` +
-      `(at $${usdPerMtokIn}/$${usdPerMtokOut} per Mtok in/out; override with BENCH_USD_PER_MTOK_IN/OUT)`
+      `(answers ~$${p.gen.expected.toFixed(2)}, judge ~$${p.jdg.expected.toFixed(2)}; ` +
+      `at $${usdPerMtokIn}/$${usdPerMtokOut} per Mtok in/out; override with BENCH_USD_PER_MTOK_IN/OUT)`
   )
 
   if (flag('--dry-run')) {
@@ -274,7 +399,7 @@ async function main() {
 
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) {
-    console.error('Set ANTHROPIC_API_KEY in the environment.')
+    console.error(`Set ANTHROPIC_API_KEY in the environment.\n${POWERSHELL_KEY_HINT}`)
     process.exit(1)
   }
   if (!flag('--yes')) {
@@ -288,19 +413,42 @@ async function main() {
   }
 
   const client = new Anthropic({ apiKey: key })
-  const rows = []
+  const cases = []
+  let done = 0
+  const progress = (what, c) => {
+    done += 1
+    console.log(`${done}/${total} ${what} [${c.kind}] ${c.prompt.slice(0, 50)}`)
+  }
   for (const c of CASES) {
+    const points = RUBRICS[c.prompt]
+    const result = { ...c, points }
     for (const v of variants) {
-      rows.push({
-        ...c,
-        variant: v.name,
-        m: await run(client, v.system, userMessage(v.mod, c.prompt))
-      })
+      const r = await run(client, v.system, userMessage(v.mod, c.prompt))
+      result[`${v.name}Text`] = r.text
+      result[`${v.name}M`] = r.m
+      result[`${v.name}Auto`] = autoCoverage(r.text, points)
+      progress(v.name, c)
     }
+    try {
+      result.judge = await judge(client, c, { old: result.oldText, new: result.newText })
+    } catch (err) {
+      result.judgeError = err instanceof Error ? err.message : String(err)
+      console.error(`Judge failed: ${result.judgeError}`)
+    }
+    progress('judge', c)
+    cases.push(result)
   }
   console.log()
-  printTable(rows)
-  printSummary(rows)
+  const lines = summaryLines(cases)
+  for (const l of tableLines(flatten(cases))) console.log(l)
+  console.log()
+  for (const l of lines) console.log(l)
+  const file = saveReport(cases, lines, [
+    `Model: ${model}, judge: ${judgeModel}`,
+    sourceLine,
+    `Run: ${new Date().toISOString()}`
+  ])
+  console.log(`\nSaved: ${file}`)
 }
 
 main().catch((err) => {
