@@ -38,6 +38,13 @@ function wait(ms: number): void {
   })
 }
 
+function asksInto() {
+  let n = 0
+  return vi.fn((question: string) =>
+    useAi.getState().newRequest('Answer last question', `r${++n}`, undefined, question)
+  )
+}
+
 function mountAutoAnswer(ask = vi.fn(), enabled = true) {
   const hook = renderHook((props) => useAutoAnswer(props), {
     initialProps: { enabled, busy: false, ask }
@@ -96,6 +103,20 @@ describe('useAutoAnswer', () => {
     expect(ask).toHaveBeenCalledWith(QUESTION)
   })
 
+  it('starts the wait over when the other side begins talking again', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say(QUESTION)
+    wait(800)
+    say('and also', 'system', false)
+    wait(AUTO_ANSWER_SILENCE_MS - 1)
+    expect(ask).not.toHaveBeenCalled()
+    wait(1)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith(QUESTION)
+  })
+
   it('reads a question the recognizer split across two segments as one', () => {
     const { ask } = mountAutoAnswer()
     startSession()
@@ -134,6 +155,75 @@ describe('useAutoAnswer', () => {
     expect(ask).not.toHaveBeenCalled()
   })
 
+  it('waits for a second silence before answering a question with no closing punctuation', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say('Why did you choose')
+
+    wait(AUTO_ANSWER_SILENCE_MS * 2 - 1)
+    expect(ask).not.toHaveBeenCalled()
+    wait(1)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith('Why did you choose')
+  })
+
+  it('joins what is said in that second silence to the half question', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say('Why did you choose')
+    wait(AUTO_ANSWER_SILENCE_MS + 100)
+    say('Postgres over Mongo?')
+    wait(AUTO_ANSWER_SILENCE_MS)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith('Why did you choose Postgres over Mongo?')
+  })
+
+  it('waits only once more for each stretch of speech', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say('Why did you choose')
+    wait(AUTO_ANSWER_SILENCE_MS + 100)
+    say('that database over')
+    wait(AUTO_ANSWER_SILENCE_MS * 2)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith('Why did you choose that database over')
+  })
+
+  it('does not hold back a question that ends in a question mark', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say('Why did you choose Postgres?')
+    wait(AUTO_ANSWER_SILENCE_MS)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not answer the group-call check-ins', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    for (const text of ['Can everyone hear me?', 'Вы нас хорошо слышите?']) {
+      say(text)
+      wait(AUTO_ANSWER_SILENCE_MS * 2)
+    }
+
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('is not held up by something you finished saying while it waits', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say(QUESTION)
+    wait(600)
+    say('Sure, so I would start with', 'mic')
+    wait(AUTO_ANSWER_SILENCE_MS - 600 - 1)
+    expect(ask).not.toHaveBeenCalled()
+    wait(1)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
+
   it('does not wait on you: only the other side restarts the silence', () => {
     const { ask } = mountAutoAnswer()
     startSession()
@@ -143,6 +233,78 @@ describe('useAutoAnswer', () => {
     wait(600)
 
     expect(ask).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops a pending question when switched off while it waits', () => {
+    const { ask, rerender } = mountAutoAnswer()
+    startSession()
+    say(QUESTION)
+    wait(600)
+    rerender({ enabled: false, busy: false, ask })
+    wait(AUTO_ANSWER_SILENCE_MS * 3)
+
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('drops a pending question when you ask by hand before the silence is up', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say(QUESTION)
+    wait(400)
+    act(() => useAi.getState().newRequest('Answer last question', 'r1', undefined, QUESTION))
+    act(() => useAi.getState().finishRequest('r1', 'stop'))
+    wait(AUTO_ANSWER_SILENCE_MS * 3)
+    say('mm-hmm', 'system', false)
+    wait(AUTO_ANSWER_SILENCE_MS * 3)
+
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('still answers a question that ended while the previous answer was finishing', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    act(() => useAi.getState().newRequest('Answer last question', 'r1'))
+    say(QUESTION)
+    wait(600)
+    act(() => useAi.getState().appendChunk('r1', 'The last few words'))
+    act(() => useAi.getState().finishRequest('r1', 'stop'))
+    wait(AUTO_ANSWER_SILENCE_MS - 600)
+
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith(QUESTION)
+  })
+
+  it('leaves no listeners behind when switched off', () => {
+    const released = vi.fn()
+    const subscribe = useAi.subscribe
+    vi.spyOn(useAi, 'subscribe').mockImplementation((listener) => {
+      const off = subscribe(listener)
+      return () => {
+        released()
+        off()
+      }
+    })
+    const { rerender, ask } = mountAutoAnswer()
+    startSession()
+    expect(released).not.toHaveBeenCalled()
+
+    rerender({ enabled: false, busy: false, ask })
+    expect(released).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+  })
+
+  it('still answers the next question after you asked by hand', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say(QUESTION)
+    wait(400)
+    act(() => useAi.getState().newRequest('Answer last question', 'r1', undefined, QUESTION))
+    act(() => useAi.getState().finishRequest('r1', 'stop'))
+
+    say(NEXT_QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledWith(NEXT_QUESTION)
   })
 
   it('does nothing while switched off or without a running session', () => {
@@ -189,13 +351,55 @@ describe('useAutoAnswer', () => {
     say('Take your time.')
     wait(AUTO_ANSWER_SILENCE_MS)
     say('so what is your experience with react')
-    wait(AUTO_ANSWER_SILENCE_MS)
+    wait(AUTO_ANSWER_SILENCE_MS * 2)
     expect(ask).toHaveBeenCalledTimes(1)
 
     say(NEXT_QUESTION)
     wait(AUTO_ANSWER_SILENCE_MS)
     expect(ask).toHaveBeenCalledTimes(2)
     expect(ask).toHaveBeenLastCalledWith(NEXT_QUESTION)
+  })
+
+  it('asks it again once the other side has had time to forget', () => {
+    const { ask } = mountAutoAnswer()
+    startSession()
+    say('Can you elaborate on that?')
+    wait(AUTO_ANSWER_SILENCE_MS)
+    wait(60_000)
+    say('Can you elaborate on that?')
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(ask).toHaveBeenCalledTimes(1)
+
+    wait(5 * 60_000)
+    say('Can you elaborate on that?')
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks it again at once if the first attempt failed', () => {
+    const ask = asksInto()
+    mountAutoAnswer(ask)
+    startSession()
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    act(() => useAi.getState().failRequest('r1', 'network'))
+
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not ask it again when the first attempt was answered', () => {
+    const ask = asksInto()
+    mountAutoAnswer(ask)
+    startSession()
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    act(() => useAi.getState().finishRequest('r1', 'stop'))
+
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(ask).toHaveBeenCalledTimes(1)
   })
 
   it('still remembers it after being switched off and on again', () => {
@@ -281,6 +485,7 @@ describe('useAutoAnswer with useAskRequest', () => {
         ask: (question) =>
           void request.run({ prompt: ANSWER_LAST_PROMPT, waitForTranscript: true, question })
       })
+      return request
     })
     return { ai, ...hook }
   }
@@ -315,6 +520,26 @@ describe('useAutoAnswer with useAskRequest', () => {
 
     expect(ai.ask).toHaveBeenCalledTimes(1)
     expect(ai.stop).not.toHaveBeenCalled()
+    expect(useAi.getState().messages).toHaveLength(1)
+  })
+
+  it('does not follow a quick manual Answer with an auto-ask of the same question', async () => {
+    const { ai, result } = mountOverlayAsk()
+    startSession()
+    say(QUESTION)
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+    })
+    await act(async () => {
+      void result.current.run({ prompt: ANSWER_LAST_PROMPT, waitForTranscript: true })
+      vi.advanceTimersByTime(400)
+    })
+    expect(ai.ask).toHaveBeenCalledTimes(1)
+    act(() => useAi.getState().finishRequest(useAi.getState().messages[0]!.id, 'stop'))
+
+    await settleSilence()
+    await settleSilence()
+    expect(ai.ask).toHaveBeenCalledTimes(1)
     expect(useAi.getState().messages).toHaveLength(1)
   })
 

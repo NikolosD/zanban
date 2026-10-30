@@ -75,6 +75,7 @@ import { GLASS_PANEL, GLASS_PILL, overlayGlassVars } from './glass'
 export function OverlayApp() {
   const { t } = useTranslation()
   const [stealth, setStealth] = useState(true)
+  const [visible, setVisible] = useState(true)
   const [text, setText] = useState('')
   const { run: runAsk, stop: stopAsk, busy } = useAskRequest()
   const [stoppingSession, setStoppingSession] = useState(false)
@@ -212,7 +213,7 @@ export function OverlayApp() {
       question
     })
   }, [])
-  useAutoAnswer({ enabled: autoAnswer, busy, ask: answerDetectedQuestion })
+  useAutoAnswer({ enabled: autoAnswer && visible, busy, ask: answerDetectedQuestion })
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -277,6 +278,8 @@ export function OverlayApp() {
       setStealth(next)
     })
 
+    const offVisible = window.zanban.overlay.onVisibilityChanged(setVisible)
+
     return () => {
       offTr()
       offAi()
@@ -287,6 +290,7 @@ export function OverlayApp() {
       offSnapshot()
       offSnapshotAnswer()
       offStealth()
+      offVisible()
       offSettings()
       offReplaced()
       window.removeEventListener('mousemove', onMove)

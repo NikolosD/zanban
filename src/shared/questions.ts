@@ -27,25 +27,33 @@ export function lastQuestion(text: string): string | null {
 const wordSet = (source: string): Set<string> => new Set(source.split(' '))
 
 const LEADING_FILLERS = wordSet(
-  'um uh uhm er erm hmm mm ah oh okay ok so well like yeah yep right alright sure actually basically and but also then now anyway ну э эм ээ мм ага угу да ок окей ладно хорошо значит короче типа так вот и а но тогда итак'
+  'um uh uhm er erm hmm mm ah oh okay ok so well like yeah yep right alright sure actually basically and but also then now anyway hi hello hey everyone everybody ну э эм ээ мм ага угу да ок окей ладно хорошо значит короче типа так вот и а но тогда итак'
 )
 
 const phrase = (source: string): RegExp => new RegExp(`^(?:${source})(?: |$)`, 'u')
 
 // "Can you hear me?" opens every call and answering it is noise.
+const AUDIENCE = '(?:you|you all|all of you|everyone|everybody|anyone|anybody|all)'
 const CALL_CHECK_INS = [
-  phrase('(?:can|could|do|did) you (?:hear|see) (?:me|us|my screen|the screen|this|that)'),
+  phrase(`(?:can|could|do|did) ${AUDIENCE} (?:hear|see) (?:me|us|my screen|the screen)`),
+  new RegExp(`^(?:can|could|do|did) ${AUDIENCE} (?:hear|see) (?:this|that)$`, 'u'),
+  phrase(
+    '(?:is|are) (?:everyone|everybody|anyone|you all|all of you) (?:able|ready|here|there|good|ok|okay|fine|with me|following)'
+  ),
   phrase('(?:do|does|did) (?:that|this|it) make sense'),
   phrase('(?:is|was) (?:that|this|it) (?:clear|ok|okay|fine|good)'),
   phrase('you know what i'),
-  phrase('see what i mean'),
+  phrase('(?:(?:do|did) you )?see what i mean'),
   phrase('(?:do|did) you (?:get|follow) (?:me|it|that|what i)'),
   phrase('(?:are )?you (?:still )?(?:there|with me)'),
-  phrase("how(?:'s| is| are) (?:you|it going|everything|things|your (?:day|week|morning|weekend))"),
-  phrase('(?:вы )?(?:меня |нас )?(?:слышите|видите)'),
-  phrase('(?:вам |мне )?(?:меня |нас )?(?:слышно|видно)'),
-  phrase('(?:мой |наш )?экран (?:виден|видно|видите)'),
-  phrase('(?:вам )?(?:все )?(?:понятно|ясно)'),
+  phrase(
+    "how(?:'s| is| are) (?:you|everyone|everybody|it going|everything|things|your (?:day|week|morning|weekend))"
+  ),
+  phrase('(?:вы )?(?:меня |нас )?(?:хорошо |нормально |отлично )?(?:слышите|видите)'),
+  phrase('(?:все |всем |вам |мне )?(?:меня |нас )?(?:хорошо |нормально )?(?:слышно|видно)'),
+  phrase('все (?:меня |нас )?(?:хорошо |нормально )?(?:слышат|видят)'),
+  phrase('(?:мой |наш )?экран (?:всем |вам )?(?:виден|видно|видите)'),
+  phrase('(?:вам |всем )?(?:все )?(?:понятно|ясно)'),
   phrase('вы меня понимаете'),
   phrase('как (?:ваши |у вас |твои |у тебя )?дела'),
   phrase('как (?:вы )?(?:поживаете|себя чувствуете)'),
@@ -112,6 +120,10 @@ function opensWithRussianQuestion(words: string[]): boolean {
   return RU_REQUEST_OPENERS.has(first) || words.slice(1, 3).includes('ли')
 }
 
+export function endsWithQuestionMark(sentence: string): boolean {
+  return ASKING_END.test(sentence)
+}
+
 /**
  * The question the other side just asked, if the last sentence of what they
  * said is one: it ends in "?", or has no closing punctuation and opens with a
@@ -124,7 +136,7 @@ export function findQuestion(utterance: string): string | null {
   if (words.length < MIN_QUESTION_WORDS) return null
   const spoken = words.join(' ')
   if (CALL_CHECK_INS.some((re) => re.test(spoken))) return null
-  if (ASKING_END.test(sentence)) return lastQuestion(sentence)
+  if (endsWithQuestionMark(sentence)) return lastQuestion(sentence)
   // Punctuation from the speech recognizer beats guessing from the first word;
   // the opener is only a fallback for text that arrives unpunctuated.
   if (STATING_END.test(sentence)) return null
@@ -161,4 +173,15 @@ export function systemSpeechSince(
     .filter((s) => s.channel === 'system' && s.text.trim().length > 0)
   const last = spoken.at(-1)
   return last ? { text: spoken.map((s) => s.text.trim()).join(' '), lastId: last.id } : null
+}
+
+/**
+ * What an Answer now responds to: the question retrieval searches for, else
+ * their latest words. A recognizer that cut the question in two finals leaves
+ * neither half alone worth showing.
+ */
+export function currentQuestion(finals: readonly TranscriptSegment[]): string | undefined {
+  const spoken = systemSpeechSince(finals, null)
+  if (!spoken) return undefined
+  return lastQuestion(spoken.text) ?? lastSystemFinal(finals)?.text.trim()
 }

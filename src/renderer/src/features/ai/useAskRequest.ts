@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useAi } from './store'
 import { ANSWER_LAST_PROMPT, SCREENSHOT_DEFAULT_PROMPT } from '@shared/prompts'
-import { lastSystemFinal } from '@shared/questions'
+import { currentQuestion } from '@shared/questions'
 import { useTranscript } from '@renderer/features/transcript/store'
 import { errorMessage } from '@renderer/lib/errors'
 
@@ -43,7 +43,7 @@ export interface AskRequestOptions {
   /** Id of an answer cut at the length limit: the reply is written onto its end. */
   continueFrom?: string
   /** What the other side said that this ask responds to, for the answer card's Q line.
-   *  An ANSWER_LAST_PROMPT ask without one uses their latest final utterance. */
+   *  An ANSWER_LAST_PROMPT ask without one uses the question retrieval would search for. */
   question?: string
 }
 
@@ -91,9 +91,7 @@ export function useAskRequest(): UseAskRequest {
       else {
         const question =
           opts.question ??
-          (p === ANSWER_LAST_PROMPT
-            ? lastSystemFinal(useTranscript.getState().finals)?.text.trim()
-            : undefined)
+          (p === ANSWER_LAST_PROMPT ? currentQuestion(useTranscript.getState().finals) : undefined)
         const asked = { prompt: p, label: opts.label, image, ocr: opts.ocr ?? null }
         useAi.getState().newRequest(label, requestId, asked, question)
       }

@@ -48,6 +48,17 @@ describe('settingsPatchSchema', () => {
   })
 })
 
+describe('the autoAnswer setting', () => {
+  it('is off until the user turns it on, because every question it catches costs a request', () => {
+    expect(DEFAULT_SETTINGS.autoAnswer).toBe(false)
+  })
+
+  it('is settable from the overlay as a boolean patch', () => {
+    expect(settingsPatchSchema.parse({ autoAnswer: true })).toEqual({ autoAnswer: true })
+    expect(settingsPatchSchema.safeParse({ autoAnswer: 'on' }).success).toBe(false)
+  })
+})
+
 describe('aiAskInputSchema', () => {
   it('accepts image data URLs only', () => {
     const base = { requestId: 'r1', prompt: 'hi' }

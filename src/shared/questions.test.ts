@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  currentQuestion,
+  endsWithQuestionMark,
   findQuestion,
   lastQuestion,
   lastSystemFinal,
@@ -35,6 +37,7 @@ const ENGLISH_QUESTIONS = [
   'how does the event loop work',
   'How many years of experience do you have',
   "What's your biggest weakness",
+  'What’s your biggest weakness',
   'Where do you see yourself in five years',
   'Have you worked with Kubernetes before',
   'Is the cache invalidated on write',
@@ -51,6 +54,11 @@ const ENGLISH_NOT_QUESTIONS = [
   'What I like about this role is the team.',
   'What I like about this role is the team',
   'When we get there we will see',
+  'What we have is a solid team',
+  'What you are seeing is the new dashboard',
+  'When we are done we will ship',
+  'Do this before the meeting starts',
+  'Do the migration before Friday',
   'What a great day',
   'Have a good one',
   'Will do.',
@@ -78,6 +86,53 @@ const ENGLISH_TOO_SHORT_OR_FILLER = [
   'Is it?',
   'what is 2+2?',
   'What’s your name?'
+]
+
+// Long enough that only the check-in patterns, not the four-word floor, keep them out.
+const ENGLISH_CHECK_INS_PAST_THE_FLOOR = [
+  'Can you hear me clearly?',
+  'Could you see my screen now?',
+  'Did you hear me just now?',
+  'Do you see my screen now?',
+  'Can you see this?',
+  'Could you hear that?',
+  'Does it make sense so far?',
+  'Did that make sense to you?',
+  'Is that clear to everyone?',
+  'Was this clear enough?',
+  'Do you get what I mean?',
+  'See what I mean?',
+  'Did you follow what I said?',
+  'Do you see what I mean?',
+  'Are you with me so far?',
+  'Are you still there Sam?',
+  'How is everything going today?',
+  'How are things going for you?',
+  'How is your week going?',
+  'How are your weekend plans?',
+  "How's your morning going so far?",
+  'Hi everyone, how are you all doing today?',
+  'Hello everybody, how is everyone doing?',
+  'Can everyone hear me?',
+  'Can everybody see my screen?',
+  'Can anyone hear me okay?',
+  'Can you all hear me okay?',
+  'Could all of you see this?',
+  'Is everyone able to see the slides?',
+  'Are you all ready to start?',
+  'Are you all here now?',
+  'Is everybody good with that?',
+  'Is everyone following along okay?'
+]
+
+const ENGLISH_GROUP_QUESTIONS = [
+  'Can anyone on your team review the code?',
+  'Can everyone on the team explain this design?',
+  'Are you able to explain how it works?',
+  'Is everyone aligned on the pricing model?',
+  'Hi everyone, what is your experience with React?',
+  'Hey, what does your deployment process look like?',
+  'Can you see this being a problem later?'
 ]
 
 const ENGLISH_SMALL_TALK = [
@@ -138,6 +193,34 @@ const RUSSIAN_TOO_SHORT_OR_FILLER = [
   'Как дела?'
 ]
 
+const RUSSIAN_CHECK_INS_PAST_THE_FLOOR = [
+  'Вы меня хорошо слышите?',
+  'Вы нас хорошо слышите?',
+  'Вы нас нормально видите?',
+  'Меня слышно и видно хорошо?',
+  'Нас хорошо слышно сейчас?',
+  'Всем хорошо слышно и видно?',
+  'Мой экран всем виден?',
+  'Мой экран виден всем участникам?',
+  'Наш экран вам виден?',
+  'Видно ли вам мой экран?',
+  'Вам всё понятно по этому слайду?',
+  'Всем всё понятно и ясно?',
+  'Вы меня понимаете, всё понятно?',
+  'Все меня хорошо слышат?',
+  'Все нас видят и слышат?',
+  'Как поживаете в эти дни?',
+  'Как себя чувствуете после отпуска?',
+  'Вы ещё на связи со мной?',
+  'Вы здесь все ещё есть?'
+]
+
+const RUSSIAN_GROUP_QUESTIONS = [
+  'Кто из вас пробовал Kubernetes в продакшене?',
+  'Всем ли вам нужен этот модуль?',
+  'Почему вы нас не слышите на звонках?'
+]
+
 const RUSSIAN_SMALL_TALK = [
   'Меня слышно?',
   'Вы меня слышите?',
@@ -171,6 +254,21 @@ describe('findQuestion', () => {
     }
   )
 
+  it.each([...ENGLISH_CHECK_INS_PAST_THE_FLOOR, ...RUSSIAN_CHECK_INS_PAST_THE_FLOOR])(
+    'ignores the long call check-in "%s"',
+    (text) => {
+      expect(findQuestion(text)).toBeNull()
+      expect(findQuestion(text.replace(/\?$/, ''))).toBeNull()
+    }
+  )
+
+  it.each([...ENGLISH_GROUP_QUESTIONS, ...RUSSIAN_GROUP_QUESTIONS])(
+    'still detects "%s", which only sounds like a check-in',
+    (text) => {
+      expect(findQuestion(text)).not.toBeNull()
+    }
+  )
+
   it('returns only the last sentence, where the question is', () => {
     expect(findQuestion('Great, thanks for joining. What is your name?')).toBe('What is your name?')
     expect(findQuestion('Спасибо, что пришли. Чем занимались на прошлой работе?')).toBe(
@@ -178,7 +276,13 @@ describe('findQuestion', () => {
     )
   })
 
-  it('splits sentences after an ellipsis too', () => {
+  it('splits sentences after the ellipsis character too', () => {
+    expect(findQuestion('Well… what is your plan for the first month?')).toBe(
+      'what is your plan for the first month?'
+    )
+  })
+
+  it('splits sentences after three dots too', () => {
     expect(findQuestion('Well... what is your plan for the first month?')).toBe(
       'what is your plan for the first month?'
     )
@@ -251,6 +355,20 @@ describe('lastQuestion', () => {
   })
 })
 
+describe('endsWithQuestionMark', () => {
+  it('is true for a question mark, with or without closing marks after it', () => {
+    expect(endsWithQuestionMark('What is it?')).toBe(true)
+    expect(endsWithQuestionMark('What is it?!')).toBe(true)
+    expect(endsWithQuestionMark('He asked "why?"')).toBe(true)
+  })
+
+  it('is false without one at the end', () => {
+    expect(endsWithQuestionMark('What is it')).toBe(false)
+    expect(endsWithQuestionMark('What is it?, he said')).toBe(false)
+    expect(endsWithQuestionMark('What is it.')).toBe(false)
+  })
+})
+
 describe('questionKey', () => {
   it('treats punctuation, case and leading fillers as the same question', () => {
     const key = questionKey('Can you tell me about React?')
@@ -283,6 +401,44 @@ describe('lastSystemFinal', () => {
   it('is undefined when the other side has not spoken', () => {
     expect(lastSystemFinal([])).toBeUndefined()
     expect(lastSystemFinal([seg('a', 'only me', 'mic')])).toBeUndefined()
+  })
+})
+
+describe('currentQuestion', () => {
+  const asked = 'Tell me about a time when you disagreed with your manager and how you handled it?'
+
+  it('is the question the other side asked, whole, when it was split across segments', () => {
+    const finals = [
+      seg('a', 'Great, thanks for joining.'),
+      seg('b', 'Tell me about a time when you disagreed with your manager and'),
+      seg('c', 'how you handled it?')
+    ]
+    expect(currentQuestion(finals)).toBe(asked)
+  })
+
+  it('is the last question even when statements came after it', () => {
+    const finals = [seg('a', asked), seg('b', 'Take your time, no rush at all.')]
+    expect(currentQuestion(finals)).toBe(asked)
+  })
+
+  it('is the later of two questions', () => {
+    const finals = [seg('a', asked), seg('b', 'And what did you ship last quarter?')]
+    expect(currentQuestion(finals)).toBe('And what did you ship last quarter?')
+  })
+
+  it('does not take a question you asked', () => {
+    const finals = [seg('a', 'Thanks for joining everyone.'), seg('b', asked, 'mic')]
+    expect(currentQuestion(finals)).toBe('Thanks for joining everyone.')
+  })
+
+  it('falls back to their latest words when they asked nothing worth searching on', () => {
+    const finals = [seg('a', 'Thanks for joining.'), seg('b', ' Why not? ')]
+    expect(currentQuestion(finals)).toBe('Why not?')
+  })
+
+  it('is undefined when the other side has said nothing', () => {
+    expect(currentQuestion([])).toBeUndefined()
+    expect(currentQuestion([seg('a', asked, 'mic'), seg('b', '  ')])).toBeUndefined()
   })
 })
 

@@ -96,6 +96,33 @@ describe('the question an answer is for', () => {
     })
   })
 
+  it('is the whole question when the recognizer split it across two finals', async () => {
+    hear('a', 'Thanks for joining.')
+    hear('b', 'Tell me about a time when you disagreed with your manager and')
+    hear('c', 'how you handled it?')
+    await ask({ prompt: ANSWER_LAST_PROMPT })
+
+    expect(useAi.getState().messages[0]?.question).toBe(
+      'Tell me about a time when you disagreed with your manager and how you handled it?'
+    )
+  })
+
+  it('is the last question they asked, not the filler said after it', async () => {
+    hear('a', 'What did you ship last quarter?')
+    hear('b', 'Take your time, no rush at all.')
+    await ask({ prompt: ANSWER_LAST_PROMPT })
+
+    expect(useAi.getState().messages[0]?.question).toBe('What did you ship last quarter?')
+  })
+
+  it('falls back to their latest words when they asked no question', async () => {
+    hear('a', 'We are hiring a backend engineer.')
+    hear('b', 'The team is based in Berlin.')
+    await ask({ prompt: ANSWER_LAST_PROMPT })
+
+    expect(useAi.getState().messages[0]?.question).toBe('The team is based in Berlin.')
+  })
+
   it('is read when the ask is sent, after the transcript has settled', async () => {
     stubZanban()
     const { result } = renderHook(() => useAskRequest())
