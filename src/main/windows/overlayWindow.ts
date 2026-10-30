@@ -4,21 +4,25 @@ import { dirname, join } from 'node:path'
 import { IPC } from '../../shared/ipc-channels.js'
 import { getAppIcon } from '../appIcon.js'
 import { DEV_SERVER_URL } from '../security.js'
+import { resolveOverlayBounds, type Point } from './overlayBounds.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-export function createOverlayWindow(): BrowserWindow {
-  const display = screen.getPrimaryDisplay()
-  const { width: sw } = display.workAreaSize
-  const w = 720
-  const h = 520
-  const margin = 12
+export function createOverlayWindow(saved: {
+  position: Point | null
+  width: number
+}): BrowserWindow {
+  const bounds = resolveOverlayBounds(
+    saved,
+    screen.getAllDisplays().map((d) => d.workArea),
+    screen.getPrimaryDisplay().workArea
+  )
 
   const win = new BrowserWindow({
-    width: w,
-    height: h,
-    x: Math.max(0, Math.floor((sw - w) / 2)),
-    y: margin,
+    width: bounds.width,
+    height: 520,
+    x: bounds.x,
+    y: bounds.y,
     frame: false,
     transparent: true,
     resizable: true,
