@@ -13,6 +13,7 @@ import {
 import { getAppIcon } from './appIcon.js'
 import { createMainWindow } from './windows/mainWindow.js'
 import { createOverlayWindow } from './windows/overlayWindow.js'
+import { runAfterFirstPaint } from './windows/firstPaint.js'
 import { fitOverlayHeight } from './windows/overlayHeight.js'
 import { IPC } from '../shared/ipc-channels.js'
 import { sessionManager } from './transcription/sessionManager.js'
@@ -120,9 +121,6 @@ app.whenReady().then(async () => {
 
   const uiLocale = initialUiLocale(getSettings(), app.getSystemLocale())
   if (uiLocale !== getSettings().uiLocale) setSettings({ uiLocale })
-  // Warm the model list so the first answer is already checked against it (and,
-  // on the gateway, gets its per-model options).
-  void refreshModels(getSettings().llmProvider)
 
   // About-panel content (macOS shows it via the app menu; Linux ditto via
   // GTK). Windows uses electron-builder's installer metadata instead.
@@ -295,15 +293,14 @@ app.whenReady().then(async () => {
   }
 
   function showOverlay(): void {
-    if (!overlayWindow) return
-    overlayWindow.show()
-    overlayWindow.setContentProtection(stealthOn)
+    const win = ensureOverlay()
+    win.show()
+    win.setContentProtection(stealthOn)
   }
   handleIpc(IPC.overlay.show, () => showOverlay())
   handleIpc(IPC.overlay.hide, () => overlayWindow?.hide())
   handleIpc(IPC.overlay.toggle, () => {
-    if (!overlayWindow) return
-    if (overlayWindow.isVisible()) overlayWindow.hide()
+    if (overlayWindow?.isVisible()) overlayWindow.hide()
     else showOverlay()
   })
   handleIpc(IPC.overlay.setIgnoreMouse, (_e, ignore: boolean) => {
@@ -360,12 +357,13 @@ app.whenReady().then(async () => {
     // the Show Dashboard escape hatch should not leak into the new run.
     dashboardForcedVisible = false
     const result = await sessionManager.start(input)
-    overlayWindow?.show()
+    const overlay = ensureOverlay()
+    overlay.show()
     // The show listener attached in the per-window setup already reapplies
     // setContentProtection(stealthOn). No need to call applyStealth here —
     // doing so would run the bracket trick which briefly toggles affinity
     // and could flash the overlay to a screen-recorder.
-    overlayWindow?.focus()
+    overlay.focus()
     mainWindow?.hide()
     return result
   })
@@ -440,10 +438,7 @@ app.whenReady().then(async () => {
     pickFreeShortcuts((hotkeys) => applySettingsPatch({ hotkeys }))
   )
 
-  mainWindow = createMainWindow()
-  overlayWindow = createOverlayWindow()
-
-  for (const win of [mainWindow, overlayWindow]) {
+  function wireWindow(win: BrowserWindow): void {
     sessionManager.registerWindow(win)
     registerAiWindow(win)
     registerSyncWindow(win)
@@ -465,6 +460,19 @@ app.whenReady().then(async () => {
       win.hide()
     })
   }
+
+  // The overlay isn't needed for the dashboard's first frame, so it's created
+  // once that frame is out — or on first use, whichever comes first.
+  function ensureOverlay(): BrowserWindow {
+    if (!overlayWindow) {
+      overlayWindow = createOverlayWindow()
+      wireWindow(overlayWindow)
+    }
+    return overlayWindow
+  }
+
+  mainWindow = createMainWindow()
+  wireWindow(mainWindow)
 
   async function captureAndAttach(): Promise<void> {
     if (!overlayWindow) return
@@ -626,8 +634,7 @@ app.whenReady().then(async () => {
   const { failed: failedHotkeys } = registerShortcuts({
     onToggleSession: toggleSession,
     onToggleOverlay: () => {
-      if (!overlayWindow) return
-      if (overlayWindow.isVisible()) overlayWindow.hide()
+      if (overlayWindow?.isVisible()) overlayWindow.hide()
       else showOverlay()
     },
     onAskAi: () => {
@@ -664,27 +671,33 @@ app.whenReady().then(async () => {
     showDashboard()
     mainWindow?.webContents.send(IPC.dashboard.openSettings)
   }
-  createTray({
-    // Start/Stop must route through the dashboard renderer — mic/system audio
-    // capture lives there (getUserMedia + chunk streaming), so calling
-    // sessionManager directly would record silence.
-    startSession: () => {
-      showDashboard()
-      mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
-    },
-    stopSession: () => {
-      mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
-    },
-    showOverlay: () => showOverlay(),
-    showDashboard: () => showDashboard(),
-    openSettings,
-    askAi: () => {
-      showOverlay()
-      overlayWindow?.webContents.send(IPC.overlay.focusAsk)
-    },
-    toggleStealth: () => setStealth(!stealthOn),
-    getStealth: () => stealthOn,
-    quit: () => app.quit()
+  runAfterFirstPaint(mainWindow, () => {
+    ensureOverlay()
+    createTray({
+      // Start/Stop must route through the dashboard renderer — mic/system audio
+      // capture lives there (getUserMedia + chunk streaming), so calling
+      // sessionManager directly would record silence.
+      startSession: () => {
+        showDashboard()
+        mainWindow?.webContents.send(IPC.dashboard.requestStartSession)
+      },
+      stopSession: () => {
+        mainWindow?.webContents.send(IPC.dashboard.requestStopSession)
+      },
+      showOverlay: () => showOverlay(),
+      showDashboard: () => showDashboard(),
+      openSettings,
+      askAi: () => {
+        showOverlay()
+        overlayWindow?.webContents.send(IPC.overlay.focusAsk)
+      },
+      toggleStealth: () => setStealth(!stealthOn),
+      getStealth: () => stealthOn,
+      quit: () => app.quit()
+    })
+    // Warm the model list so the first answer is already checked against it (and,
+    // on the gateway, gets its per-model options).
+    void refreshModels(getSettings().llmProvider)
   })
 
   // Forward updater events to the dashboard so it can show a "Restart to
