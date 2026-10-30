@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Real `ai` and `@ai-sdk/gateway`: what the gateway receives is whatever these
 // versions serialize, and the cache breakpoint rides in that request.
+// gateway.ts imports these lazily on the first stream; loading them here keeps a
+// slow first import on a busy CI runner out of one test's 5 s timeout.
+await Promise.all([import('ai'), import('@ai-sdk/gateway')])
 const { makeGatewayProvider } = await import('./gateway.js')
 const { setGatewayCatalogForTest } = await import('../../ai/gatewayCatalog.js')
 
