@@ -14,7 +14,8 @@ const h = vi.hoisted(() => ({
   stateListeners: [] as Array<(state: unknown) => void>,
   segmentListeners: [] as Array<(seg: unknown, sessionId: string) => void>,
   requests: [] as LlmStreamArgs[],
-  sent: [] as Array<{ channel: string; requestId: string }>
+  sent: [] as Array<{ channel: string; requestId: string }>,
+  events: [] as string[]
 }))
 
 vi.mock('../settings.js', () => ({ getSettings: () => h.settings }))
@@ -28,6 +29,7 @@ vi.mock('../transcription/sessionManager.js', () => ({
 vi.mock('../rag/index.js', () => ({
   retrieve: async () => {
     await new Promise((resolve) => setTimeout(resolve, h.retrievalMs))
+    h.events.push('retrieved')
     return { prompt: h.retrievalBlock, sources: [] }
   },
   retrievalTimedOut: () => ({ prompt: '', sources: [] })
@@ -49,6 +51,9 @@ vi.mock('./answerRouting.js', () => ({
 vi.mock('../personas/store.js', () => ({ getPersona: () => h.persona }))
 vi.mock('../sync/sessionSync.js', () => ({ recordAiExchange: async () => {} }))
 
+// Load the real SDK up front so a slow first import on a busy CI runner isn't
+// billed to one test's 5 s timeout.
+await import('@anthropic-ai/sdk')
 const { ask, registerAiWindow } = await import('./aiGatewayClient.js')
 const { clearExchanges, recordExchange } = await import('./exchangeMemory.js')
 
@@ -340,52 +345,47 @@ describe('the prefix a provider can cache', () => {
 })
 
 describe('loading the provider SDK', () => {
-  const LOAD_MS = 600
-  const RETRIEVAL_MS = 200
-
-  function sdkProvider(warmable: boolean): { provider: ILlmProvider; sentAt: () => number } {
+  function sdkProvider(): ILlmProvider {
     let loaded: Promise<void> | undefined
-    const load = (): Promise<void> => (loaded ??= new Promise((r) => setTimeout(r, LOAD_MS)))
-    let sentAt = 0
-    const provider: ILlmProvider = {
+    const load = (): Promise<void> => (loaded ??= new Promise((r) => setTimeout(r, 50)))
+    return {
       id: 'anthropic',
       label: 'Fake',
-      ...(warmable ? { warm: load } : {}),
+      warm: () => {
+        h.events.push('warm')
+        return load()
+      },
       async *stream(args) {
         await load()
-        sentAt = performance.now()
         h.requests.push(args)
         yield 'ok'
         return 'stop'
       },
       generate: async () => ''
     }
-    return { provider, sentAt: () => sentAt }
   }
 
-  async function msUntilRequestIsSent(sdk: ReturnType<typeof sdkProvider>): Promise<number> {
-    h.provider = () => sdk.provider
-    const started = performance.now()
+  // Ordering rather than wall-clock margins, which a loaded CI runner can eat.
+  it('starts loading while retrieval runs, not after it', async () => {
+    h.retrievalMs = 100
+    h.events = []
+    const provider = sdkProvider()
+    h.provider = () => provider
+
     await answer({ prompt: 'Why is the sky blue?' })
-    return sdk.sentAt() - started
-  }
 
-  it('overlaps with retrieval, and is done before the first ask when a call starts', async () => {
-    h.retrievalMs = RETRIEVAL_MS
+    expect(h.events.slice(0, 2)).toEqual(['warm', 'retrieved'])
+  })
 
-    const sequential = await msUntilRequestIsSent(sdkProvider(false))
-    const overlapped = await msUntilRequestIsSent(sdkProvider(true))
+  it('starts loading as soon as a call starts, before any ask', () => {
+    h.events = []
+    const provider = sdkProvider()
+    h.provider = () => provider
 
-    const early = sdkProvider(true)
-    h.provider = () => early.provider
     startCall()
-    await new Promise((r) => setTimeout(r, LOAD_MS + 50))
-    const warmedByCall = await msUntilRequestIsSent(early)
 
-    expect(sequential).toBeGreaterThanOrEqual(LOAD_MS + RETRIEVAL_MS - 30)
-    expect(overlapped).toBeLessThanOrEqual(sequential - RETRIEVAL_MS / 2)
-    expect(warmedByCall).toBeLessThanOrEqual(overlapped - LOAD_MS / 2)
-  }, 15_000)
+    expect(h.events).toEqual(['warm'])
+  })
 
   it('does not hold up the answer when the SDK fails to load', async () => {
     h.provider = () => ({

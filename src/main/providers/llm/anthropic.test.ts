@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeAnthropicProvider } from './anthropic.js'
 
+// Load the real SDK up front so a slow first import on a busy CI runner isn't
+// billed to one test's 5 s timeout.
+await import('@anthropic-ai/sdk')
+
 // The real SDK, with only the network stubbed: what is asserted is the JSON the
 // SDK puts on the wire.
 function sse(): Response {
