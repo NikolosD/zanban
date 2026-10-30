@@ -22,6 +22,8 @@
     "format:check": "prettier --check .",
     "bench:answers": "node scripts/bench/answer-shape.mjs",
     "analyze": "ANALYZE=1 electron-vite build",
+    "bench:overlay": "electron scripts/bench/overlay-readability.mjs",
+    "bench:overlay:compare": "node scripts/bench/overlay-readability.mjs --compare",
     "icons": "node scripts/generate-icons.cjs",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
