@@ -207,6 +207,37 @@ describe('RecapTab', () => {
     expect(screen.queryByText('writing recap…')).toBeNull()
   })
 
+  it('keeps waiting while the recap of a finished job is still being fetched', async () => {
+    let land!: (recap: RecapPayload | null) => void
+    ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise((resolve) => (land = resolve))
+    )
+    useJobs.setState({ finished: new Set(['recap-s1']) })
+    render(wrap(<RecapTab session={session} awaitingAuto />))
+
+    await screen.findByText('writing recap…')
+    expect(screen.queryByRole('button', { name: /generate recap/i })).toBeNull()
+
+    await act(async () => land(makeRecap()))
+    await screen.findByText('overall ok')
+  })
+
+  it('stops waiting once a recap that was shown is gone', async () => {
+    const get = zanban.recap.get as ReturnType<typeof vi.fn>
+    get.mockResolvedValue(makeRecap())
+    render(wrap(<RecapTab session={session} awaitingAuto />))
+    await screen.findByText('overall ok')
+
+    get.mockResolvedValue(null)
+    const onUpdated = (zanban.recap.onUpdated as ReturnType<typeof vi.fn>).mock.calls[0]![0] as (
+      id: string
+    ) => void
+    act(() => onUpdated(session.id))
+
+    await screen.findByRole('button', { name: /generate recap/i })
+    expect(screen.queryByText('writing recap…')).toBeNull()
+  })
+
   it('does not wait when no automatic recap is due', async () => {
     ;(zanban.recap.get as ReturnType<typeof vi.fn>).mockResolvedValue(null)
     render(wrap(<RecapTab session={session} />))

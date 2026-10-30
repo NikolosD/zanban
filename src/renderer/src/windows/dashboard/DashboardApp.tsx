@@ -107,10 +107,22 @@ export function DashboardApp() {
   // Set only while the open session was reached from the end of its own call.
   const [afterCall, setAfterCall] = useState<string | null>(null)
   if (afterCall !== null && afterCall !== selected) setAfterCall(null)
-  const recapAfterCall = useRecapAfterCall((sessionId) => {
-    setSelected(sessionId)
-    setAfterCall(sessionId)
-  }, selected)
+  const { data: sessionList } = useQuery({
+    queryKey: queryKeys.sessions,
+    queryFn: () => window.zanban.sessions.list()
+  })
+  const listedIds = useMemo(
+    () => (sessionList ? new Set(sessionList.map((s) => s.id)) : undefined),
+    [sessionList]
+  )
+  const recapAfterCall = useRecapAfterCall(
+    (sessionId) => {
+      setSelected(sessionId)
+      setAfterCall(sessionId)
+    },
+    selected,
+    listedIds
+  )
 
   // Lives at the root, not in the header button, so capture auto-stop and the
   // tray Start/Stop listeners stay mounted while a past meeting is open. Start
@@ -742,6 +754,7 @@ interface SessionControl {
   busy: boolean
   start(): Promise<void>
   stop(): Promise<void>
+  stopAndOpenRecap(): Promise<void>
 }
 
 function useSessionControl(
@@ -794,15 +807,22 @@ function useSessionControl(
 
   async function stop(): Promise<void> {
     setBusy(true)
-    const releaseStop = claimNextStop()
     try {
       stopCaptures()
       await window.zanban.session.stop()
     } catch (err) {
       toastSessionError(t('dashboard.toasts.could_not_stop'), err)
     } finally {
-      releaseStop()
       setBusy(false)
+    }
+  }
+
+  async function stopAndOpenRecap(): Promise<void> {
+    const releaseStop = claimNextStop()
+    try {
+      await stop()
+    } finally {
+      releaseStop()
     }
   }
 
@@ -820,7 +840,7 @@ function useSessionControl(
     }
   })
 
-  return { running, busy, start, stop }
+  return { running, busy, start, stop, stopAndOpenRecap }
 }
 
 function SessionStartButton({ session }: { session: SessionControl }) {
@@ -829,7 +849,7 @@ function SessionStartButton({ session }: { session: SessionControl }) {
 
   return (
     <Button
-      onClick={() => void (running ? session.stop() : session.start())}
+      onClick={() => void (running ? session.stopAndOpenRecap() : session.start())}
       disabled={busy}
       size="default"
       variant={running ? 'destructive' : 'default'}

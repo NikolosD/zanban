@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { SessionDetailPayload } from '@shared/api'
 import { DEFAULT_SETTINGS, type SessionState } from '@shared/types'
 import type { GlobalActionItem, RecapPayload } from '@shared/recap-types'
+import { startCapturesFromSettings } from '@renderer/audio/captureController'
 import { initI18n } from '@renderer/lib/i18n'
+import { queryKeys } from '@renderer/lib/queryKeys'
 import { useJobs } from '@renderer/features/jobs/jobsStore'
 import { useSettingsStore } from '@renderer/features/settings/store'
 import { useTranscript } from '@renderer/features/transcript/store'
@@ -42,6 +44,16 @@ function makeRecap(overrides: Partial<RecapPayload> = {}): RecapPayload {
     model: 'mock',
     promptVersion: 1,
     ...overrides
+  }
+}
+
+function listed(id: string): typeof past {
+  return {
+    id,
+    title: 'Roadmap review',
+    startedAt: NOW - 600_000,
+    endedAt: NOW,
+    durationMs: 600_000
   }
 }
 
@@ -89,8 +101,12 @@ type JobList = Array<{ id: string; title: string; kind: 'other'; startedAt: numb
 interface Harness {
   sessionState: ReturnType<typeof bus<SessionState>>
   recapUpdated: ReturnType<typeof bus<string>>
+  requestStop: ReturnType<typeof bus<void>>
   jobs: ReturnType<typeof bus<JobList>>
   recaps: Map<string, RecapPayload>
+  sessions: Map<string, SessionDetailPayload>
+  list: Array<typeof past>
+  client: QueryClient
   stop: ReturnType<typeof vi.fn>
   read: ReturnType<typeof vi.fn>
 }
@@ -105,13 +121,17 @@ function mountDashboard(
   const harness: Harness = {
     sessionState: bus<SessionState>(),
     recapUpdated: bus<string>(),
+    requestStop: bus<void>(),
     jobs: bus<JobList>(),
     recaps: new Map(Object.entries(options.recaps ?? { s1: makeRecap() })),
+    sessions: new Map(Object.entries(options.sessions ?? {})),
+    list: [past],
+    client: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
     stop: vi.fn(async () => {
       harness.sessionState.emit({ kind: 'stopping' })
       harness.sessionState.emit({ kind: 'idle' })
     }),
-    read: vi.fn(async (id: string) => options.sessions?.[id] ?? null)
+    read: vi.fn(async (id: string) => harness.sessions.get(id) ?? null)
   }
   const globalItems = (): GlobalActionItem[] =>
     [...harness.recaps].flatMap(([sessionId, recap]) =>
@@ -137,14 +157,30 @@ function mountDashboard(
       onChanged: () => () => undefined
     },
     sessions: {
-      list: async () => [past],
+      list: async () => [...harness.list],
       read: harness.read
     },
-    session: { stop: harness.stop, onState: harness.sessionState.on },
+    session: {
+      stop: harness.stop,
+      start: async (input?: { resumeId?: string }) => {
+        const sessionId = input?.resumeId ?? 's2'
+        harness.sessionState.emit({ kind: 'running', sessionId, startedAt: NOW })
+        return { sessionId }
+      },
+      onState: harness.sessionState.on
+    },
     recap: {
       get: async (id: string) => harness.recaps.get(id) ?? null,
+      delete: async (id: string) => {
+        harness.recaps.delete(id)
+      },
       listActionItems: async () => globalItems(),
       onUpdated: harness.recapUpdated.on
+    },
+    dashboard: {
+      onRequestStopSession: harness.requestStop.on,
+      onRequestStartSession: () => () => undefined,
+      onOpenSettings: () => () => undefined
     },
     jobs: { onState: harness.jobs.on }
   }
@@ -152,9 +188,8 @@ function mountDashboard(
     'zanban',
     new Proxy(api, { get: (target, key) => target[key as string] ?? inertNamespace() })
   )
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <QueryClientProvider client={client}>
+    <QueryClientProvider client={harness.client}>
       <DashboardApp />
     </QueryClientProvider>
   )
@@ -162,6 +197,11 @@ function mountDashboard(
 }
 
 const running: SessionState = { kind: 'running', sessionId: 's2', startedAt: NOW - 600_000 }
+
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  })
 
 beforeEach(() => {
   initI18n('en')
@@ -171,6 +211,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.mocked(startCapturesFromSettings).mockReset()
   useJobs.setState({ jobs: [], finished: new Set() })
   useSettingsStore.setState({ settings: null })
   useTranscript.getState().reset()
@@ -319,5 +360,183 @@ describe('DashboardApp after a call', () => {
     expect(screen.getByRole('button', { name: 'Start session' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open recap' })).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Recap' })).toBeNull()
+  })
+
+  it('stays on the list for a stop from the tray or the hotkey and offers the recap', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    await screen.findByRole('button', { name: 'Stop session' })
+
+    h.requestStop.emit()
+
+    expect(await screen.findByRole('button', { name: 'Open recap' })).toBeInTheDocument()
+    expect(h.stop).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('tab', { name: 'Recap' })).toBeNull()
+  })
+
+  it('opens the recap only for the Stop button, not for the next stop elsewhere', async () => {
+    const h = mountDashboard({
+      sessions: { s2: makeSession('s2'), s3: makeSession('s3') },
+      recaps: {}
+    })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByRole('tab', { name: 'Recap', selected: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    h.sessionState.emit({ kind: 'running', sessionId: 's3', startedAt: NOW })
+    h.sessionState.emit({ kind: 'idle' })
+
+    expect(await screen.findByRole('button', { name: 'Open recap' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Recap' })).toBeNull()
+  })
+
+  it('offers nothing for a start that fails after an earlier call ended', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByRole('tab', { name: 'Recap', selected: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await settle()
+    const readsBefore = h.read.mock.calls.length
+
+    h.sessionState.emit({ kind: 'starting' })
+    h.sessionState.emit({ kind: 'idle' })
+    await settle()
+
+    expect(screen.queryByRole('button', { name: 'Open recap' })).toBeNull()
+    expect(h.read.mock.calls.length).toBe(readsBefore)
+  })
+
+  it('offers nothing when the call record cannot be read', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') } })
+    await screen.findAllByText('Standup')
+    h.read.mockRejectedValue(new Error('disk gone'))
+    h.sessionState.emit(running)
+    h.sessionState.emit({ kind: 'idle' })
+    await settle()
+
+    expect(screen.queryByRole('button', { name: 'Open recap' })).toBeNull()
+  })
+
+  it('leaves no offer behind when resuming a session fails to start capture', async () => {
+    const h = mountDashboard({ sessions: { s1: makeSession('s1') } })
+    vi.mocked(startCapturesFromSettings).mockRejectedValueOnce(new Error('mic denied'))
+    await screen.findAllByText('Standup')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'resume' }))
+
+    await screen.findByText('Could not resume session')
+    await settle()
+    expect(h.stop).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Open recap' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Recap' })).toBeNull()
+  })
+
+  it('stops waiting for a recap that was shown and then deleted', async () => {
+    vi.stubGlobal('confirm', () => true)
+    const h = mountDashboard({ sessions: { s1: makeSession('s1') } })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit({ kind: 'running', sessionId: 's1', startedAt: NOW })
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByRole('tab', { name: 'Recap', selected: true })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('button', { name: 'Generate recap' })).toBeInTheDocument()
+    expect(screen.queryByText(/writing recap/)).toBeNull()
+  })
+
+  it('waits for the new auto recap of a call stopped again after an earlier one failed', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByText(/writing recap/)
+    h.jobs.emit([
+      { id: 'recap-s2', title: 'Generating meeting recap', kind: 'other', startedAt: NOW }
+    ])
+    h.jobs.emit([])
+    await screen.findByRole('button', { name: 'Generate recap' })
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByRole('tab', { name: 'Recap', selected: true })
+    await settle()
+
+    expect(screen.getByText(/writing recap/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate recap' })).toBeNull()
+  })
+
+  it('shows the transcript tail written after the call opened once the recap lands', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByText(/writing recap/)
+
+    h.sessions.set('s2', {
+      ...makeSession('s2'),
+      segments: [
+        { channel: 'mic', startMs: 0, text: 'Hello team' },
+        { channel: 'mic', startMs: 5000, text: 'Closing words' }
+      ]
+    })
+    h.recaps.set('s2', makeRecap())
+    h.recapUpdated.emit('s2')
+    await screen.findByText('Send the deck')
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Transcript' }), { button: 0 })
+
+    expect(await screen.findByText('Closing words')).toBeInTheDocument()
+  })
+
+  it('lands on the transcript for an older session without a recap', async () => {
+    mountDashboard({ sessions: { s1: makeSession('s1') }, recaps: {} })
+
+    fireEvent.click((await screen.findAllByText('Standup'))[0]!)
+
+    expect(
+      await screen.findByRole('tab', { name: 'Transcript', selected: true })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/writing recap/)).toBeNull()
+  })
+
+  it('treats a finished call opened again from the list as an ordinary session', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    h.list.push(listed('s2'))
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop session' }))
+    await screen.findByText(/writing recap/)
+    h.jobs.emit([
+      { id: 'recap-s2', title: 'Generating meeting recap', kind: 'other', startedAt: NOW }
+    ])
+    h.jobs.emit([])
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
+
+    fireEvent.click(await screen.findByText('Roadmap review'))
+
+    expect(
+      await screen.findByRole('tab', { name: 'Transcript', selected: true })
+    ).toBeInTheDocument()
+  })
+
+  it('drops the offer when its session leaves the list', async () => {
+    const h = mountDashboard({ sessions: { s2: makeSession('s2') }, recaps: {} })
+    h.list.push(listed('s2'))
+    await screen.findAllByText('Standup')
+    h.sessionState.emit(running)
+    h.sessionState.emit({ kind: 'idle' })
+    await screen.findByRole('button', { name: 'Open recap' })
+    await screen.findByText('Roadmap review')
+
+    h.list.pop()
+    await act(() => h.client.invalidateQueries({ queryKey: queryKeys.sessions }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open recap' })).toBeNull())
   })
 })

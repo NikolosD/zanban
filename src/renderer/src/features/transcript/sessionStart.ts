@@ -5,6 +5,13 @@ import { errorMessage, pointsToSettings } from '@renderer/lib/errors'
 import type { SettingsTabId } from '@renderer/features/settings/SettingsPanel'
 import { useTranscript } from './store'
 
+let rollingBack = false
+
+/** The stop that undoes a failed start is not a call that ended. */
+export function isRollingBackStart(): boolean {
+  return rollingBack
+}
+
 /**
  * Start (or resume) a session together with audio capture. Main shows the
  * overlay and starts its timer as soon as session.start resolves, so a capture
@@ -18,7 +25,12 @@ export async function startSessionWithCapture(resumeId?: string): Promise<void> 
     await startCapturesFromSettings(settings)
   } catch (err) {
     stopCaptures()
-    await window.zanban.session.stop().catch(() => {})
+    rollingBack = true
+    try {
+      await window.zanban.session.stop().catch(() => {})
+    } finally {
+      rollingBack = false
+    }
     throw err
   }
 }

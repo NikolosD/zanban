@@ -25,4 +25,23 @@ describe('useJobs', () => {
     useJobs.getState().set([job('a')])
     expect(useJobs.getState().finished.has('a')).toBe(false)
   })
+
+  it('drops a finished job on request so a later view waits for its next run', () => {
+    useJobs.getState().set([job('a'), job('b')])
+    useJobs.getState().set([])
+
+    useJobs.getState().forget('a')
+
+    expect([...useJobs.getState().finished]).toEqual(['b'])
+  })
+
+  it('keeps only the most recent finished jobs', () => {
+    for (let i = 0; i < 300; i++) useJobs.getState().set([job(`job-${i}`)])
+    useJobs.getState().set([])
+
+    const { finished } = useJobs.getState()
+    expect(finished.size).toBeLessThanOrEqual(200)
+    expect(finished.has('job-299')).toBe(true)
+    expect(finished.has('job-0')).toBe(false)
+  })
 })

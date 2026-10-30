@@ -38,6 +38,10 @@ export function RecapTab({
     queryFn: () => window.zanban.recap.get(session.id)
   })
   const autoJobOver = useJobs((s) => s.finished.has(autoRecapJobId(session.id)))
+  // A recap that was there (a resumed call keeps its old one, so no job runs)
+  // and is later deleted must not look like one that is still on its way.
+  const [hadRecap, setHadRecap] = useState(false)
+  if (recap && !hadRecap) setHadRecap(true)
 
   // The recap is written once the session is finalized, so the transcript this
   // tab was opened with may predate its last seconds.
@@ -70,7 +74,7 @@ export function RecapTab({
     onSuccess: invalidateRecap
   })
 
-  if (!recap && awaitingAuto && (!autoJobOver || isFetching)) return <RecapPending />
+  if (!recap && awaitingAuto && !hadRecap && (!autoJobOver || isFetching)) return <RecapPending />
 
   if (!recap && generate.isPending) return <RecapSkeleton />
 
