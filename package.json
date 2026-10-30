@@ -21,6 +21,8 @@
     "format": "prettier --write . --log-level warn",
     "format:check": "prettier --check .",
     "analyze": "ANALYZE=1 electron-vite build",
+    "bench:overlay": "electron scripts/bench/overlay-readability.mjs",
+    "bench:overlay:compare": "node scripts/bench/overlay-readability.mjs --compare",
     "icons": "node scripts/generate-icons.cjs",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
