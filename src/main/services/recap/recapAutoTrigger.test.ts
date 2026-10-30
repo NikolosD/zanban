@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { autoRecapJobId } from '../../../shared/recap-types.js'
 import { createAutoTrigger } from './recapAutoTrigger.js'
 
 describe('recapAutoTrigger', () => {
@@ -24,6 +25,17 @@ describe('recapAutoTrigger', () => {
     await trigger.onSessionStopped('sess1')
     expect(trackJob).toHaveBeenCalledTimes(1)
     expect(generate).toHaveBeenCalledWith('sess1', {})
+  })
+
+  it('tracks the job under the id the dashboard waits on', async () => {
+    const trackJob = vi.fn(async (_id, _t, _k, fn) => fn())
+    const trigger = createAutoTrigger({
+      getSettings: () => ({ recap: { autoGenerate: true } }) as never,
+      generate: vi.fn().mockResolvedValue({ ok: true }),
+      trackJob
+    })
+    await trigger.onSessionStopped('sess1')
+    expect(trackJob.mock.calls[0]?.[0]).toBe(autoRecapJobId('sess1'))
   })
 
   it('swallows generate errors so session-stop is not blocked', async () => {

@@ -238,6 +238,10 @@
     "action_items": {
       "show_all": "show all ({{count}})",
       "show_less": "show less"
+    },
+    "recap_offer": {
+      "label": "call ended",
+      "open": "Open recap"
     }
   },
   "settings": {
@@ -953,6 +957,8 @@
       "empty_label": "no recap yet",
       "empty_blurb": "Create a meeting recap with action items and a ready-to-send follow-up email. Uses only the saved transcript — no audio is sent.",
       "generate": "Generate recap",
+      "pending_label": "writing recap…",
+      "pending_blurb": "Action items and decisions will show up here in a moment. The transcript is already saved.",
       "regenerate": "Regenerate",
       "copy_all": "Copy as Markdown",
       "delete": "Delete",

@@ -15,7 +15,9 @@ import type { CaptureNoticeKind } from '@shared/types'
 import type { HotkeyConflict } from '@shared/api'
 import { SessionDetail } from '@renderer/features/sessions/SessionDetail'
 import { GlobalActionItems } from '@renderer/features/sessions/GlobalActionItems'
-import { isActionItemChecked } from '@renderer/features/sessions/actionItemState'
+import { RecapOffer } from '@renderer/features/sessions/RecapOffer'
+import { useRecapAfterCall } from '@renderer/features/sessions/useRecapAfterCall'
+import { useOpenActionItemCount } from '@renderer/features/sessions/actionItemState'
 import { Wordmark } from '@renderer/components/brand'
 import {
   DropdownMenu,
@@ -102,10 +104,30 @@ export function DashboardApp() {
     setSettingsOpen(true)
   }
 
+  // Set only while the open session was reached from the end of its own call.
+  const [afterCall, setAfterCall] = useState<string | null>(null)
+  if (afterCall !== null && afterCall !== selected) setAfterCall(null)
+  const { data: sessionList } = useQuery({
+    queryKey: queryKeys.sessions,
+    queryFn: () => window.zanban.sessions.list()
+  })
+  const listedIds = useMemo(
+    () => (sessionList ? new Set(sessionList.map((s) => s.id)) : undefined),
+    [sessionList]
+  )
+  const recapAfterCall = useRecapAfterCall(
+    (sessionId) => {
+      setSelected(sessionId)
+      setAfterCall(sessionId)
+    },
+    selected,
+    listedIds
+  )
+
   // Lives at the root, not in the header button, so capture auto-stop and the
   // tray Start/Stop listeners stay mounted while a past meeting is open. Start
   // failures that need credentials are STT keys, which sit on the Audio tab.
-  const sessionControl = useSessionControl(() => openSettings('keys'))
+  const sessionControl = useSessionControl(() => openSettings('keys'), recapAfterCall.claimNextStop)
 
   // Open the wizard when settings load and `onboardingCompleted` is still
   // false. We don't reset on subsequent loads — the user can dismiss it and
@@ -215,6 +237,7 @@ export function DashboardApp() {
         <main className="mx-auto max-w-4xl px-10 pt-8 pb-8">
           <SessionDetail
             sessionId={selected}
+            afterCall={selected === afterCall}
             onBack={() => setSelected(null)}
             onOpenSettings={() => openSettings('keys')}
           />
@@ -234,6 +257,7 @@ export function DashboardApp() {
             onOpenSettingsTab={openSettings}
             onSettings={() => openSettings()}
           />
+          {recapAfterCall.offered && <RecapOffer onOpen={recapAfterCall.openOffered} />}
           <div className="mt-10">
             <GlobalActionItems onSelect={setSelected} />
           </div>
@@ -730,9 +754,13 @@ interface SessionControl {
   busy: boolean
   start(): Promise<void>
   stop(): Promise<void>
+  stopAndOpenRecap(): Promise<void>
 }
 
-function useSessionControl(onOpenSettings: () => void): SessionControl {
+function useSessionControl(
+  onOpenSettings: () => void,
+  claimNextStop: () => () => void
+): SessionControl {
   const { t } = useTranslation()
   const running = useTranscript((s) => s.session.kind === 'running')
   const [busy, setBusy] = useState(false)
@@ -789,6 +817,15 @@ function useSessionControl(onOpenSettings: () => void): SessionControl {
     }
   }
 
+  async function stopAndOpenRecap(): Promise<void> {
+    const releaseStop = claimNextStop()
+    try {
+      await stop()
+    } finally {
+      releaseStop()
+    }
+  }
+
   // Keep the ref-held tray handlers current (they capture busy/running/handlers)
   // without re-subscribing the IPC listener on every state change. Updating the
   // ref in an effect (not during render) keeps the lint rule happy. A tray
@@ -803,7 +840,7 @@ function useSessionControl(onOpenSettings: () => void): SessionControl {
     }
   })
 
-  return { running, busy, start, stop }
+  return { running, busy, start, stop, stopAndOpenRecap }
 }
 
 function SessionStartButton({ session }: { session: SessionControl }) {
@@ -812,7 +849,7 @@ function SessionStartButton({ session }: { session: SessionControl }) {
 
   return (
     <Button
-      onClick={() => void (running ? session.stop() : session.start())}
+      onClick={() => void (running ? session.stopAndOpenRecap() : session.start())}
       disabled={busy}
       size="default"
       variant={running ? 'destructive' : 'default'}
@@ -943,9 +980,7 @@ function MeetingRow({
     enabled: !isLive,
     staleTime: Infinity
   })
-  const openItems = recap
-    ? recap.actionItems.filter((a) => !isActionItemChecked(session.id, a)).length
-    : 0
+  const openItems = useOpenActionItemCount(session.id, recap?.actionItems ?? [])
 
   async function exportMd(): Promise<void> {
     try {
