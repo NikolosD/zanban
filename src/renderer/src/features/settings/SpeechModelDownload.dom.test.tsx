@@ -74,4 +74,42 @@ describe('SpeechModelDownload', () => {
     ).toBeTruthy()
     expect(screen.getByText('Download the model now · 672 MB')).toBeTruthy()
   })
+
+  it('starts downloading by itself when asked to, with progress', async () => {
+    const mock = mockTranscription(MISSING)
+    render(<SpeechModelDownload autoStart />)
+    await vi.waitFor(() => expect(mock.transcription.downloadSpeechModel).toHaveBeenCalledTimes(1))
+
+    act(() => mock.report(0.5))
+    expect(screen.getByText('Downloading speech model · 336 MB of 672 MB (50%)')).toBeTruthy()
+
+    mock.transcription.speechModel.mockResolvedValue(INSTALLED)
+    await act(async () => mock.finish())
+    expect(await screen.findByText(/The speech model is downloaded/)).toBeTruthy()
+    expect(mock.transcription.downloadSpeechModel).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not download again when the model is already there', async () => {
+    const mock = mockTranscription(INSTALLED)
+    render(<SpeechModelDownload autoStart />)
+    expect(await screen.findByText(/The speech model is downloaded/)).toBeTruthy()
+    expect(mock.transcription.downloadSpeechModel).not.toHaveBeenCalled()
+  })
+
+  it('waits for the button after an automatic download fails', async () => {
+    const mock = mockTranscription(MISSING)
+    render(<SpeechModelDownload autoStart />)
+    await vi.waitFor(() => expect(mock.transcription.downloadSpeechModel).toHaveBeenCalledTimes(1))
+    await act(async () => mock.finish(new Error('offline')))
+    expect(await screen.findByText("Couldn't download the model: offline")).toBeTruthy()
+    expect(screen.getByText('Download the model now · 672 MB')).toBeTruthy()
+    expect(mock.transcription.downloadSpeechModel).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays idle without autoStart', async () => {
+    const mock = mockTranscription(MISSING)
+    render(<SpeechModelDownload />)
+    expect(await screen.findByText('Download the model now · 672 MB')).toBeTruthy()
+    expect(mock.transcription.downloadSpeechModel).not.toHaveBeenCalled()
+  })
 })

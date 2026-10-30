@@ -3,9 +3,15 @@ import type { LlmStreamArgs } from '../types.js'
 
 const sdk = vi.hoisted(() => ({
   parts: [] as Array<Record<string, unknown>>,
-  request: undefined as Record<string, unknown> | undefined
+  request: undefined as Record<string, unknown> | undefined,
+  gatewayKeys: [] as string[]
 }))
-vi.mock('@ai-sdk/gateway', () => ({ createGateway: () => (id: string) => ({ modelId: id }) }))
+vi.mock('@ai-sdk/gateway', () => ({
+  createGateway: (opts: { apiKey: string }) => {
+    sdk.gatewayKeys.push(opts.apiKey)
+    return (id: string) => ({ modelId: id })
+  }
+}))
 vi.mock('ai', () => ({
   streamText: (request: Record<string, unknown>) => {
     sdk.request = request
@@ -14,6 +20,10 @@ vi.mock('ai', () => ({
         yield* sdk.parts
       })()
     }
+  },
+  generateText: async (request: Record<string, unknown>) => {
+    sdk.request = request
+    return { text: 'ok' }
   }
 }))
 
@@ -74,6 +84,49 @@ describe('gateway provider', () => {
         ]
       }
     ])
+  })
+})
+
+describe('gateway prompt caching', () => {
+  beforeEach(() => setGatewayCatalogForTest([]))
+
+  it('puts a breakpoint on the system prompt of an Anthropic answer', async () => {
+    sdk.parts = [{ type: 'finish', finishReason: 'stop' }]
+    await drain({ model: 'anthropic/claude-haiku-5.5', system: 'SYS' })
+    expect(sdk.request?.system).toEqual({
+      role: 'system',
+      content: 'SYS',
+      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+    })
+    expect(sdk.request?.prompt).toBe('p')
+  })
+
+  it('leaves the system prompt of other creators as the plain text it was', async () => {
+    sdk.parts = [{ type: 'finish', finishReason: 'stop' }]
+    await drain({ model: 'openai/gpt-6.1-terra', system: 'SYS' })
+    expect(sdk.request?.system).toBe('SYS')
+  })
+
+  it('does not mark one-shot completions, which are not asked twice within the cache lifetime', async () => {
+    await makeGatewayProvider('vck_x').generate({
+      model: 'anthropic/claude-haiku-5.5',
+      system: 'SYS',
+      prompt: 'p'
+    })
+    expect(sdk.request?.system).toBe('SYS')
+  })
+})
+
+describe('gateway warm-up', () => {
+  it('builds the gateway client ahead of the first request, once', async () => {
+    const provider = makeGatewayProvider('vck_warm')
+    await provider.warm?.()
+    expect(sdk.gatewayKeys).toContain('vck_warm')
+    sdk.parts = [{ type: 'finish', finishReason: 'stop' }]
+    await provider.warm?.()
+    await drain({})
+    await makeGatewayProvider('vck_warm').generate({ model: 'm', system: 's', prompt: 'p' })
+    expect(sdk.gatewayKeys.filter((k) => k === 'vck_warm')).toHaveLength(1)
   })
 })
 

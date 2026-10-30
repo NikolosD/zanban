@@ -78,7 +78,8 @@ const api: ZanbanApi = {
     set: (patch) => ipcRenderer.invoke(IPC.settings.set, patch),
     onChanged: (cb) => on(IPC.settings.changed, cb),
     onHotkeyConflict: (cb) => on(IPC.settings.hotkeyConflict, cb),
-    hotkeyConflicts: () => ipcRenderer.invoke(IPC.settings.hotkeyConflicts)
+    hotkeyConflicts: () => ipcRenderer.invoke(IPC.settings.hotkeyConflicts),
+    pickFreeHotkeys: () => ipcRenderer.invoke(IPC.settings.pickFreeHotkeys)
   },
   sessions: {
     list: () => ipcRenderer.invoke(IPC.sessions.list),

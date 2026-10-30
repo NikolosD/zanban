@@ -10,7 +10,7 @@ import {
 } from '../../shared/prompts.js'
 import { getSettings } from '../settings.js'
 import { sessionManager } from '../transcription/sessionManager.js'
-import type { TranscriptSegment } from '../../shared/types.js'
+import type { LlmProvider, TranscriptSegment } from '../../shared/types.js'
 import {
   buildContinuePrompt,
   buildSystemPrompt,
@@ -139,6 +139,18 @@ class TranscriptBuffer {
 }
 
 const transcriptBuffer = new TranscriptBuffer()
+
+function warmProvider(id: LlmProvider): void {
+  void getLlmProviderById(id)
+    ?.warm?.()
+    .catch(() => {})
+}
+
+// Loading a provider's SDK takes up to a second on first use, which the first
+// answer of a call would otherwise wait out.
+sessionManager.onState((state) => {
+  if (state.kind === 'running') warmProvider(getSettings().llmProvider)
+})
 
 export interface AskOptions {
   requestId: string
@@ -290,6 +302,15 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
   const cut = opts.continueFrom ? cutAnswers.get(opts.continueFrom) : undefined
   ;(async () => {
     try {
+      // Pick the provider that should actually answer this request. For
+      // image-bearing prompts we honor the user's vision-provider override —
+      // they may want fast/cheap text from one vendor but a stronger vision
+      // model from another — except a cloud one in privacy mode.
+      const hasImage = !!opts.imageDataUrl
+      const requestedProvider = answerProviderId(settings, hasImage)
+      // Its SDK loads while retrieval runs, not after it.
+      warmProvider(requestedProvider)
+
       // Active persona (if any) wins over the legacy free-form
       // settings.assistantPersona — the prompt builder still receives a
       // single string, so callers don't need to know which one came in.
@@ -369,13 +390,7 @@ export async function ask(opts: AskOptions): Promise<{ requestId: string }> {
         responseLanguage
       })
 
-      const hasImage = !!opts.imageDataUrl
       const role = hasImage ? 'vision' : 'fast'
-      // Pick the provider that should actually answer this request. For
-      // image-bearing prompts we honor the user's vision-provider override —
-      // they may want fast/cheap text from one vendor but a stronger vision
-      // model from another — except a cloud one in privacy mode.
-      const requestedProvider = answerProviderId(settings, hasImage)
       const modelId = modelFor(role, requestedProvider)
       const maxOutputTokens = hasImage
         ? VISION_MAX_OUTPUT_TOKENS

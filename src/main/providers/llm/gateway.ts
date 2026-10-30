@@ -75,11 +75,23 @@ function client(apiKey: string): Promise<GatewayProvider> {
   return promise
 }
 
-async function request(apiKey: string, args: LlmStreamArgs) {
+// Only Anthropic models need the breakpoint spelled out; the other creators cache
+// a repeated prefix on their own. See cachedSystem in anthropic.ts for why it
+// closes the system prompt and nothing after it.
+function systemFor(args: LlmStreamArgs, cache: boolean) {
+  if (!cache || !args.model.startsWith('anthropic/')) return args.system
+  return {
+    role: 'system' as const,
+    content: args.system,
+    providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' as const } } }
+  }
+}
+
+async function request(apiKey: string, args: LlmStreamArgs, cacheSystem = false) {
   const gw = await client(apiKey)
   const base = {
     model: gw(args.model),
-    system: args.system,
+    system: systemFor(args, cacheSystem),
     maxOutputTokens: args.maxOutputTokens,
     abortSignal: args.signal,
     ...gatewayCallOptions(args.model, args.temperature ?? 0.3)
@@ -103,9 +115,12 @@ export function makeGatewayProvider(apiKey: string): ILlmProvider {
   return {
     id: 'vercel-gateway',
     label: 'Vercel AI Gateway',
+    async warm() {
+      await Promise.all([client(apiKey), import('ai')])
+    },
     async *stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void> {
       const { streamText } = await import('ai')
-      const result = streamText(await request(apiKey, args))
+      const result = streamText(await request(apiKey, args, true))
       // fullStream rather than textStream: textStream silently drops error
       // parts, so a bad key used to end as an empty answer.
       let finishReason: string | undefined

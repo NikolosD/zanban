@@ -40,6 +40,9 @@ export interface ILlmProvider {
   stream(args: LlmStreamArgs): AsyncGenerator<string, LlmFinishReason | undefined, void>
   /** One-shot non-stream completion. */
   generate(args: LlmStreamArgs): Promise<string>
+  /** Load the SDK ahead of the first request, so the import (up to a second or
+   *  more on first use) isn't spent while the user waits for the answer. */
+  warm?(): Promise<void>
   /** Ids of the models this key can call, from the provider's model list. */
   listModels?(signal: AbortSignal): Promise<string[]>
 }

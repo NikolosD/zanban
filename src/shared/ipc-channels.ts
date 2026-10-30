@@ -81,10 +81,11 @@ export const IPC = {
     get: 'settings:get',
     set: 'settings:set',
     changed: 'settings:changed',
-    /** Main → renderer: one or more hotkeys failed to (re)register, e.g. the
-     *  accelerator is already taken by another app. */
+    /** Main → renderer: the hotkeys that failed to (re)register after a rebind, e.g. the
+     *  accelerator is already taken by another app. Empty once every hotkey is bound. */
     hotkeyConflict: 'settings:hotkey-conflict',
-    hotkeyConflicts: 'settings:hotkey-conflicts'
+    hotkeyConflicts: 'settings:hotkey-conflicts',
+    pickFreeHotkeys: 'settings:pick-free-hotkeys'
   },
   sessions: {
     list: 'sessions:list',
