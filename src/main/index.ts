@@ -157,7 +157,14 @@ app.whenReady().then(async () => {
 
   // Auto-grant microphone / camera / display media — but only to our own pages.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
-    const granted = ['media', 'mediaKeySystem', 'display-capture', 'audioCapture', 'videoCapture']
+    const granted = [
+      'media',
+      'mediaKeySystem',
+      'display-capture',
+      'audioCapture',
+      'videoCapture',
+      'clipboard-read'
+    ]
     callback(granted.includes(permission) && isAppUrl(details.requestingUrl))
   })
   session.defaultSession.setPermissionCheckHandler((wc) => !!wc && isAppUrl(wc.getURL()))
