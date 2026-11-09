@@ -24,6 +24,7 @@ import {
 } from '@shared/types'
 import {
   ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SHORTEN_PROMPT,
@@ -239,7 +240,7 @@ export function OverlayApp() {
   // switches after mount, once settings load.
   const handleAnswer = useCallback((): void => {
     void runPromptRef.current({
-      prompt: ANSWER_LAST_PROMPT,
+      prompt: ANSWER_UNANSWERED_PROMPT,
       label: i18n.t('overlay.labels.answer_last'),
       waitForTranscript: true
     })

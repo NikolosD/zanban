@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next'
 import {
   ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -10,6 +11,7 @@ import {
 
 const LABEL_KEYS = new Map([
   [ANSWER_LAST_PROMPT, 'overlay.labels.answer_last'],
+  [ANSWER_UNANSWERED_PROMPT, 'overlay.labels.answer_last'],
   [SCREENSHOT_DEFAULT_PROMPT, 'overlay.labels.screenshot_answer'],
   [FOLLOW_UP_PROMPT, 'overlay.chips.follow_up'],
   [RECAP_PROMPT, 'overlay.chips.catch_up'],

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -14,6 +15,7 @@ import {
 describe('shared prompts', () => {
   const all = {
     ANSWER_LAST_PROMPT,
+    ANSWER_UNANSWERED_PROMPT,
     FOLLOW_UP_PROMPT,
     RECAP_PROMPT,
     SCREENSHOT_DEFAULT_PROMPT,
