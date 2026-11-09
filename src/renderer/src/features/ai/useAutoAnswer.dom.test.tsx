@@ -446,6 +446,37 @@ describe('useAutoAnswer', () => {
     expect(ask).toHaveBeenCalledWith(NEXT_QUESTION)
   })
 
+  it('reports a skipped question and clears it when the next ask starts', () => {
+    const ask = vi.fn()
+    const onSkipped = vi.fn()
+    renderHook(() => useAutoAnswer({ enabled: true, busy: false, ask, onSkipped }))
+    startSession()
+    act(() => useAi.getState().newRequest('Answer last question', 'r1'))
+    onSkipped.mockClear()
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    expect(onSkipped).toHaveBeenLastCalledWith(QUESTION)
+
+    act(() => useAi.getState().finishRequest('r1', 'stop'))
+    expect(onSkipped).toHaveBeenLastCalledWith(QUESTION)
+
+    act(() => useAi.getState().newRequest('Answer last question', 'r2'))
+    expect(onSkipped).toHaveBeenLastCalledWith(null)
+  })
+
+  it('clears a skipped question when switched off', () => {
+    const onSkipped = vi.fn()
+    const { unmount } = renderHook(() =>
+      useAutoAnswer({ enabled: true, busy: false, ask: vi.fn(), onSkipped })
+    )
+    startSession()
+    act(() => useAi.getState().newRequest('Answer last question', 'r1'))
+    say(QUESTION)
+    wait(AUTO_ANSWER_SILENCE_MS)
+    unmount()
+    expect(onSkipped).toHaveBeenLastCalledWith(null)
+  })
+
   it('answers a skipped question if they ask it again once the answer is done', () => {
     const { ask } = mountAutoAnswer()
     startSession()

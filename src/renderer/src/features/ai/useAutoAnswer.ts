@@ -17,21 +17,26 @@ interface AutoAnswerOptions {
   /** An ask is being dispatched; asking now would be dropped. */
   busy: boolean
   ask(question: string): void
+  /** A question went unanswered, or null once that no longer matters. */
+  onSkipped?(question: string | null): void
 }
 
 /**
  * Asks once the other side has gone quiet after a question. A question that
  * ends while an answer is still on its way is skipped, not queued: the user is
  * reading that answer, and a card swapped in late answers a moment that passed.
+ * The caller is told, so the user can still ask for it.
  * A question with no closing punctuation waits a second silence first, since the
  * recognizer may only have caught its first half.
  */
-export function useAutoAnswer({ enabled, busy, ask }: AutoAnswerOptions): void {
+export function useAutoAnswer({ enabled, busy, ask, onSkipped }: AutoAnswerOptions): void {
   const busyRef = useRef(busy)
   const askRef = useRef(ask)
+  const onSkippedRef = useRef(onSkipped)
   useEffect(() => {
     busyRef.current = busy
     askRef.current = ask
+    onSkippedRef.current = onSkipped
   })
   const asked = useRef<{ sessionId: string | null; at: Map<string, number> }>({
     sessionId: null,
@@ -73,7 +78,10 @@ export function useAutoAnswer({ enabled, busy, ask }: AutoAnswerOptions): void {
       if (!question) return
       const key = questionKey(question)
       if (repeatedRecently(key)) return
-      if (busyRef.current || useAi.getState().messages.at(-1)?.status === 'streaming') return
+      if (busyRef.current || useAi.getState().messages.at(-1)?.status === 'streaming') {
+        onSkippedRef.current?.(question)
+        return
+      }
       at.set(key, Date.now())
       askRef.current(question)
     }
@@ -96,12 +104,14 @@ export function useAutoAnswer({ enabled, busy, ask }: AutoAnswerOptions): void {
       if (id === lastMessageId) return
       lastMessageId = id
       judgedId = lastSystemFinal(useTranscript.getState().finals)?.id ?? judgedId
+      onSkippedRef.current?.(null)
     })
 
     return () => {
       unsubscribeTranscript()
       unsubscribeAi()
       clearTimeout(timer)
+      onSkippedRef.current?.(null)
     }
   }, [enabled, sessionId])
 }

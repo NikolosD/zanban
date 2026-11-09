@@ -107,6 +107,7 @@ export function OverlayApp() {
   // Narrow selectors on purpose: answer text is read only inside AnswerHistory,
   // so streamed tokens don't re-render this whole tree.
   const hasHistory = useAi((s) => s.messages.length > 0)
+  const [skippedQuestion, setSkippedQuestion] = useState<string | null>(null)
   const hasAnswer = useAi((s) => s.messages.some((m) => m.answer.length > 0))
   const streaming = useAi((s) => s.messages.at(-1)?.status === 'streaming')
 
@@ -231,7 +232,7 @@ export function OverlayApp() {
   useEffect(() => {
     const id = requestAnimationFrame(measurePanel)
     return () => cancelAnimationFrame(id)
-  }, [transcriptionError, apiKeysMissing, measurePanel])
+  }, [transcriptionError, apiKeysMissing, skippedQuestion, measurePanel])
 
   // Labels are resolved through the i18n instance at call time: these callbacks
   // outlive renders (IPC subscriptions, memoized panes) and the UI language
@@ -257,7 +258,12 @@ export function OverlayApp() {
       question
     })
   }, [])
-  useAutoAnswer({ enabled: autoAnswer && visible, busy, ask: answerDetectedQuestion })
+  useAutoAnswer({
+    enabled: autoAnswer && visible,
+    busy,
+    ask: answerDetectedQuestion,
+    onSkipped: setSkippedQuestion
+  })
 
   useEffect(() => {
     void window.zanban.overlay.getStealth().then(setStealth)
@@ -528,6 +534,13 @@ export function OverlayApp() {
                           </Alert>
                         )}
                       </div>
+                    )}
+
+                    {skippedQuestion && (
+                      <SkippedQuestion
+                        question={skippedQuestion}
+                        onAnswer={answerDetectedQuestion}
+                      />
                     )}
 
                     {hasHistory && (
@@ -1315,6 +1328,28 @@ function AnswerHistory({
         </div>
       )}
     </AnswerScroller>
+  )
+}
+
+export function SkippedQuestion({
+  question,
+  onAnswer
+}: {
+  question: string
+  onAnswer: (question: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <button
+      data-interactive
+      type="button"
+      title={question}
+      onClick={() => onAnswer(question)}
+      className="mb-2 flex w-full items-center gap-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 text-left text-small text-warn hover:bg-warn/20"
+    >
+      <span className="min-w-0 flex-1 truncate">{t('overlay.skipped_question', { question })}</span>
+      <span className="shrink-0 font-mono lowercase">{t('overlay.skipped_answer')}</span>
+    </button>
   )
 }
 
