@@ -7,6 +7,9 @@
 export const ANSWER_LAST_PROMPT =
   'Look at the recent transcript. Find the most recent question asked by THEM (the other speaker, not YOU). Answer that question directly, as if YOU were answering live in the meeting, in the answer shape from your instructions. No preamble. Match the question language.'
 
+export const ANSWER_UNANSWERED_PROMPT =
+  'Look at the recent transcript and <previous_exchanges>. Find every question asked by THEM (the other speaker, not YOU) that has not been answered yet. Answer each one in the order asked, as if YOU were answering live in the meeting, in the answer shape from your instructions. Start each answer with its own bold line, using only what is relevant to that question. If one question is unanswered, answer just that one. No preamble, and never mention how many questions there were. Match the question language.'
+
 export const SCREENSHOT_DEFAULT_PROMPT =
   'Help me with what is on this screenshot — solve it, fix it, or do whatever it asks for. Skip describing the image.'
 

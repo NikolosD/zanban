@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -48,7 +49,11 @@ const NO_SEARCH_PROMPTS = new Set([
   RECAP_PROMPT,
   SHORTEN_PROMPT
 ])
-const QUESTION_PROMPTS = new Set([ANSWER_LAST_PROMPT, WHAT_TO_ANSWER_PROMPT])
+const QUESTION_PROMPTS = new Set([
+  ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
+  WHAT_TO_ANSWER_PROMPT
+])
 
 type SearchHit = Awaited<ReturnType<IWebSearchProvider['search']>>[number]
 
@@ -247,6 +252,7 @@ export function retrievalQueryFor(prompt: string, segments: TranscriptSegment[])
   const finals = segments.filter((s) => s.isFinal && s.text.trim())
   const theirs = finals.filter((s) => s.channel === 'system')
   const spoken = (theirs.length > 0 ? theirs : finals).map((s) => s.text.trim()).join(' ')
+  if (fixed === ANSWER_UNANSWERED_PROMPT) return lastWords(spoken, RETRIEVAL_QUERY_MAX_WORDS)
   return lastQuestion(spoken) ?? lastWords(spoken, RETRIEVAL_QUERY_MAX_WORDS)
 }
 

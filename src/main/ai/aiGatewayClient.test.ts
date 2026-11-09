@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { IPC } from '../../shared/ipc-channels.js'
 import {
   ANSWER_LAST_PROMPT,
+  ANSWER_UNANSWERED_PROMPT,
   FOLLOW_UP_PROMPT,
   RECAP_PROMPT,
   SCREENSHOT_DEFAULT_PROMPT,
@@ -151,6 +152,12 @@ const SPEECH = [
 ]
 
 describe('retrievalQueryFor', () => {
+  it('searches on every question when answering all that are unanswered', () => {
+    expect(
+      retrievalQueryFor(ANSWER_UNANSWERED_PROMPT, [them('When can you start?'), them('Any visa?')])
+    ).toBe('When can you start? Any visa?')
+  })
+
   describe('a typed prompt', () => {
     it('stays the query when it is short', () => {
       expect(retrievalQueryFor('what is our Q3 churn?', [them('hello')])).toBe(
