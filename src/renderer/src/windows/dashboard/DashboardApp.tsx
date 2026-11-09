@@ -284,7 +284,7 @@ export function DashboardApp() {
       </Dialog>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden gap-0 h-[640px]">
+        <DialogContent className="grid-cols-1 sm:max-w-4xl p-0 overflow-hidden gap-0 h-[640px]">
           <DialogTitle className="sr-only">{t('settings.title')}</DialogTitle>
           <DialogDescription className="sr-only">
             {t('settings.dialog_description')}
