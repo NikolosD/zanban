@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -9,7 +9,7 @@ import { ANSWER_LAST_PROMPT } from '@shared/prompts'
 import { useAi } from '@renderer/features/ai/store'
 import { useAskRequest } from '@renderer/features/ai/useAskRequest'
 import { useTranscript } from '@renderer/features/transcript/store'
-import { AnswerPane } from './OverlayApp'
+import { AnswerPane, SkippedQuestion } from './OverlayApp'
 
 const QUESTION = 'How do you handle reconciliation when streams disagree?'
 
@@ -143,5 +143,16 @@ describe('AnswerPane', () => {
     expect(header.className).toContain('top-0')
     const lead = screen.getByTestId('answer-lead')
     expect(header.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('SkippedQuestion', () => {
+  it('shows the missed question and answers it on click', () => {
+    const onAnswer = vi.fn()
+    render(<SkippedQuestion question={QUESTION} onAnswer={onAnswer} />)
+    expect(screen.getByText(`Missed: ${QUESTION}`)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(onAnswer).toHaveBeenCalledWith(QUESTION)
   })
 })

@@ -51,6 +51,8 @@
     "on": "on",
     "off": "off",
     "question": "Q: {{question}}",
+    "skipped_question": "Missed: {{question}}",
+    "skipped_answer": "answer",
     "rolling": {
       "listening": "listening…",
       "connecting": "starting speech recognition…",

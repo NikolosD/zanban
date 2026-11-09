@@ -51,6 +51,8 @@
     "on": "вкл",
     "off": "выкл",
     "question": "Вопрос: {{question}}",
+    "skipped_question": "Пропущен: {{question}}",
+    "skipped_answer": "ответить",
     "rolling": {
       "listening": "слушаю…",
       "connecting": "запускаю распознавание речи…",
