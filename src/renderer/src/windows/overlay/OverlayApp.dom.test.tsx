@@ -5,8 +5,13 @@ import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@shared/locales/en.json'
 import ru from '@shared/locales/ru.json'
-import { ANSWER_LAST_PROMPT } from '@shared/prompts'
-import { DEFAULT_SETTINGS, type AppSettings, type AudioChannel } from '@shared/types'
+import { ANSWER_LAST_PROMPT, ANSWER_UNANSWERED_PROMPT } from '@shared/prompts'
+import {
+  DEFAULT_SETTINGS,
+  type AppSettings,
+  type AudioChannel,
+  type ScreenSnapshot
+} from '@shared/types'
 import { useAi } from '@renderer/features/ai/store'
 import { AUTO_ANSWER_SILENCE_MS } from '@renderer/features/ai/useAutoAnswer'
 import { useSettingsStore } from '@renderer/features/settings/store'
@@ -34,6 +39,8 @@ interface Bridge {
 
 let settingsListener: (settings: AppSettings) => void = () => {}
 let visibilityListener: (visible: boolean) => void = () => {}
+let snapshotListener: (snap: ScreenSnapshot) => void = () => {}
+let answerLastListener: () => void = () => {}
 let nextId = 0
 
 function stubBridge(
@@ -61,6 +68,14 @@ function stubBridge(
     'overlay.setIgnoreMouse': setIgnoreMouse,
     'overlay.onVisibilityChanged': (cb: typeof visibilityListener) => {
       visibilityListener = cb
+      return () => {}
+    },
+    'overlay.onSnapshotAsk': (cb: typeof snapshotListener) => {
+      snapshotListener = cb
+      return () => {}
+    },
+    'overlay.onAnswerLast': (cb: typeof answerLastListener) => {
+      answerLastListener = cb
       return () => {}
     },
     'ai.ask': askFn,
@@ -282,6 +297,39 @@ describe('OverlayApp auto-answer', () => {
 
     expect(screen.getByText(`Q: ${NEXT_QUESTION}`)).toBeTruthy()
     expect(screen.getByText(QUESTION)).toBeTruthy()
+  })
+})
+
+describe('OverlayApp Answer', () => {
+  it('asks about every unanswered question when nothing is attached', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+    act(() => answerLastListener())
+    await wait(700)
+
+    expect(bridge.ask).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: ANSWER_UNANSWERED_PROMPT })
+    )
+  })
+
+  it('asks about an attached screenshot instead, and clears it', async () => {
+    const bridge = stubBridge(false)
+    await mountOverlay()
+    act(() =>
+      snapshotListener({ snapshotId: 'shot', dataUrl: 'data:image/png;base64,AAAA', ocrText: null })
+    )
+    act(() => answerLastListener())
+    await wait(0)
+
+    expect(bridge.ask).toHaveBeenCalledTimes(1)
+    expect(bridge.ask).toHaveBeenCalledWith(
+      expect.objectContaining({ imageDataUrl: 'data:image/png;base64,AAAA' })
+    )
+    act(() => answerLastListener())
+    await wait(700)
+    expect(bridge.ask).toHaveBeenLastCalledWith(
+      expect.objectContaining({ prompt: ANSWER_UNANSWERED_PROMPT })
+    )
   })
 })
 
