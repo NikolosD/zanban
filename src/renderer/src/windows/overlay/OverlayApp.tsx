@@ -97,6 +97,7 @@ export function OverlayApp() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const runPromptRef = useRef<(opts: AskRequestOptions) => Promise<void>>(() => Promise.resolve())
+  const sendScreenshotRef = useRef<(() => Promise<void>) | null>(null)
   const ignoreMouseRef = useRef<boolean | null>(null)
   const session = useTranscript((s) => s.session)
   const startedAt = session.kind === 'running' ? session.startedAt : null
@@ -238,7 +239,12 @@ export function OverlayApp() {
   // Labels are resolved through the i18n instance at call time: these callbacks
   // outlive renders (IPC subscriptions, memoized panes) and the UI language
   // switches after mount, once settings load.
+  // With a screenshot attached, Answer asks about it, as Enter in the input would.
   const handleAnswer = useCallback((): void => {
+    if (sendScreenshotRef.current) {
+      void sendScreenshotRef.current()
+      return
+    }
     void runPromptRef.current({
       prompt: ANSWER_UNANSWERED_PROMPT,
       label: i18n.t('overlay.labels.answer_last'),
@@ -401,6 +407,7 @@ export function OverlayApp() {
 
   useEffect(() => {
     runPromptRef.current = runPrompt
+    sendScreenshotRef.current = image ? send : null
   })
 
   // Esc stops the answer wherever the focus is; the input handles its own Esc.
